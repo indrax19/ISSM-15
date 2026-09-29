@@ -444,7 +444,7 @@ export default function SslProjectDetail() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] min-w-0 space-y-7">
       {/* Real-time Status Display */}
       <RealtimeStatusIndicator
         isConnected={projectConnected && sitesConnected}
@@ -452,28 +452,33 @@ export default function SslProjectDetail() {
         isLoading={projectLoading || sitesLoading}
       />
 
-      <section className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-blue-50/80 p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 items-start gap-3">
-            <Button variant="outline" size="icon" onClick={() => navigate("/sla")} className="mt-1 shrink-0 border-slate-200 bg-white text-slate-600 hover:bg-slate-50" aria-label="Back to SLA projects">
+      <section className="relative isolate overflow-hidden rounded-2xl bg-gradient-to-br from-[#102c45] via-[#124c78] to-[#176a83] p-5 text-white shadow-lg shadow-slate-900/10 sm:p-7 lg:p-8">
+        <div aria-hidden="true" className="absolute -right-20 -top-24 h-72 w-72 rounded-full border-[36px] border-white/[0.06]" />
+        <div aria-hidden="true" className="absolute -bottom-32 right-1/4 h-56 w-56 rounded-full border-[28px] border-white/[0.05]" />
+        <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+            <Button variant="outline" size="icon" onClick={() => navigate("/sla")} className="mt-1 h-10 w-10 shrink-0 border-white/25 bg-white/10 text-white hover:border-white/40 hover:bg-white/20 hover:text-white" aria-label="Back to SLA projects">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-600">SLA Maintenance Visits</p>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-50">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
+                SLA maintenance visits
+              </div>
               {projectLoading ? (
-                <div className="mt-2 h-8 w-48 animate-pulse rounded bg-slate-200" />
+                <div className="mt-1 h-10 w-52 animate-pulse rounded bg-white/20 sm:w-72" />
               ) : (
-                <h1 className="mt-1 truncate text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{project?.name ?? "Project"}</h1>
+                <h1 className="break-words text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-[2.75rem]">{project?.name ?? "Project"}</h1>
               )}
-              {project?.description && <p className="mt-1 line-clamp-2 text-sm text-slate-600">{project.description}</p>}
+              {project?.description && <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">{project.description}</p>}
             </div>
           </div>
           {isUserAssigned && (
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button onClick={() => setShowImportDialog(true)} variant="outline" className="gap-2 border-slate-300 bg-white" size="sm">
+            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap lg:shrink-0">
+              <Button onClick={() => setShowImportDialog(true)} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
                 <FileUp className="h-4 w-4" />Bulk Import
               </Button>
-              <Button onClick={() => navigate(`/sla-sub-projects/new/${id}`)} className="gap-2 bg-[#124c78] text-white shadow-sm hover:bg-[#0d3d62]" size="sm">
+              <Button onClick={() => navigate(`/sla-sub-projects/new/${id}`)} className="h-10 gap-2 bg-white text-[#124c78] shadow-sm hover:bg-blue-50" size="sm">
                 <Plus className="h-4 w-4" />New SLA Visit
               </Button>
             </div>
@@ -482,30 +487,30 @@ export default function SslProjectDetail() {
       </section>
 
       {!isUserAssigned && (
-        <Card className="border border-amber-300 bg-amber-50">
-          <CardContent className="p-6">
-            <p className="text-sm font-medium text-amber-900 flex items-center gap-2">
-              <span>⚠️</span> You don't have permission to edit this project. Contact an administrator for access.
-            </p>
+        <Card className="border-amber-200 bg-amber-50/80 shadow-sm">
+          <CardContent className="flex items-start gap-3 p-4 sm:p-5">
+            <div className="rounded-full bg-amber-100 p-2 text-amber-800"><Clock className="h-4 w-4" /></div>
+            <p className="pt-1 text-sm leading-6 text-amber-950">You have view-only access to this project. Contact an administrator if you need editing permissions.</p>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4 sm:gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {[
-          { label: "Total Visits", value: visitStats.total, icon: FileText, tone: "blue" },
-          { label: "Preventive", value: visitStats.preventive, icon: CheckCircle, tone: "green" },
-          { label: "Corrective", value: visitStats.corrective, icon: Zap, tone: "amber" },
-          { label: "Needs Follow-up", value: visitStats.followUp, icon: Clock, tone: "rose" },
-        ].map(({ label, value, icon: Icon, tone }) => (
-          <Card key={label} className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
-            <CardContent className="flex items-center justify-between gap-3 p-4 sm:p-5">
+          { label: "Total Visits", value: visitStats.total, icon: FileText, iconClass: "bg-blue-50 text-blue-700", accent: "bg-blue-500" },
+          { label: "Preventive", value: visitStats.preventive, icon: CheckCircle, iconClass: "bg-emerald-50 text-emerald-700", accent: "bg-emerald-500" },
+          { label: "Corrective", value: visitStats.corrective, icon: Zap, iconClass: "bg-amber-50 text-amber-700", accent: "bg-amber-500" },
+          { label: "Needs Follow-up", value: visitStats.followUp, icon: Clock, iconClass: "bg-rose-50 text-rose-700", accent: "bg-rose-500" },
+        ].map(({ label, value, icon: Icon, iconClass, accent }) => (
+          <Card key={label} className="group relative overflow-hidden border-slate-200/80 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+            <div className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
+            <CardContent className="flex min-h-[108px] items-center justify-between gap-2 p-4 pt-5 sm:min-h-[124px] sm:p-5 sm:pt-6">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-slate-500 sm:text-sm">{label}</p>
-                <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{value}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
+                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{value}</p>
               </div>
-              <div className={`rounded-xl p-3 ${tone === "blue" ? "bg-blue-50 text-blue-700" : tone === "green" ? "bg-emerald-50 text-emerald-700" : tone === "amber" ? "bg-amber-50 text-amber-700" : "bg-rose-50 text-rose-700"}`}>
-                <Icon className="h-5 w-5" />
+              <div className={`shrink-0 rounded-xl p-2.5 sm:p-3 ${iconClass}`}>
+                <Icon className="h-5 w-5 sm:h-[22px] sm:w-[22px]" />
               </div>
             </CardContent>
           </Card>
@@ -517,31 +522,35 @@ export default function SslProjectDetail() {
         <DataLoadingSkeleton />
       ) : sites && sites.length > 0 ? (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-slate-900">Maintenance Visits <span className="text-slate-500">({filteredSites.length})</span></h2>
-              {sitesConnected && <div className="flex items-center gap-1 text-xs font-medium text-green-600"><Wifi className="h-3.5 w-3.5" /> Live</div>}
+          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="min-w-0">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#176a83]">Service log</p>
+                {sitesConnected && <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><Wifi className="h-3 w-3" /> Live</span>}
+              </div>
+              <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Maintenance visits</h2>
+              <p className="mt-1 text-sm text-slate-500">Browse and manage service records for this project.</p>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => exportProjectTrackingToExcel(filteredSites)}
-              disabled={filteredSites.length === 0}
-              className="gap-2 border-gray-300 hover:bg-gray-50 w-full sm:w-auto"
-              size="sm"
-            >
-              <Download className="h-4 w-4" /> Download Excel
-            </Button>
+            <div className="flex items-center gap-3">
+              <span className="whitespace-nowrap rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">{filteredSites.length} {filteredSites.length === 1 ? "visit" : "visits"}</span>
+              <Button
+                variant="outline"
+                onClick={() => exportProjectTrackingToExcel(filteredSites)}
+                disabled={filteredSites.length === 0}
+                className="h-10 flex-1 gap-2 border-slate-200 bg-white hover:bg-slate-50 sm:flex-none"
+                size="sm"
+              >
+                <Download className="h-4 w-4" /> Download Excel
+              </Button>
+            </div>
           </div>
 
-          {/* Filters */}
-          <Card className="border border-gray-200 shadow-sm">
-            <CardContent className="p-6 space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Showing <span className="font-semibold text-slate-900">{filteredSites.length}</span> visit{filteredSites.length === 1 ? "" : "s"}
-                  </p>
-                </div>
+          <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <CardContent className="space-y-4 p-4 sm:p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-slate-600">
+                  Showing <span className="font-semibold text-slate-900">{filteredSites.length}</span> of {sites.length} visit{sites.length === 1 ? "" : "s"}
+                </p>
                 {hasActiveFilters && (
                   <Button
                     variant="outline"
@@ -563,7 +572,7 @@ export default function SslProjectDetail() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-700">Search visits</Label>
-                  <Input placeholder="ID, mill, location, or visit no." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="border-slate-200 bg-white" />
+                  <Input placeholder="ID, mill, location, or visit no." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} className="h-10 border-slate-200 bg-white" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-700">Visit Type</Label>
@@ -728,16 +737,16 @@ export default function SslProjectDetail() {
         </div>
       ) : (
         <Card className="border border-gray-200 shadow-sm">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <div className="p-3 bg-gray-100 rounded-lg mb-4">
-              <MapPin className="h-8 w-8 text-gray-400" />
+          <CardContent className="flex flex-col items-center justify-center px-5 py-14 text-center sm:py-16">
+            <div className="mb-4 rounded-2xl bg-blue-50 p-4 text-[#124c78]">
+              <MapPin className="h-8 w-8" />
             </div>
-            <p className="text-gray-900 font-semibold mb-2">No maintenance visits yet</p>
-            <p className="text-gray-600 text-sm mb-6">Create the first SLA visit for this project to get started.</p>
+            <p className="mb-2 text-lg font-semibold text-slate-900">No maintenance visits yet</p>
+            <p className="mb-6 max-w-sm text-sm leading-6 text-slate-500">Create the first SLA visit for this project to start building its service history.</p>
             {isUserAssigned && (
               <Button
                 onClick={() => navigate(`/sla-sub-projects/new/${id}`)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-[#124c78] text-white hover:bg-[#0d3d62]"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Create SLA Visit
