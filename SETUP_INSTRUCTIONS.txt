@@ -1,0 +1,73 @@
+================================================================================
+ADMIN ACCOUNT SETUP - CONFIDENTIAL
+================================================================================
+
+STEP 1: Go to Login Page
+- Open your application at: /login
+
+STEP 2: Initialize Admin Account (Browser Console)
+- Press F12 to open Developer Tools
+- Go to the Console tab
+- Copy and paste this command:
+
+import { setupAdmin } from '@/utils/setupAdmin'
+await setupAdmin('umair@aviratechnologies.com', '123456', 'Umair')
+
+- Press Enter to execute
+- Wait for the success message
+
+STEP 3: Login
+- Go back to login page
+- Enter email: umair@aviratechnologies.com
+- Enter password: 123456
+- Click Sign In
+
+STEP 4: Change Default Password (IMPORTANT!)
+- After logging in, click Settings button (top right)
+- Go to "Profile Settings" tab
+- In "Change Password" section:
+  * Current Password: 123456
+  * New Password: (choose a strong password)
+  * Confirm Password: (repeat the new password)
+  * Click "Change Password"
+
+STEP 5: Manage Users
+- Go to Settings → "Manage Users" tab
+- Add new users with:
+  * Email address (must be unique)
+  * Full name
+  * Password (minimum 6 characters)
+  * Confirm password
+- Click "Add User"
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+If admin already exists:
+- Just login with the credentials at /login
+- Email: umair@aviratechnologies.com
+- Password: 123456
+
+To check admin status:
+import { diagnosisCheckAdmin } from '@/utils/diagnostic'
+await diagnosisCheckAdmin()
+
+To reset admin password:
+import { resetAdminPassword } from '@/utils/diagnostic'
+await resetAdminPassword('newpassword')
+
+================================================================================
+IMPORTANT SECURITY NOTES
+================================================================================
+
+✓ All credentials are now hidden from public pages
+✓ Setup page has been removed
+✓ Demo credentials no longer displayed on login page
+✓ Admin can only be set up via browser console (requires access to dev tools)
+✓ Always change the default password after initial setup
+✓ Use Settings page to manage all user accounts
+✓ Disabled users cannot login
+✓ Admin account cannot be deleted
+
+================================================================================
