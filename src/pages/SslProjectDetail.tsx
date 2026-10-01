@@ -529,27 +529,22 @@ export default function SslProjectDetail() {
         <div className="space-y-4">
           <Card className="rounded-2xl border-slate-200 shadow-sm">
             <CardContent className="space-y-4 p-4 sm:p-5">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-slate-600">
-                  Showing <span className="font-semibold text-slate-900">{filteredSites.length}</span> of {sites.length} visit{sites.length === 1 ? "" : "s"}
-                </p>
-                {hasActiveFilters && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSearchTerm("");
-                      setFilterVisitType("");
-                      setFilterSlaYear("");
-                      setFilterOverallStatus("");
-                      setFilterCity("");
-                    }}
-                    className="border-gray-300 hover:bg-gray-50"
-                  >
-                    Clear Filters
-                  </Button>
-                )}
-              </div>
+              {hasActiveFilters && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setFilterVisitType("");
+                    setFilterSlaYear("");
+                    setFilterOverallStatus("");
+                    setFilterCity("");
+                  }}
+                  className="border-gray-300 hover:bg-gray-50"
+                >
+                  Clear Filters
+                </Button>
+              )}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <div className="space-y-1.5">
