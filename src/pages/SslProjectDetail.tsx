@@ -24,6 +24,7 @@ import { RealtimeStatusIndicator, DataLoadingSkeleton, ConnectionBadge } from "@
 import { format, differenceInHours } from "date-fns";
 import { exportProjectTrackingToExcel } from "@/lib/excelExport";
 import { downloadProjectSitePDF } from "@/lib/pdfGenerator";
+import { downloadSlaVisitPDF } from "@/lib/slaVisitPDF";
 import { ProjectProfileSelector } from "@/components/ProjectProfileSelector";
 import { companyProfileAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
 import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
@@ -320,13 +321,20 @@ export default function SslProjectDetail() {
     }
   };
 
-  const handleDownloadVisit = (site: SslSubProject) => {
+  const handleDownloadVisit = async (site: SslSubProject) => {
     if (site.maintenanceReport) {
-      openVisitFormForPrint(site);
-    } else {
-      setSiteForDownload(site);
-      setShowProfileSelector(true);
+      try {
+        await downloadSlaVisitPDF(site, project?.name);
+        toast.success("SLA visit PDF downloaded.");
+      } catch (error) {
+        console.error("Failed to download SLA visit PDF:", error);
+        toast.error("Failed to download SLA visit PDF.");
+      }
+      return;
     }
+
+    setSiteForDownload(site);
+    setShowProfileSelector(true);
   };
 
   const createCertificateMutation = useMutation({
