@@ -599,14 +599,14 @@ export default function SslProjectDetail() {
             <Table className="min-w-[1050px]">
               <TableHeader className="bg-slate-50">
                 <TableRow className="border-b border-slate-200 hover:bg-slate-50">
-                  <TableHead className="h-12 text-xs font-semibold uppercase tracking-wide text-slate-500">ID</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">Date</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mill / Unit</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">Location</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">Visit Type</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">Visit No. / Year</TableHead>
-                  <TableHead className="text-xs font-semibold uppercase tracking-wide text-slate-500">System Status</TableHead>
-                  <TableHead className="text-right text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</TableHead>
+                  <TableHead className="h-12 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">ID</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Date</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Mill / Unit</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Location</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Visit Type</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Visit No. / Year</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">System Status</TableHead>
+                  <TableHead className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
