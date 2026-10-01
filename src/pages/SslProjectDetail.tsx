@@ -24,7 +24,6 @@ import { RealtimeStatusIndicator, DataLoadingSkeleton, ConnectionBadge } from "@
 import { format, differenceInHours } from "date-fns";
 import { exportProjectTrackingToExcel } from "@/lib/excelExport";
 import { downloadProjectSitePDF } from "@/lib/pdfGenerator";
-import { downloadSlaVisitPDF } from "@/lib/slaVisitPDF";
 import { ProjectProfileSelector } from "@/components/ProjectProfileSelector";
 import { companyProfileAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
 import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
@@ -115,6 +114,7 @@ export default function SslProjectDetail() {
   const { isAdmin, appUser } = useAuth();
   const [viewSite, setViewSite] = useState<any>(null);
   const [selectedVisitForPreview, setSelectedVisitForPreview] = useState<SslSubProject | null>(null);
+  const [downloadPreviewOnOpen, setDownloadPreviewOnOpen] = useState(false);
   const [viewedSiteIds, setViewedSiteIds] = useState<Set<string>>(() => {
     // Load viewed sites from localStorage on mount
     const storageKey = `viewed_ssl_sub_projects_${id}_${appUser?.id}`;
@@ -321,15 +321,10 @@ export default function SslProjectDetail() {
     }
   };
 
-  const handleDownloadVisit = async (site: SslSubProject) => {
+  const handleDownloadVisit = (site: SslSubProject) => {
     if (site.maintenanceReport) {
-      try {
-        await downloadSlaVisitPDF(site, project?.name);
-        toast.success("SLA visit PDF downloaded.");
-      } catch (error) {
-        console.error("Failed to download SLA visit PDF:", error);
-        toast.error("Failed to download SLA visit PDF.");
-      }
+      setDownloadPreviewOnOpen(true);
+      setSelectedVisitForPreview(site);
       return;
     }
 
@@ -734,7 +729,12 @@ export default function SslProjectDetail() {
         </Card>
       )}
 
-      <Dialog open={!!selectedVisitForPreview} onOpenChange={(open) => !open && setSelectedVisitForPreview(null)}>
+      <Dialog open={!!selectedVisitForPreview} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedVisitForPreview(null);
+          setDownloadPreviewOnOpen(false);
+        }
+      }}>
         <DialogContent className="max-h-[94vh] w-[calc(100vw-1rem)] max-w-[1500px] overflow-y-auto p-3 sm:w-[calc(100vw-2rem)] sm:p-6">
           <DialogHeader className="sr-only">
             <DialogTitle>Preview SLA maintenance form {selectedVisitForPreview?.maintenanceReport?.formNumber || ""}</DialogTitle>
@@ -745,7 +745,15 @@ export default function SslProjectDetail() {
                 siteIdOverride={selectedVisitForPreview.id}
                 projectIdOverride={id}
                 previewOnly
-                onClosePreview={() => setSelectedVisitForPreview(null)}
+                downloadOnLoad={downloadPreviewOnOpen}
+                onClosePreview={() => {
+                  setSelectedVisitForPreview(null);
+                  setDownloadPreviewOnOpen(false);
+                }}
+                onDownloadComplete={() => {
+                  setSelectedVisitForPreview(null);
+                  setDownloadPreviewOnOpen(false);
+                }}
                 onPrintPreview={() => openVisitFormForPrint(selectedVisitForPreview)}
               />
             </Suspense>
