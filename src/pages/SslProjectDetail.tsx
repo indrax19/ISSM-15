@@ -473,16 +473,21 @@ export default function SslProjectDetail() {
               {project?.description && <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-100 sm:text-base">{project.description}</p>}
             </div>
           </div>
-          {isUserAssigned && (
-            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap lg:shrink-0">
+          <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap lg:shrink-0">
+            {isUserAssigned && (
               <Button onClick={() => setShowImportDialog(true)} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
                 <FileUp className="h-4 w-4" />Bulk Import
               </Button>
+            )}
+            <Button onClick={() => exportProjectTrackingToExcel(filteredSites)} disabled={filteredSites.length === 0} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
+              <Download className="h-4 w-4" />Download Excel
+            </Button>
+            {isUserAssigned && (
               <Button onClick={() => navigate(`/sla-sub-projects/new/${id}`)} className="h-10 gap-2 bg-white text-[#124c78] shadow-sm hover:bg-blue-50" size="sm">
                 <Plus className="h-4 w-4" />New SLA Visit
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </section>
 
@@ -504,13 +509,13 @@ export default function SslProjectDetail() {
         ].map(({ label, value, icon: Icon, iconClass, accent }) => (
           <Card key={label} className="group relative overflow-hidden border-slate-200/80 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
             <div className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
-            <CardContent className="flex min-h-[108px] items-center justify-between gap-2 p-4 pt-5 sm:min-h-[124px] sm:p-5 sm:pt-6">
+            <CardContent className="flex min-h-[88px] items-center justify-between gap-2 p-3 pt-4 sm:min-h-[100px] sm:p-4 sm:pt-5">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 sm:text-xs">{label}</p>
-                <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{value}</p>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 sm:text-[11px]">{label}</p>
+                <p className="mt-1 text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{value}</p>
               </div>
-              <div className={`shrink-0 rounded-xl p-2.5 sm:p-3 ${iconClass}`}>
-                <Icon className="h-5 w-5 sm:h-[22px] sm:w-[22px]" />
+              <div className={`shrink-0 rounded-lg p-2 sm:p-2.5 ${iconClass}`}>
+                <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
               </div>
             </CardContent>
           </Card>
@@ -522,29 +527,6 @@ export default function SslProjectDetail() {
         <DataLoadingSkeleton />
       ) : sites && sites.length > 0 ? (
         <div className="space-y-4">
-          <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
-            <div className="min-w-0">
-              <div className="mb-1 flex flex-wrap items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#176a83]">Service log</p>
-                {sitesConnected && <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700"><Wifi className="h-3 w-3" /> Live</span>}
-              </div>
-              <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Maintenance visits</h2>
-              <p className="mt-1 text-sm text-slate-500">Browse and manage service records for this project.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="whitespace-nowrap rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">{filteredSites.length} {filteredSites.length === 1 ? "visit" : "visits"}</span>
-              <Button
-                variant="outline"
-                onClick={() => exportProjectTrackingToExcel(filteredSites)}
-                disabled={filteredSites.length === 0}
-                className="h-10 flex-1 gap-2 border-slate-200 bg-white hover:bg-slate-50 sm:flex-none"
-                size="sm"
-              >
-                <Download className="h-4 w-4" /> Download Excel
-              </Button>
-            </div>
-          </div>
-
           <Card className="rounded-2xl border-slate-200 shadow-sm">
             <CardContent className="space-y-4 p-4 sm:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
