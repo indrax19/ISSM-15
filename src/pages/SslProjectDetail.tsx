@@ -745,6 +745,7 @@ export default function SslProjectDetail() {
                 projectIdOverride={id}
                 previewOnly
                 onClosePreview={() => setSelectedVisitForPreview(null)}
+                onPrintPreview={() => openVisitFormForPrint(selectedVisitForPreview)}
               />
             </Suspense>
           )}

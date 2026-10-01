@@ -339,11 +339,13 @@ export default function SslSubProjectForm({
   projectIdOverride,
   previewOnly = false,
   onClosePreview,
+  onPrintPreview,
 }: {
   siteIdOverride?: string;
   projectIdOverride?: string;
   previewOnly?: boolean;
   onClosePreview?: () => void;
+  onPrintPreview?: () => void;
 } = {}) {
   const routeParams = useParams<{ siteId?: string; projectId?: string }>();
   const siteId = siteIdOverride || routeParams.siteId;
@@ -805,7 +807,7 @@ export default function SslSubProjectForm({
         {isReadOnlyPreview ? (
           <div className="sla-no-print flex flex-col justify-end gap-2 sm:flex-row">
             <Button type="button" variant="outline" onClick={() => onClosePreview ? onClosePreview() : navigate(`/sla/${projectId || site?.project_id}`)} className="gap-2">{onClosePreview ? "Close Preview" : "Back to visits"}</Button>
-            <Button type="button" onClick={() => window.print()} className="gap-2 bg-[#124c78] hover:bg-[#0d3d62]"><Printer className="h-4 w-4" />Print / Save PDF</Button>
+            <Button type="button" onClick={() => onPrintPreview ? onPrintPreview() : window.print()} className="gap-2 bg-[#124c78] hover:bg-[#0d3d62]"><Printer className="h-4 w-4" />Print / Save PDF</Button>
           </div>
         ) : (
           <div className="sla-no-print flex flex-col gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
