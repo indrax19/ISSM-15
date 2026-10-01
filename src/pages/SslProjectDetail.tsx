@@ -19,12 +19,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, FileUp, CheckCircle, Clock, FileText, Loader2, Copy } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, CheckCircle, Clock, FileText, Loader2, Copy } from "lucide-react";
 import { RealtimeStatusIndicator, DataLoadingSkeleton, ConnectionBadge } from "@/components/RealtimeStatusIndicator";
 import { format, differenceInHours } from "date-fns";
 import { exportProjectTrackingToExcel } from "@/lib/excelExport";
 import { downloadProjectSitePDF } from "@/lib/pdfGenerator";
-import { BulkImportSslSubProjects } from "@/components/BulkImportSslSubProjects";
 import { ProjectProfileSelector } from "@/components/ProjectProfileSelector";
 import { companyProfileAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
 import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
@@ -126,7 +125,6 @@ export default function SslProjectDetail() {
   const [filterSlaYear, setFilterSlaYear] = useState("");
   const [filterOverallStatus, setFilterOverallStatus] = useState("");
   const [filterCity, setFilterCity] = useState("");
-  const [showImportDialog, setShowImportDialog] = useState(false);
   const [showProfileSelector, setShowProfileSelector] = useState(false);
   const [siteForDownload, setSiteForDownload] = useState<any>(null);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
@@ -474,11 +472,6 @@ export default function SslProjectDetail() {
             </div>
           </div>
           <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:flex-wrap lg:shrink-0">
-            {isUserAssigned && (
-              <Button onClick={() => setShowImportDialog(true)} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
-                <FileUp className="h-4 w-4" />Bulk Import
-              </Button>
-            )}
             <Button onClick={() => exportProjectTrackingToExcel(filteredSites)} disabled={filteredSites.length === 0} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
               <Download className="h-4 w-4" />Download Excel
             </Button>
@@ -943,13 +936,6 @@ export default function SslProjectDetail() {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Bulk Import Dialog */}
-      <BulkImportSslSubProjects
-        open={showImportDialog}
-        onOpenChange={setShowImportDialog}
-        projectId={id}
-      />
 
       {/* Company Profile Selector Dialog */}
       <ProjectProfileSelector
