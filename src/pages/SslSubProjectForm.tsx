@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ArrowLeft, FileDown, Plus, Printer, Trash2, Upload } from "lucide-react";
 import { z } from "zod";
+import { downloadSlaVisitPDF } from "@/lib/slaVisitPDF";
 
 const SITE_PRODUCTION_POINTS = [
   "Sugar mill operational",
@@ -338,12 +339,18 @@ export default function SslSubProjectForm({
   siteIdOverride,
   projectIdOverride,
   previewOnly = false,
+  downloadOnLoad = false,
   onClosePreview,
+  onPrintPreview,
+  onDownloadComplete,
 }: {
   siteIdOverride?: string;
   projectIdOverride?: string;
   previewOnly?: boolean;
+  downloadOnLoad?: boolean;
   onClosePreview?: () => void;
+  onPrintPreview?: () => void;
+  onDownloadComplete?: () => void;
 } = {}) {
   const routeParams = useParams<{ siteId?: string; projectId?: string }>();
   const siteId = siteIdOverride || routeParams.siteId;
@@ -352,6 +359,10 @@ export default function SslSubProjectForm({
   const [searchParams] = useSearchParams();
   const isReadOnlyPreview = previewOnly || searchParams.has("view") || searchParams.has("print");
   const shouldPrint = searchParams.has("print");
+  const previewRootRef = useRef<HTMLDivElement>(null);
+  const downloadStartedRef = useRef(false);
+  const onDownloadCompleteRef = useRef(onDownloadComplete);
+  onDownloadCompleteRef.current = onDownloadComplete;
   const queryClient = useQueryClient();
   const isEditing = !!siteId;
   const { appUser } = useAuth();
@@ -461,6 +472,28 @@ export default function SslSubProjectForm({
       document.title = previousTitle;
     };
   }, [shouldPrint, site, siteId, report.formNumber, millName]);
+
+  useEffect(() => {
+    if (!downloadOnLoad || !site?.maintenanceReport || initializedSiteIdRef.current !== siteId || !previewRootRef.current || downloadStartedRef.current) return;
+    const timer = window.setTimeout(async () => {
+      if (downloadStartedRef.current || !previewRootRef.current) return;
+      downloadStartedRef.current = true;
+      const filenamePart = (value: string) => value.replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+      const filename = `${filenamePart(report.formNumber || "SLA_Visit")}_${filenamePart(millName || "Site")}.pdf`;
+
+      try {
+        await downloadSlaVisitPDF(previewRootRef.current, filename);
+        toast.success("SLA visit PDF downloaded.");
+        onDownloadCompleteRef.current?.();
+      } catch (error) {
+        downloadStartedRef.current = false;
+        console.error("Failed to download SLA visit PDF:", error);
+        toast.error("Failed to download SLA visit PDF.");
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [downloadOnLoad, site, siteId, report.formNumber, millName]);
 
   useEffect(() => {
     if (project?.name) {
@@ -590,7 +623,7 @@ export default function SslSubProjectForm({
   };
 
   return (
-    <div className="sla-page-shell mx-auto max-w-[1600px] space-y-4 p-2 sm:p-4 lg:p-6">
+    <div ref={previewRootRef} className="sla-page-shell sla-export-root mx-auto max-w-[1600px] space-y-4 p-2 sm:p-4 lg:p-6">
       <style>{`
         .sla-table th,.sla-table td{border:1px solid #cbd5e1;padding:3px 4px;vertical-align:middle}
         .sla-table th{background:#e8eef5;color:#18344d;font-weight:700}
@@ -805,7 +838,7 @@ export default function SslSubProjectForm({
         {isReadOnlyPreview ? (
           <div className="sla-no-print flex flex-col justify-end gap-2 sm:flex-row">
             <Button type="button" variant="outline" onClick={() => onClosePreview ? onClosePreview() : navigate(`/sla/${projectId || site?.project_id}`)} className="gap-2">{onClosePreview ? "Close Preview" : "Back to visits"}</Button>
-            <Button type="button" onClick={() => window.print()} className="gap-2 bg-[#124c78] hover:bg-[#0d3d62]"><Printer className="h-4 w-4" />Print / Save PDF</Button>
+            <Button type="button" onClick={() => onPrintPreview ? onPrintPreview() : window.print()} className="gap-2 bg-[#124c78] hover:bg-[#0d3d62]"><Printer className="h-4 w-4" />Print / Save PDF</Button>
           </div>
         ) : (
           <div className="sla-no-print flex flex-col gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-5">
