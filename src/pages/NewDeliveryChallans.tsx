@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { challanAPI, Challan, ChallanEquipment, ChallanType } from "@/integrations/firebase/challanAPI";
-import { subCategoriesAPI, CompanyProfile, SubCategory, inventoryItemsAPI, inventoryTransactionsAPI } from "@/integrations/firebase/firestore";
+import { subCategoriesAPI, CompanyProfile, SubCategory, InventoryItem, inventoryItemsAPI, inventoryTransactionsAPI } from "@/integrations/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
-import { realtimeCategoriesAPI, realtimeSubCategoriesAPI, realtimeCompanyProfileAPI, realtimeInventoryItemsAPI } from "@/integrations/firebase/realtimeAPI";
+import { realtimeCategoriesAPI, realtimeSubCategoriesAPI, realtimeCompanyProfileAPI } from "@/integrations/firebase/realtimeAPI";
 import { downloadChallanPDF } from "@/lib/pdfGenerator";
 import { supabase } from "@/integrations/supabase/client";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
@@ -27,7 +27,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Download, Camera, X, Upload, FileIcon, Image as ImageIcon, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Camera, X, Upload, FileIcon, ChevronsUpDown } from "lucide-react";
 
 const AUTO_ISSUE_EQUIPMENT = new Set([
   "keyboard & mouse",
@@ -68,7 +68,6 @@ export default function NewDeliveryChallans() {
   const [pocName, setPocName] = useState("");
   const [pocNumber, setPocNumber] = useState("");
   const [unitNo, setUnitNo] = useState("");
-  const [deliveredFrom, setDeliveredFrom] = useState("");
   const [equipment, setEquipment] = useState<ChallanEquipment[]>([
     { id: "0", name: "", quantity: 1, serialNumbers: [""], barcodes: [], category_id: "", subcategory_id: "", manualEquipmentDetails: "", itemIds: [""] },
   ]);
@@ -90,13 +89,17 @@ export default function NewDeliveryChallans() {
   const [selectedChallanProfileId, setSelectedChallanProfileId] = useState<string | null>(null);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [subCategoriesMap, setSubCategoriesMap] = useState<{ [categoryId: string]: SubCategory[] }>({});
-  const [deliveredFromOpen, setDeliveredFromOpen] = useState(false);
   const [equipmentCategoryOpen, setEquipmentCategoryOpen] = useState<{ [key: number]: boolean }>({});
   const [equipmentCategorySearch, setEquipmentCategorySearch] = useState<{ [key: number]: string }>({});
   const [equipmentSubCategoryOpen, setEquipmentSubCategoryOpen] = useState<{ [key: number]: boolean }>({});
   const [equipmentSubCategorySearch, setEquipmentSubCategorySearch] = useState<{ [key: number]: string }>({});
-  const [storeNames, setStoreNames] = useState<string[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [challanInventoryItems, setChallanInventoryItems] = useState<Record<string, InventoryItem | null>>({});
+  const challanItemIds = useMemo(
+    () => [...new Set(equipment.flatMap((item) => item.itemIds || []).filter(Boolean))],
+    [equipment]
+  );
+  const initialChallanItemIdsRef = useRef(new Set<string>());
 
   // Serial number validation - track which serials are valid/invalid
   // Format: "equipmentIndex:serialIndex" -> "valid" | "invalid" | "checking" | ""
@@ -119,28 +122,10 @@ export default function NewDeliveryChallans() {
       : "Auto-generated as DC-00001";
 
   // Realtime subscription refs
-  const storeNamesUnsubRef = useRef<(() => void) | null>(null);
   const profilesUnsubRef = useRef<(() => void) | null>(null);
   const categoriesUnsubRef = useRef<(() => void) | null>(null);
   const existingChallanUnsubRef = useRef<(() => void) | null>(null);
   const subCategoriesUnsubRefs = useRef<{ [key: string]: () => void }>({});
-
-  // Subscribe to store names from inventory items
-  useEffect(() => {
-    storeNamesUnsubRef.current = realtimeInventoryItemsAPI.subscribeAll((items) => {
-      const stores = new Set<string>();
-      items.forEach((item) => {
-        if (item.store_name?.trim()) {
-          stores.add(item.store_name.trim());
-        }
-      });
-      setStoreNames(Array.from(stores).sort());
-    });
-
-    return () => {
-      storeNamesUnsubRef.current?.();
-    };
-  }, []);
 
   // Subscribe to company profiles
   useEffect(() => {
@@ -213,7 +198,6 @@ export default function NewDeliveryChallans() {
         clearTimeout(timeout);
       });
       // Cleanup all realtime subscriptions
-      storeNamesUnsubRef.current?.();
       profilesUnsubRef.current?.();
       categoriesUnsubRef.current?.();
       existingChallanUnsubRef.current?.();
@@ -283,13 +267,15 @@ export default function NewDeliveryChallans() {
         setPocName(challan.pocName || "");
         setPocNumber(challan.pocNumber || "");
         setUnitNo(challan.unitNo || "");
-        setDeliveredFrom(challan.deliveredFrom || "");
         // Ensure equipment has itemIds initialized
         const equipmentWithItemIds = challan.equipment.map(eq => ({
           ...eq,
           itemIds: eq.itemIds || Array(eq.serialNumbers.length).fill("")
         }));
         setEquipment(equipmentWithItemIds);
+        initialChallanItemIdsRef.current = new Set(
+          equipmentWithItemIds.flatMap((item) => item.itemIds || []).filter(Boolean)
+        );
         setSelectedChallanProfileId(challan.companyProfileId || null);
         if (challan.documentUrl) {
           setDocumentUrl(challan.documentUrl);
@@ -316,6 +302,78 @@ export default function NewDeliveryChallans() {
 
   const hasFieldError = (field: string) => fieldErrors[field] ? "border-red-500 focus-visible:ring-red-500" : "";
 
+  useEffect(() => {
+    if (!id || challanType !== "internal" || challanItemIds.length === 0) {
+      setChallanInventoryItems({});
+      return;
+    }
+
+    let isCurrent = true;
+    Promise.all(challanItemIds.map(async (itemId) => {
+      const item = await inventoryItemsAPI.getById(itemId);
+      if (!item || item.status !== "out") return [itemId, item] as const;
+      if (item.active_challan_id === id) return [itemId, item] as const;
+      if (item.active_challan_id) return [itemId, null] as const;
+
+      const transactions = await inventoryTransactionsAPI.getByItem(itemId);
+      const latestRemoval = transactions
+        .filter((entry) => entry.type === "removal")
+        .sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""))[0];
+      const issuedOnThisChallan = latestRemoval?.challan_id === id ||
+        latestRemoval?.notes === `Issued via delivery challan ${challanNo}`;
+      return [itemId, issuedOnThisChallan ? item : null] as const;
+    })).then((items) => {
+      if (isCurrent) setChallanInventoryItems(Object.fromEntries(items));
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [id, challanType, challanItemIds, challanNo]);
+
+  const issueItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      if (!id || challanType !== "internal" || !challanItemIds.includes(itemId)) {
+        throw new Error("Select an item linked to this internal challan");
+      }
+      await inventoryTransactionsAPI.issueItemForChallan({
+        itemId,
+        challanId: id,
+        challanNo,
+        recipientName: customerName || "Internal Challan",
+        siteName: siteLocation || "",
+        createdBy: appUser?.fullName || appUser?.email || "Unknown User",
+        internal: true,
+      });
+    },
+    onSuccess: async (_, itemId) => {
+      const issuedItem = await inventoryItemsAPI.getById(itemId);
+      setChallanInventoryItems((previous) => ({ ...previous, [itemId]: issuedItem }));
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success("Item issued from this internal challan");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to issue item"),
+  });
+
+  const returnItemMutation = useMutation({
+    mutationFn: (itemId: string) => {
+      if (!id) throw new Error("Save the internal challan before returning items");
+      return inventoryTransactionsAPI.returnItemFromChallan(
+        itemId,
+        id,
+        challanNo,
+        appUser?.fullName || appUser?.email || "Unknown User"
+      );
+    },
+    onSuccess: async (_, itemId) => {
+      const returnedItem = await inventoryItemsAPI.getById(itemId);
+      setChallanInventoryItems((previous) => ({ ...previous, [itemId]: returnedItem }));
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success("Item returned to inventory");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to return item"),
+  });
+
   const saveMutation = useMutation({
    mutationFn: async () => {
   const nextFieldErrors: Record<string, boolean> = {};
@@ -333,9 +391,6 @@ export default function NewDeliveryChallans() {
   namedEquipment.forEach((item) => {
     const index = equipment.indexOf(item);
     if (!item.category_id) addFieldError(`equipment-${index}-category`);
-    if (!item.subcategory_id && !item.manualEquipmentDetails?.trim()) {
-      addFieldError(`equipment-${index}-details`);
-    }
     if (!item.quantity || item.quantity < 1) addFieldError(`equipment-${index}-quantity`);
   });
 
@@ -384,9 +439,7 @@ export default function NewDeliveryChallans() {
   // ✅ Step 2: Validate equipment
   const equipmentWithNames = equipment.filter((e) => e.name.trim());
 
-  let validEquipment = equipmentWithNames.filter(
-    (e) => e.category_id && (e.subcategory_id || e.manualEquipmentDetails?.trim())
-  );
+  let validEquipment = equipmentWithNames.filter((e) => e.category_id);
 
   {
     const autoIssueEquipment = validEquipment.filter((item) =>
@@ -470,7 +523,6 @@ export default function NewDeliveryChallans() {
     unitNo,
     pocName,
     pocNumber,
-    deliveredFrom,
     documentUrl: uploadedUrl, // 🔥 IMPORTANT
     equipment: validEquipment.map((e) => ({
       ...e,
@@ -503,14 +555,17 @@ export default function NewDeliveryChallans() {
     await Promise.all(
       [...itemIdsToIssue].map(async (itemId) => {
         try {
-          await inventoryItemsAPI.update(itemId, { status: "out" });
-          await inventoryTransactionsAPI.create({
-            item_id: itemId,
-            type: "removal",
-            recipient_name: customerName || "Delivery Challan",
-            site_name: siteLocation || "",
-            created_by: appUser?.fullName || appUser?.email || "Unknown User",
-            notes: `Issued via delivery challan ${challanData.challanNo}`,
+          if (id && initialChallanItemIdsRef.current.has(itemId)) return;
+          const inventoryItem = await inventoryItemsAPI.getById(itemId);
+          if (!inventoryItem || inventoryItem.status !== "in") return;
+          await inventoryTransactionsAPI.issueItemForChallan({
+            itemId,
+            challanId: challanResult.id,
+            challanNo: challanData.challanNo,
+            recipientName: customerName || "Delivery Challan",
+            siteName: siteLocation || "",
+            createdBy: appUser?.fullName || appUser?.email || "Unknown User",
+            internal: challanType === "internal",
           });
         } catch (error) {
           console.error(`Failed to issue item ${itemId}:`, error);
@@ -1157,56 +1212,7 @@ export default function NewDeliveryChallans() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0">
-            <div className="space-y-1 sm:space-y-2 min-w-0">
-              <Label htmlFor="delivered-from" className="font-semibold text-sm sm:text-base">Delivered From</Label>
-              <Popover open={deliveredFromOpen} onOpenChange={setDeliveredFromOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="delivered-from"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={deliveredFromOpen}
-                    className="w-full justify-between h-10 bg-white"
-                  >
-                    {deliveredFrom || "Select or enter store..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
-                    <CommandInput
-                      placeholder="Search or type store name..."
-                      value={deliveredFrom}
-                      onValueChange={setDeliveredFrom}
-                    />
-                    <CommandEmpty>No stores found. Add items to inventory first.</CommandEmpty>
-                    <CommandList>
-                      <CommandGroup>
-                        {storeNames.map((store) => (
-                          <CommandItem
-                            key={store}
-                            onSelect={() => {
-                              setDeliveredFrom(store);
-                              setDeliveredFromOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                deliveredFrom === store ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {store}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <p className="text-xs text-muted-foreground">Select from list or type a store name</p>
-            </div>
+          <div className="grid grid-cols-1 gap-3 min-w-0 sm:grid-cols-3 sm:gap-4">
             <div className="space-y-2 min-w-0">
               <Label htmlFor="poc-name">POC Name</Label>
               <Input
@@ -1225,96 +1231,72 @@ export default function NewDeliveryChallans() {
                 placeholder="Contact number"
               />
             </div>
-          </div>
-
-          {/* Document Upload */}
-          <div className="space-y-2 sm:space-y-3 pt-4 border-t">
-            <Label className="text-sm sm:text-base">Upload Document/Photo (Optional)</Label>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Upload proof of delivery - photo or document. Shows in portal only, not in PDF.
-            </p>
-
-            {documentPreview ? (
-              <div className="space-y-3">
-                <div className="relative border rounded-lg p-4 bg-muted/50">
-                  {documentPreview.startsWith("pdf:") ? (
-                    <div className="flex items-center gap-3 py-4">
-                      <FileIcon className="h-10 w-10 text-red-600" />
-                      <div>
-                        <p className="font-medium text-sm">PDF Document</p>
-                        <p className="text-xs text-muted-foreground">{documentPreview.replace("pdf:", "")}</p>
-                      </div>
-                    </div>
-                  ) : documentPreview.startsWith("file:") ? (
-                    <div className="flex items-center gap-3 py-4">
-                      <FileIcon className="h-10 w-10 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium text-sm">Document</p>
-                        <p className="text-xs text-muted-foreground">{documentPreview.replace("file:", "")}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <img
-                      src={documentPreview}
-                      alt="Document preview"
-                      className="max-h-40 rounded object-cover w-full"
-                    />
-                  )}
-                </div>
-                <div className="flex gap-2">
+            <div className="space-y-2 min-w-0">
+              <Label htmlFor="document-upload">Upload Document/Photo</Label>
+              <div className="flex h-10 min-w-0 items-center gap-2">
+                {documentPreview ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDownloadDocument}
+                      className="h-10 min-w-0 flex-1 justify-start gap-2 px-2"
+                      title="Open current document"
+                    >
+                      {documentPreview.startsWith("pdf:") || documentPreview.startsWith("file:") ? (
+                        <FileIcon className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <img src={documentPreview} alt="" className="h-6 w-6 shrink-0 rounded object-cover" />
+                      )}
+                      <span className="truncate text-xs">
+                        {documentPreview.startsWith("pdf:")
+                          ? documentPreview.replace("pdf:", "")
+                          : documentPreview.startsWith("file:")
+                          ? documentPreview.replace("file:", "")
+                          : documentFileName || "Current document"}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => (document.getElementById("document-upload") as HTMLInputElement)?.click()}
+                      aria-label="Change document"
+                    >
+                      <Upload className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleRemoveDocument}
+                      aria-label="Remove document"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
                   <Button
+                    type="button"
                     variant="outline"
-                    size="sm"
-                    onClick={handleDownloadDocument}
-                    className="gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    Open Document
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const input = document.getElementById("document-upload") as HTMLInputElement;
-                      input?.click();
-                    }}
-                    className="gap-2 flex-1"
+                    onClick={() => (document.getElementById("document-upload") as HTMLInputElement)?.click()}
+                    className="h-10 w-full justify-center gap-2 border-dashed"
                   >
                     <Upload className="h-4 w-4" />
-                    Change Document
+                    Upload file
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemoveDocument}
-                    className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-                  >
-                    <X className="h-4 w-4" />
-                    Remove
-                  </Button>
-                </div>
+                )}
+                <input
+                  id="document-upload"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleDocumentUpload}
+                  className="hidden"
+                />
               </div>
-            ) : (
-              <div
-                onClick={() => {
-                  const input = document.getElementById("document-upload") as HTMLInputElement;
-                  input?.click();
-                }}
-                className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-5 text-center cursor-pointer hover:border-muted-foreground/50 hover:bg-muted/50 transition"
-              >
-                <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground mb-1">Click to upload document/photo</p>
-                <p className="text-xs text-muted-foreground">PNG, JPG, PDF (Max 10MB)</p>
-              </div>
-            )}
-
-            <input
-              id="document-upload"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={handleDocumentUpload}
-              className="hidden"
-            />
+              <p className="text-xs text-muted-foreground">Image or PDF, up to 10MB</p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1396,7 +1378,7 @@ export default function NewDeliveryChallans() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1.45fr)_5.5rem_minmax(0,1.65fr)]">
                       <div className="space-y-1 sm:space-y-2">
                         <Label htmlFor={`eq-category-${index}`} className="text-sm sm:text-base font-medium">Equipment Name *</Label>
                         <Popover
@@ -1420,7 +1402,7 @@ export default function NewDeliveryChallans() {
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-[280px] p-0" align="start">
-                            <Command>
+                            <Command shouldFilter={false}>
                               <CommandInput
                                 placeholder="Search equipment..."
                                 value={equipmentCategorySearch[index] || ""}
@@ -1471,7 +1453,7 @@ export default function NewDeliveryChallans() {
                         </Popover>
                       </div>
                       <div className="space-y-1 sm:space-y-2">
-                        <Label htmlFor={`eq-subcategory-${index}`} className="text-sm sm:text-base font-medium">Equipment Details *</Label>
+                        <Label htmlFor={`eq-subcategory-${index}`} className="text-sm sm:text-base font-medium">Equipment Details</Label>
                         <Popover
                           open={equipmentSubCategoryOpen[index] || false}
                           onOpenChange={(open) =>
@@ -1500,7 +1482,7 @@ export default function NewDeliveryChallans() {
                           </PopoverTrigger>
                           <PopoverContent className="w-[280px] p-0" align="start">
                             <div className="flex flex-col">
-                              <Command>
+                              <Command shouldFilter={false}>
                                 <CommandInput
                                   placeholder="Search or type details..."
                                   value={equipmentSubCategorySearch[index] || ""}
@@ -1595,14 +1577,12 @@ export default function NewDeliveryChallans() {
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
 
                     {/* Serial Numbers - Dynamic based on Quantity */}
                     <div className="space-y-2 sm:space-y-3">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="space-y-1">
                           <Label className="text-sm sm:text-base font-medium">Serial Numbers ({eq.serialNumbers.filter(s => s.trim()).length}/{eq.quantity})</Label>
-                          <p className="text-xs text-muted-foreground">Manually enter or scan using the camera</p>
                         </div>
                         <Badge
                           variant={eq.serialNumbers.filter(s => s.trim()).length === eq.quantity ? "default" : "secondary"}
@@ -1718,6 +1698,7 @@ export default function NewDeliveryChallans() {
                         })}
                       </div>
                     </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1725,6 +1706,65 @@ export default function NewDeliveryChallans() {
           </div>
         </CardContent>
       </Card>
+
+      {id && challanType === "internal" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Outward / Inward Item Tracking</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Record outward issue to temporarily remove available items from stock, then record their inward return here.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {challanItemIds.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No inventory-linked items on this challan.</p>
+            ) : (
+              <div className="space-y-3">
+                {equipment.flatMap((equipmentItem) => (equipmentItem.itemIds || [])
+                  .filter((itemId, itemIndex, itemIds) => itemId && itemIds.indexOf(itemId) === itemIndex)
+                  .map((itemId) => {
+                    const inventoryItem = challanInventoryItems[itemId];
+                    const isIssuedOnThisChallan = Boolean(inventoryItem && inventoryItem.status === "out");
+                    const isIssuing = issueItemMutation.isPending && issueItemMutation.variables === itemId;
+                    const isReturning = returnItemMutation.isPending && returnItemMutation.variables === itemId;
+                    return (
+                      <div key={itemId} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="font-medium">{equipmentItem.name || equipmentItem.manualEquipmentDetails || "Equipment"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Serial: {inventoryItem?.serial_number || equipmentItem.serialNumbers[(equipmentItem.itemIds || []).indexOf(itemId)] || "—"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant={isIssuedOnThisChallan ? "destructive" : inventoryItem ? "secondary" : "outline"}>
+                            {!inventoryItem ? "Not issued on this challan" : inventoryItem.status === "out" ? "Outward · Awaiting return" : "In inventory"}
+                          </Badge>
+                          {isIssuedOnThisChallan ? (
+                            <Button
+                              size="sm"
+                              onClick={() => returnItemMutation.mutate(itemId)}
+                              disabled={returnItemMutation.isPending || issueItemMutation.isPending}
+                            >
+                              {isReturning ? "Recording..." : "Record inward return"}
+                            </Button>
+                          ) : inventoryItem?.status === "in" ? (
+                            <Button
+                              size="sm"
+                              onClick={() => issueItemMutation.mutate(itemId)}
+                              disabled={issueItemMutation.isPending || returnItemMutation.isPending}
+                            >
+                              {isIssuing ? "Issuing..." : "Record outward issue"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  }))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Barcode Scanner Modal - Serial Number */}
       {scannerOpen && (

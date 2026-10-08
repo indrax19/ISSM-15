@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Challan } from "@/integrations/firebase/challanAPI";
 import { Invoice } from "@/integrations/firebase/invoiceAPI";
 import { companyProfileAPI, subCategoriesAPI } from "@/integrations/firebase/firestore";
+import type { SslSubProject } from "@/integrations/firebase/sslSubProjectsAPI";
 import { addLogoToPDF } from "@/lib/pdfLogoHelper";
 import { downloadHighQualityPDF } from "@/lib/pdfCompression";
 
@@ -1252,6 +1253,173 @@ yPosition += detailLineHeight;
   }
 
   return doc.output("blob");
+}
+
+export async function generateSlaVisitCertificatePDF(
+  projectName: string,
+  site: SslSubProject,
+  profileId?: string
+): Promise<Blob> {
+  const report = site.maintenanceReport;
+  if (!report) throw new Error("SLA visit report is required to generate a certificate");
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  let yPosition = margin;
+
+  const companyProfile = profileId
+    ? await companyProfileAPI.getById(profileId)
+    : await companyProfileAPI.get();
+
+  if (companyProfile?.logo_url) {
+    const logoHeight = await addLogoToPDF(doc, companyProfile.logo_url, margin, yPosition, {
+      maxWidth: 42,
+      maxHeight: 24,
+      maintainAspectRatio: true,
+    });
+    yPosition += logoHeight + 3;
+  }
+
+  if (companyProfile) {
+    doc.setFontSize(10);
+    doc.setFont(undefined, "bold");
+    doc.text(companyProfile.company_name || "Company", pageWidth - margin, margin + 3, { align: "right" });
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(8);
+    if (companyProfile.phone) doc.text(`Phone: ${companyProfile.phone}`, pageWidth - margin, margin + 8, { align: "right" });
+    if (companyProfile.email) doc.text(`Email: ${companyProfile.email}`, pageWidth - margin, margin + 12, { align: "right" });
+  }
+
+  yPosition = Math.max(yPosition, margin + 18) + 4;
+  doc.setDrawColor(18, 76, 120);
+  doc.setLineWidth(0.7);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += 11;
+
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(17);
+  doc.setTextColor(18, 76, 120);
+  doc.text("SLA MAINTENANCE VISIT CERTIFICATE", pageWidth / 2, yPosition, { align: "center" });
+  yPosition += 10;
+
+  const visitType = report.visitType === "Other" ? report.otherVisitType || "Other" : report.visitType || "—";
+  const visitDate = report.visitDate || report.documentDate;
+  const siteLocation = [site.address, site.city, site.district, site.state].filter(Boolean).join(", ") || "—";
+  const details = [
+    ["SLA Project", projectName || report.projectName || "—"],
+    ["Mill / Unit", [site.millName, site.unitNo ? `Unit ${site.unitNo}` : ""].filter(Boolean).join(" · ") || "—"],
+    ["Site Location", siteLocation],
+    ["SLA Form No.", report.formNumber || "—"],
+    ["SLA Year / Visit No.", [report.slaYear, report.visitNumber].filter(Boolean).join(" / ") || "—"],
+    ["Visit Type / Date", `${visitType} · ${formatCertificateDate(visitDate) || "—"}`],
+    ["FBR Site ID", report.fbrSiteId || "—"],
+    ["Visit Outcome", report.overallStatus || "Not recorded"],
+  ];
+
+  autoTable(doc, {
+    startY: yPosition,
+    body: details,
+    theme: "grid",
+    styles: { font: "helvetica", fontSize: 9, cellPadding: 3, lineColor: [219, 228, 237] },
+    columnStyles: {
+      0: { cellWidth: 48, fontStyle: "bold", textColor: [51, 65, 85], fillColor: [241, 245, 249] },
+      1: { textColor: [15, 23, 42] },
+    },
+    margin: { left: margin, right: margin },
+  });
+  yPosition = (doc as any).lastAutoTable.finalY + 10;
+
+  const statement = `This certificate confirms that an SLA ${visitType} maintenance visit was recorded for ${site.millName || projectName || "the listed site"} on ${formatCertificateDate(visitDate) || "the date recorded in the SLA report"}. The outcome and visit details shown above are based on the submitted SLA maintenance report.`;
+  doc.setFont(undefined, "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(51, 65, 85);
+  const statementLines = doc.splitTextToSize(statement, pageWidth - margin * 2);
+  statementLines.forEach((line: string) => {
+    if (yPosition > pageHeight - 42) {
+      doc.addPage();
+      yPosition = margin;
+    }
+    doc.text(line, margin, yPosition);
+    yPosition += 5;
+  });
+
+  const remarks = [report.engineerRemarks, report.productionObservations].filter((value) => value?.trim());
+  if (remarks.length) {
+    yPosition += 4;
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(10);
+    doc.text("Visit Notes", margin, yPosition);
+    yPosition += 6;
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(9);
+    for (const remark of remarks) {
+      const lines = doc.splitTextToSize(remark, pageWidth - margin * 2);
+      for (const line of lines) {
+        if (yPosition > pageHeight - 42) {
+          doc.addPage();
+          yPosition = margin;
+        }
+        doc.text(line, margin, yPosition);
+        yPosition += 4.5;
+      }
+    }
+  }
+
+  if (yPosition > pageHeight - 43) {
+    doc.addPage();
+    yPosition = margin + 4;
+  }
+  yPosition += 8;
+  const signatureWidth = (pageWidth - margin * 2 - 16) / 2;
+  const customerName = report.customerSignoff?.name || report.customerPocName || site.pocName || "Customer Representative";
+  const engineerName = report.engineerSignoffs?.map((signoff) => signoff.name).filter(Boolean).join(", ") ||
+    report.engineerNames?.filter(Boolean).join(", ") || site.supervisorName || "Service Engineer";
+
+  doc.setDrawColor(148, 163, 184);
+  doc.line(margin, yPosition + 12, margin + signatureWidth, yPosition + 12);
+  doc.line(margin + signatureWidth + 16, yPosition + 12, pageWidth - margin, yPosition + 12);
+  doc.setFont(undefined, "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(30, 41, 59);
+  doc.text(customerName, margin, yPosition + 17, { maxWidth: signatureWidth });
+  doc.text(engineerName, margin + signatureWidth + 16, yPosition + 17, { maxWidth: signatureWidth });
+  doc.setFont(undefined, "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Customer Representative", margin, yPosition + 22);
+  doc.text("SLA Service Engineer", margin + signatureWidth + 16, yPosition + 22);
+
+  const totalPages = doc.getNumberOfPages();
+  for (let page = 1; page <= totalPages; page += 1) {
+    doc.setPage(page);
+    doc.setDrawColor(203, 213, 225);
+    doc.line(margin, pageHeight - 14, pageWidth - margin, pageHeight - 14);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text("SLA Maintenance Visit Certificate", margin, pageHeight - 9);
+    doc.text(`Page ${page} of ${totalPages}`, pageWidth - margin, pageHeight - 9, { align: "right" });
+  }
+
+  return doc.output("blob");
+}
+
+export async function downloadSlaVisitCertificatePDF(
+  projectName: string,
+  site: SslSubProject,
+  profileId?: string
+) {
+  try {
+    const blob = await generateSlaVisitCertificatePDF(projectName, site, profileId);
+    const reportNumber = site.maintenanceReport?.formNumber || site.maintenanceReport?.visitNumber || site.id || "Visit";
+    const filenamePart = reportNumber.replace(/[^a-zA-Z0-9_-]/g, "_");
+    await downloadHighQualityPDF(blob, `SLA_Certificate_${filenamePart}.pdf`);
+  } catch (error) {
+    console.error("Error downloading SLA visit certificate:", error);
+    throw new Error("Failed to download SLA visit certificate");
+  }
 }
 
 export async function downloadDeploymentCertificatePDF(

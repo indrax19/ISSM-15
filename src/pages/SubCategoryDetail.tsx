@@ -26,6 +26,8 @@ import { format } from "date-fns";
 import { z } from "zod";
 import { FastBarcodeScanner, type ScannedItem } from "@/components/FastBarcodeScanner";
 
+const SEQUENTIAL_SERIAL_SUBCATEGORY_ID = "WMrk2BkHzp1ADgyJRjxE";
+
 const issueSchema = z.object({
   recipient_name: z.string().trim().min(1, "Recipient name required").max(200),
   notes: z.string().trim().max(500).optional(),
@@ -219,9 +221,26 @@ export default function SubCategoryDetail() {
         const qty = Number(bulkQuantity);
         if (!qty || qty < 1) throw new Error("Enter a valid quantity");
 
+        let nextSerialNumber = 0;
+        if (id === SEQUENTIAL_SERIAL_SUBCATEGORY_ID) {
+          const existingItems = await inventoryItemsAPI.getBySubCategory(id);
+          const highestSerial = existingItems.reduce((highest, item) => {
+            const serialNumber = item.serial_number || "";
+            if (!/^\d{6}$/.test(serialNumber)) return highest;
+            return Math.max(highest, Number(serialNumber));
+          }, 0);
+          nextSerialNumber = highestSerial + 1;
+          if (nextSerialNumber + qty - 1 > 999999) {
+            throw new Error("There are not enough six-digit serial numbers remaining");
+          }
+        }
+
         for (let i = 0; i < qty; i++) {
+          const serialNumber = id === SEQUENTIAL_SERIAL_SUBCATEGORY_ID
+            ? String(nextSerialNumber + i).padStart(6, "0")
+            : `${Date.now()}-${i + 1}`;
           const itemId = await inventoryItemsAPI.create({
-            serial_number: `${Date.now()}-${i + 1}`,
+            serial_number: serialNumber,
             name: `${subCategory?.name || "Item"} #${i + 1}`,
             category_id: subCategory!.category_id,
             subcategory_id: id!,

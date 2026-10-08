@@ -19,14 +19,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, CheckCircle, Clock, FileText, Loader2, Copy } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, CheckCircle, Clock, FileText, Loader2, Copy, BadgeCheck } from "lucide-react";
 import { RealtimeStatusIndicator, DataLoadingSkeleton, ConnectionBadge } from "@/components/RealtimeStatusIndicator";
 import { format, differenceInHours } from "date-fns";
 import { exportProjectTrackingToExcel } from "@/lib/excelExport";
 import { downloadProjectSitePDF } from "@/lib/pdfGenerator";
 import { ProjectProfileSelector } from "@/components/ProjectProfileSelector";
 import { companyProfileAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
-import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
+import { downloadDeploymentCertificatePDF, downloadSlaVisitCertificatePDF } from "@/lib/pdfGenerator";
 import { sslDeploymentCertificateAPI } from "@/integrations/firebase/sslDeploymentCertificateAPI";
 
 const SslSubProjectFormPreview = lazy(() => import("@/pages/SslSubProjectForm"));
@@ -148,6 +148,7 @@ export default function SslProjectDetail() {
   const [companyProfiles, setCompanyProfiles] = useState<any[]>([]);
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
+  const [generatingSlaCertificateSiteId, setGeneratingSlaCertificateSiteId] = useState<string | null>(null);
   const [isSavingCert, setIsSavingCert] = useState(false);
 
   // Persist viewed sites to localStorage whenever they change
@@ -330,6 +331,23 @@ export default function SslProjectDetail() {
 
     setSiteForDownload(site);
     setShowProfileSelector(true);
+  };
+
+  const handleGenerateSlaCertificate = async (site: SslSubProject) => {
+    if (!site.maintenanceReport) {
+      toast.error("Complete the SLA maintenance report before generating its certificate");
+      return;
+    }
+
+    setGeneratingSlaCertificateSiteId(site.id || "");
+    try {
+      await downloadSlaVisitCertificatePDF(project?.name || "", site, selectedCompanyProfile || undefined);
+      toast.success("SLA certificate downloaded");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to generate SLA certificate");
+    } finally {
+      setGeneratingSlaCertificateSiteId(null);
+    }
   };
 
   const createCertificateMutation = useMutation({
@@ -638,13 +656,16 @@ export default function SslProjectDetail() {
                         {visitStatus ? <Badge className={`${getVisitStatusColor(visitStatus)} max-w-56 whitespace-normal`}>{visitStatus}</Badge> : <span className="text-sm text-slate-400">Not recorded</span>}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600" aria-label="View SLA form" title="View SLA form" onClick={() => handleViewVisit(site)}><Eye className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-700" aria-label="Download SLA form PDF" title="Download SLA form PDF" onClick={() => handleDownloadVisit(site)}><Download className="h-4 w-4" /></Button>
+                        <div className="grid grid-cols-3 justify-items-center gap-1">
+                          <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="View SLA form" title="View SLA form" onClick={() => handleViewVisit(site)}><Eye className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-10 w-10 border-emerald-200 text-emerald-700 hover:bg-emerald-50" aria-label="Download SLA form PDF" title="Download SLA form PDF" onClick={() => handleDownloadVisit(site)}><Download className="h-4 w-4" /></Button>
+                          <Button variant="outline" size="icon" className="h-10 w-10 border-blue-200 text-blue-700 hover:bg-blue-50" aria-label="Generate SLA certificate" title="Generate SLA certificate" onClick={() => handleGenerateSlaCertificate(site)} disabled={generatingSlaCertificateSiteId === site.id}>
+                            {generatingSlaCertificateSiteId === site.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+                          </Button>
                           {isUserAssigned && <>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600" aria-label="Edit visit" title="Edit visit" onClick={() => navigate(`/sla-sub-projects/${site.id}/${id}`)}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-700" aria-label="Duplicate visit" title="Duplicate visit" onClick={() => handleDuplicateSite(site.id!)} disabled={duplicateSiteMutation.isPending}><Copy className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" aria-label="Delete visit" title="Delete visit" onClick={() => handleDeleteSite(site.id!)}><Trash2 className="h-4 w-4" /></Button>
+                            <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="Edit visit" title="Edit visit" onClick={() => navigate(`/sla-sub-projects/${site.id}/${id}`)}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="outline" size="icon" className="h-10 w-10 border-blue-200 text-blue-700 hover:bg-blue-50" aria-label="Duplicate visit" title="Duplicate visit" onClick={() => handleDuplicateSite(site.id!)} disabled={duplicateSiteMutation.isPending}><Copy className="h-4 w-4" /></Button>
+                            <Button variant="outline" size="icon" className="h-10 w-10 border-red-200 text-red-600 hover:bg-red-50" aria-label="Delete visit" title="Delete visit" onClick={() => handleDeleteSite(site.id!)}><Trash2 className="h-4 w-4" /></Button>
                           </>}
                         </div>
                       </TableCell>
@@ -685,13 +706,16 @@ export default function SslProjectDetail() {
                       <div><p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Visit No. / Year</p><p className="mt-1 text-sm font-medium text-slate-800">{report?.visitNumber || "—"} / {getSlaYear(site) || "—"}</p></div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1 border-t border-slate-100 pt-3">
-                      <Button variant="outline" size="sm" className="flex-1" onClick={() => handleViewVisit(site)}><Eye className="mr-1.5 h-4 w-4" />View Form</Button>
-                      <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Download SLA form PDF" title="Download SLA form PDF" onClick={() => handleDownloadVisit(site)}><Download className="h-4 w-4" /></Button>
+                    <div className="grid grid-cols-3 justify-items-center gap-2 border-t border-slate-100 pt-3">
+                      <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="View SLA form" title="View SLA form" onClick={() => handleViewVisit(site)}><Eye className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" className="h-10 w-10 border-emerald-200 text-emerald-700 hover:bg-emerald-50" aria-label="Download SLA form PDF" title="Download SLA form PDF" onClick={() => handleDownloadVisit(site)}><Download className="h-4 w-4" /></Button>
+                      <Button variant="outline" size="icon" className="h-10 w-10 border-blue-200 text-blue-700 hover:bg-blue-50" aria-label="Generate SLA certificate" title="Generate SLA certificate" onClick={() => handleGenerateSlaCertificate(site)} disabled={generatingSlaCertificateSiteId === site.id}>
+                        {generatingSlaCertificateSiteId === site.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+                      </Button>
                       {isUserAssigned && <>
-                        <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Edit visit" title="Edit visit" onClick={() => navigate(`/sla-sub-projects/${site.id}/${id}`)}><Pencil className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" className="h-9 w-9" aria-label="Duplicate visit" title="Duplicate visit" onClick={() => handleDuplicateSite(site.id!)} disabled={duplicateSiteMutation.isPending}><Copy className="h-4 w-4" /></Button>
-                        <Button variant="outline" size="icon" className="h-9 w-9 text-red-600" aria-label="Delete visit" title="Delete visit" onClick={() => handleDeleteSite(site.id!)}><Trash2 className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="Edit visit" title="Edit visit" onClick={() => navigate(`/sla-sub-projects/${site.id}/${id}`)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" className="h-10 w-10 border-blue-200 text-blue-700 hover:bg-blue-50" aria-label="Duplicate visit" title="Duplicate visit" onClick={() => handleDuplicateSite(site.id!)} disabled={duplicateSiteMutation.isPending}><Copy className="h-4 w-4" /></Button>
+                        <Button variant="outline" size="icon" className="h-10 w-10 border-red-200 text-red-600 hover:bg-red-50" aria-label="Delete visit" title="Delete visit" onClick={() => handleDeleteSite(site.id!)}><Trash2 className="h-4 w-4" /></Button>
                       </>}
                     </div>
                   </CardContent>
