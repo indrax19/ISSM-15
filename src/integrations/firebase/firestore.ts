@@ -13,6 +13,7 @@ import {
   limit,
   startAfter,
   getCountFromServer,
+  runTransaction,
 } from "firebase/firestore";
 import { removeUndefined, handleFirestoreError } from "./utils";
 
@@ -45,6 +46,8 @@ export interface InventoryItem {
   subcategory_id?: string;
   barcode?: string;
   status: "in" | "out";
+  active_challan_id?: string;
+  active_challan_no?: string;
   owner?: string;
   store_name?: string;
   created_at?: string;
@@ -58,6 +61,8 @@ export interface InventoryTransaction {
   item_id: string;
   type: "addition" | "removal" | "revert";
   created_by: string;
+  challan_id?: string;
+  challan_no?: string;
   created_at?: string;
   recipient_name?: string;
   site_name?: string;
@@ -718,6 +723,97 @@ export const inventoryTransactionsAPI = {
           : error.message || "Failed to create transaction"
       );
     }
+  },
+
+  async issueItemForChallan({
+    itemId,
+    challanId,
+    challanNo,
+    recipientName,
+    siteName,
+    createdBy,
+    internal,
+  }: {
+    itemId: string;
+    challanId: string;
+    challanNo: string;
+    recipientName: string;
+    siteName: string;
+    createdBy: string;
+    internal: boolean;
+  }) {
+    const itemRef = doc(db, "inventory_items", itemId);
+    const issueTransactionRef = doc(collection(db, "inventory_transactions"));
+
+    await runTransaction(db, async (transaction) => {
+      const itemSnapshot = await transaction.get(itemRef);
+      if (!itemSnapshot.exists() || itemSnapshot.data().status !== "in") {
+        throw new Error("This item is no longer available in inventory");
+      }
+
+      transaction.update(itemRef, {
+        status: "out",
+        ...(internal ? { active_challan_id: challanId, active_challan_no: challanNo } : {}),
+        recipient_name: recipientName,
+        site_name: siteName,
+      });
+      transaction.set(issueTransactionRef, {
+        item_id: itemId,
+        type: "removal",
+        challan_id: challanId,
+        challan_no: challanNo,
+        recipient_name: recipientName,
+        site_name: siteName,
+        created_by: createdBy,
+        notes: `Issued via delivery challan ${challanNo}`,
+        created_at: new Date().toISOString(),
+      });
+    });
+  },
+
+  async returnItemFromChallan(itemId: string, challanId: string, challanNo: string, createdBy: string) {
+    const itemRef = doc(db, "inventory_items", itemId);
+    const returnTransactionRef = doc(collection(db, "inventory_transactions"));
+    const itemTransactions = await inventoryTransactionsAPI.getByItem(itemId);
+    const latestIssue = itemTransactions
+      .filter((entry) => entry.type === "removal")
+      .sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""))[0];
+
+    await runTransaction(db, async (transaction) => {
+      const itemSnapshot = await transaction.get(itemRef);
+      if (!itemSnapshot.exists() || itemSnapshot.data().status !== "out") {
+        throw new Error("This item is no longer available to return");
+      }
+
+      const item = itemSnapshot.data() as InventoryItem;
+      const belongsToChallan = item.active_challan_id
+        ? item.active_challan_id === challanId
+        : latestIssue?.type === "removal" && (
+            latestIssue.challan_id === challanId ||
+            latestIssue.notes === `Issued via delivery challan ${challanNo}`
+          );
+      if (!belongsToChallan) {
+        throw new Error("This item is not currently issued on this challan");
+      }
+
+      transaction.update(itemRef, {
+        status: "in",
+        active_challan_id: "",
+        active_challan_no: "",
+        recipient_name: "",
+        site_name: "",
+        location: "",
+      });
+      transaction.set(returnTransactionRef, {
+        item_id: itemId,
+        type: "revert",
+        challan_id: challanId,
+        challan_no: challanNo,
+        created_by: createdBy,
+        notes: `Returned via internal challan ${challanNo}`,
+        created_at: new Date().toISOString(),
+      });
+    });
   },
 
   async delete(id: string) {

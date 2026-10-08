@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { challanAPI, Challan, ChallanEquipment, ChallanType } from "@/integrations/firebase/challanAPI";
-import { subCategoriesAPI, CompanyProfile, SubCategory, inventoryItemsAPI, inventoryTransactionsAPI } from "@/integrations/firebase/firestore";
+import { subCategoriesAPI, CompanyProfile, SubCategory, InventoryItem, inventoryItemsAPI, inventoryTransactionsAPI } from "@/integrations/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
 import { realtimeCategoriesAPI, realtimeSubCategoriesAPI, realtimeCompanyProfileAPI, realtimeInventoryItemsAPI } from "@/integrations/firebase/realtimeAPI";
 import { downloadChallanPDF } from "@/lib/pdfGenerator";
@@ -97,6 +97,12 @@ export default function NewDeliveryChallans() {
   const [equipmentSubCategorySearch, setEquipmentSubCategorySearch] = useState<{ [key: number]: string }>({});
   const [storeNames, setStoreNames] = useState<string[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [challanInventoryItems, setChallanInventoryItems] = useState<Record<string, InventoryItem | null>>({});
+  const challanItemIds = useMemo(
+    () => [...new Set(equipment.flatMap((item) => item.itemIds || []).filter(Boolean))],
+    [equipment]
+  );
+  const initialChallanItemIdsRef = useRef(new Set<string>());
 
   // Serial number validation - track which serials are valid/invalid
   // Format: "equipmentIndex:serialIndex" -> "valid" | "invalid" | "checking" | ""
@@ -290,6 +296,9 @@ export default function NewDeliveryChallans() {
           itemIds: eq.itemIds || Array(eq.serialNumbers.length).fill("")
         }));
         setEquipment(equipmentWithItemIds);
+        initialChallanItemIdsRef.current = new Set(
+          equipmentWithItemIds.flatMap((item) => item.itemIds || []).filter(Boolean)
+        );
         setSelectedChallanProfileId(challan.companyProfileId || null);
         if (challan.documentUrl) {
           setDocumentUrl(challan.documentUrl);
@@ -315,6 +324,54 @@ export default function NewDeliveryChallans() {
   };
 
   const hasFieldError = (field: string) => fieldErrors[field] ? "border-red-500 focus-visible:ring-red-500" : "";
+
+  useEffect(() => {
+    if (!id || challanType !== "internal" || challanItemIds.length === 0) {
+      setChallanInventoryItems({});
+      return;
+    }
+
+    let isCurrent = true;
+    Promise.all(challanItemIds.map(async (itemId) => {
+      const item = await inventoryItemsAPI.getById(itemId);
+      if (!item || item.status !== "out") return [itemId, item] as const;
+      if (item.active_challan_id === id) return [itemId, item] as const;
+      if (item.active_challan_id) return [itemId, null] as const;
+
+      const transactions = await inventoryTransactionsAPI.getByItem(itemId);
+      const latestRemoval = transactions
+        .filter((entry) => entry.type === "removal")
+        .sort((a, b) => Date.parse(b.created_at || "") - Date.parse(a.created_at || ""))[0];
+      const issuedOnThisChallan = latestRemoval?.challan_id === id ||
+        latestRemoval?.notes === `Issued via delivery challan ${challanNo}`;
+      return [itemId, issuedOnThisChallan ? item : null] as const;
+    })).then((items) => {
+      if (isCurrent) setChallanInventoryItems(Object.fromEntries(items));
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [id, challanType, challanItemIds, challanNo]);
+
+  const returnItemMutation = useMutation({
+    mutationFn: (itemId: string) => {
+      if (!id) throw new Error("Save the internal challan before returning items");
+      return inventoryTransactionsAPI.returnItemFromChallan(
+        itemId,
+        id,
+        challanNo,
+        appUser?.fullName || appUser?.email || "Unknown User"
+      );
+    },
+    onSuccess: async (_, itemId) => {
+      const returnedItem = await inventoryItemsAPI.getById(itemId);
+      setChallanInventoryItems((previous) => ({ ...previous, [itemId]: returnedItem }));
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success("Item returned to inventory");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to return item"),
+  });
 
   const saveMutation = useMutation({
    mutationFn: async () => {
@@ -503,14 +560,17 @@ export default function NewDeliveryChallans() {
     await Promise.all(
       [...itemIdsToIssue].map(async (itemId) => {
         try {
-          await inventoryItemsAPI.update(itemId, { status: "out" });
-          await inventoryTransactionsAPI.create({
-            item_id: itemId,
-            type: "removal",
-            recipient_name: customerName || "Delivery Challan",
-            site_name: siteLocation || "",
-            created_by: appUser?.fullName || appUser?.email || "Unknown User",
-            notes: `Issued via delivery challan ${challanData.challanNo}`,
+          if (id && initialChallanItemIdsRef.current.has(itemId)) return;
+          const inventoryItem = await inventoryItemsAPI.getById(itemId);
+          if (!inventoryItem || inventoryItem.status !== "in") return;
+          await inventoryTransactionsAPI.issueItemForChallan({
+            itemId,
+            challanId: challanResult.id,
+            challanNo: challanData.challanNo,
+            recipientName: customerName || "Delivery Challan",
+            siteName: siteLocation || "",
+            createdBy: appUser?.fullName || appUser?.email || "Unknown User",
+            internal: challanType === "internal",
           });
         } catch (error) {
           console.error(`Failed to issue item ${itemId}:`, error);
@@ -1725,6 +1785,56 @@ export default function NewDeliveryChallans() {
           </div>
         </CardContent>
       </Card>
+
+      {id && challanType === "internal" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Outward / Inward Item Tracking</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Items issued on this internal challan are removed from available stock until they are returned.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {challanItemIds.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No inventory-linked items on this challan.</p>
+            ) : (
+              <div className="space-y-3">
+                {equipment.flatMap((equipmentItem) => (equipmentItem.itemIds || [])
+                  .filter((itemId, itemIndex, itemIds) => itemId && itemIds.indexOf(itemId) === itemIndex)
+                  .map((itemId) => {
+                    const inventoryItem = challanInventoryItems[itemId];
+                    const isIssuedOnThisChallan = Boolean(inventoryItem && inventoryItem.status === "out");
+                    const isReturning = returnItemMutation.isPending && returnItemMutation.variables === itemId;
+                    return (
+                      <div key={itemId} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="font-medium">{equipmentItem.name || equipmentItem.manualEquipmentDetails || "Equipment"}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Serial: {inventoryItem?.serial_number || equipmentItem.serialNumbers[(equipmentItem.itemIds || []).indexOf(itemId)] || "—"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant={isIssuedOnThisChallan ? "destructive" : inventoryItem ? "secondary" : "outline"}>
+                            {!inventoryItem ? "Not issued on this challan" : inventoryItem.status === "out" ? "Outward · Awaiting return" : "In inventory"}
+                          </Badge>
+                          {isIssuedOnThisChallan && (
+                            <Button
+                              size="sm"
+                              onClick={() => returnItemMutation.mutate(itemId)}
+                              disabled={returnItemMutation.isPending}
+                            >
+                              {isReturning ? "Recording..." : "Record inward return"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Barcode Scanner Modal - Serial Number */}
       {scannerOpen && (
