@@ -1499,7 +1499,7 @@ export default function NewDeliveryChallans() {
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-[280px] p-0" align="start">
-                            <Command>
+                            <Command shouldFilter={false}>
                               <CommandInput
                                 placeholder="Search equipment..."
                                 value={equipmentCategorySearch[index] || ""}
@@ -1579,7 +1579,7 @@ export default function NewDeliveryChallans() {
                           </PopoverTrigger>
                           <PopoverContent className="w-[280px] p-0" align="start">
                             <div className="flex flex-col">
-                              <Command>
+                              <Command shouldFilter={false}>
                                 <CommandInput
                                   placeholder="Search or type details..."
                                   value={equipmentSubCategorySearch[index] || ""}
