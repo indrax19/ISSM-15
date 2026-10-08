@@ -414,9 +414,6 @@ export default function NewDeliveryChallans() {
   namedEquipment.forEach((item) => {
     const index = equipment.indexOf(item);
     if (!item.category_id) addFieldError(`equipment-${index}-category`);
-    if (!item.subcategory_id && !item.manualEquipmentDetails?.trim()) {
-      addFieldError(`equipment-${index}-details`);
-    }
     if (!item.quantity || item.quantity < 1) addFieldError(`equipment-${index}-quantity`);
   });
 
@@ -465,9 +462,7 @@ export default function NewDeliveryChallans() {
   // ✅ Step 2: Validate equipment
   const equipmentWithNames = equipment.filter((e) => e.name.trim());
 
-  let validEquipment = equipmentWithNames.filter(
-    (e) => e.category_id && (e.subcategory_id || e.manualEquipmentDetails?.trim())
-  );
+  let validEquipment = equipmentWithNames.filter((e) => e.category_id);
 
   {
     const autoIssueEquipment = validEquipment.filter((item) =>
@@ -1555,7 +1550,7 @@ export default function NewDeliveryChallans() {
                         </Popover>
                       </div>
                       <div className="space-y-1 sm:space-y-2">
-                        <Label htmlFor={`eq-subcategory-${index}`} className="text-sm sm:text-base font-medium">Equipment Details *</Label>
+                        <Label htmlFor={`eq-subcategory-${index}`} className="text-sm sm:text-base font-medium">Equipment Details</Label>
                         <Popover
                           open={equipmentSubCategoryOpen[index] || false}
                           onOpenChange={(open) =>
