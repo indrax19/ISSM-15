@@ -354,6 +354,30 @@ export default function NewDeliveryChallans() {
     };
   }, [id, challanType, challanItemIds, challanNo]);
 
+  const issueItemMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      if (!id || challanType !== "internal" || !challanItemIds.includes(itemId)) {
+        throw new Error("Select an item linked to this internal challan");
+      }
+      await inventoryTransactionsAPI.issueItemForChallan({
+        itemId,
+        challanId: id,
+        challanNo,
+        recipientName: customerName || "Internal Challan",
+        siteName: siteLocation || "",
+        createdBy: appUser?.fullName || appUser?.email || "Unknown User",
+        internal: true,
+      });
+    },
+    onSuccess: async (_, itemId) => {
+      const issuedItem = await inventoryItemsAPI.getById(itemId);
+      setChallanInventoryItems((previous) => ({ ...previous, [itemId]: issuedItem }));
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      toast.success("Item issued from this internal challan");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to issue item"),
+  });
+
   const returnItemMutation = useMutation({
     mutationFn: (itemId: string) => {
       if (!id) throw new Error("Save the internal challan before returning items");
@@ -1791,7 +1815,7 @@ export default function NewDeliveryChallans() {
           <CardHeader>
             <CardTitle>Outward / Inward Item Tracking</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Items issued on this internal challan are removed from available stock until they are returned.
+              Record outward issue to temporarily remove available items from stock, then record their inward return here.
             </p>
           </CardHeader>
           <CardContent>
@@ -1804,6 +1828,7 @@ export default function NewDeliveryChallans() {
                   .map((itemId) => {
                     const inventoryItem = challanInventoryItems[itemId];
                     const isIssuedOnThisChallan = Boolean(inventoryItem && inventoryItem.status === "out");
+                    const isIssuing = issueItemMutation.isPending && issueItemMutation.variables === itemId;
                     const isReturning = returnItemMutation.isPending && returnItemMutation.variables === itemId;
                     return (
                       <div key={itemId} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1817,15 +1842,23 @@ export default function NewDeliveryChallans() {
                           <Badge variant={isIssuedOnThisChallan ? "destructive" : inventoryItem ? "secondary" : "outline"}>
                             {!inventoryItem ? "Not issued on this challan" : inventoryItem.status === "out" ? "Outward · Awaiting return" : "In inventory"}
                           </Badge>
-                          {isIssuedOnThisChallan && (
+                          {isIssuedOnThisChallan ? (
                             <Button
                               size="sm"
                               onClick={() => returnItemMutation.mutate(itemId)}
-                              disabled={returnItemMutation.isPending}
+                              disabled={returnItemMutation.isPending || issueItemMutation.isPending}
                             >
                               {isReturning ? "Recording..." : "Record inward return"}
                             </Button>
-                          )}
+                          ) : inventoryItem?.status === "in" ? (
+                            <Button
+                              size="sm"
+                              onClick={() => issueItemMutation.mutate(itemId)}
+                              disabled={issueItemMutation.isPending || returnItemMutation.isPending}
+                            >
+                              {isIssuing ? "Issuing..." : "Record outward issue"}
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     );
