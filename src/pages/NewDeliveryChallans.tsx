@@ -1378,7 +1378,7 @@ export default function NewDeliveryChallans() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1.05fr)_minmax(90px,0.55fr)_minmax(0,1.6fr)]">
                       <div className="space-y-1 sm:space-y-2">
                         <Label htmlFor={`eq-category-${index}`} className="text-sm sm:text-base font-medium">Equipment Name *</Label>
                         <Popover
@@ -1577,7 +1577,6 @@ export default function NewDeliveryChallans() {
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
 
                     {/* Serial Numbers - Dynamic based on Quantity */}
                     <div className="space-y-2 sm:space-y-3">
@@ -1699,6 +1698,7 @@ export default function NewDeliveryChallans() {
                           );
                         })}
                       </div>
+                    </div>
                     </div>
                   </div>
                 ))}
