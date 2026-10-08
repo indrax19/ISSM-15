@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { challanAPI, Challan, ChallanEquipment, ChallanType } from "@/integrations/firebase/challanAPI";
 import { subCategoriesAPI, CompanyProfile, SubCategory, InventoryItem, inventoryItemsAPI, inventoryTransactionsAPI } from "@/integrations/firebase/firestore";
 import { useAuth } from "@/context/AuthContext";
-import { realtimeCategoriesAPI, realtimeSubCategoriesAPI, realtimeCompanyProfileAPI, realtimeInventoryItemsAPI } from "@/integrations/firebase/realtimeAPI";
+import { realtimeCategoriesAPI, realtimeSubCategoriesAPI, realtimeCompanyProfileAPI } from "@/integrations/firebase/realtimeAPI";
 import { downloadChallanPDF } from "@/lib/pdfGenerator";
 import { supabase } from "@/integrations/supabase/client";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
@@ -27,7 +27,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Download, Camera, X, Upload, FileIcon, Image as ImageIcon, ChevronsUpDown } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Camera, X, Upload, FileIcon, ChevronsUpDown } from "lucide-react";
 
 const AUTO_ISSUE_EQUIPMENT = new Set([
   "keyboard & mouse",
@@ -68,7 +68,6 @@ export default function NewDeliveryChallans() {
   const [pocName, setPocName] = useState("");
   const [pocNumber, setPocNumber] = useState("");
   const [unitNo, setUnitNo] = useState("");
-  const [deliveredFrom, setDeliveredFrom] = useState("");
   const [equipment, setEquipment] = useState<ChallanEquipment[]>([
     { id: "0", name: "", quantity: 1, serialNumbers: [""], barcodes: [], category_id: "", subcategory_id: "", manualEquipmentDetails: "", itemIds: [""] },
   ]);
@@ -90,12 +89,10 @@ export default function NewDeliveryChallans() {
   const [selectedChallanProfileId, setSelectedChallanProfileId] = useState<string | null>(null);
   const [downloadingPDF, setDownloadingPDF] = useState(false);
   const [subCategoriesMap, setSubCategoriesMap] = useState<{ [categoryId: string]: SubCategory[] }>({});
-  const [deliveredFromOpen, setDeliveredFromOpen] = useState(false);
   const [equipmentCategoryOpen, setEquipmentCategoryOpen] = useState<{ [key: number]: boolean }>({});
   const [equipmentCategorySearch, setEquipmentCategorySearch] = useState<{ [key: number]: string }>({});
   const [equipmentSubCategoryOpen, setEquipmentSubCategoryOpen] = useState<{ [key: number]: boolean }>({});
   const [equipmentSubCategorySearch, setEquipmentSubCategorySearch] = useState<{ [key: number]: string }>({});
-  const [storeNames, setStoreNames] = useState<string[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [challanInventoryItems, setChallanInventoryItems] = useState<Record<string, InventoryItem | null>>({});
   const challanItemIds = useMemo(
@@ -125,28 +122,10 @@ export default function NewDeliveryChallans() {
       : "Auto-generated as DC-00001";
 
   // Realtime subscription refs
-  const storeNamesUnsubRef = useRef<(() => void) | null>(null);
   const profilesUnsubRef = useRef<(() => void) | null>(null);
   const categoriesUnsubRef = useRef<(() => void) | null>(null);
   const existingChallanUnsubRef = useRef<(() => void) | null>(null);
   const subCategoriesUnsubRefs = useRef<{ [key: string]: () => void }>({});
-
-  // Subscribe to store names from inventory items
-  useEffect(() => {
-    storeNamesUnsubRef.current = realtimeInventoryItemsAPI.subscribeAll((items) => {
-      const stores = new Set<string>();
-      items.forEach((item) => {
-        if (item.store_name?.trim()) {
-          stores.add(item.store_name.trim());
-        }
-      });
-      setStoreNames(Array.from(stores).sort());
-    });
-
-    return () => {
-      storeNamesUnsubRef.current?.();
-    };
-  }, []);
 
   // Subscribe to company profiles
   useEffect(() => {
@@ -219,7 +198,6 @@ export default function NewDeliveryChallans() {
         clearTimeout(timeout);
       });
       // Cleanup all realtime subscriptions
-      storeNamesUnsubRef.current?.();
       profilesUnsubRef.current?.();
       categoriesUnsubRef.current?.();
       existingChallanUnsubRef.current?.();
@@ -289,7 +267,6 @@ export default function NewDeliveryChallans() {
         setPocName(challan.pocName || "");
         setPocNumber(challan.pocNumber || "");
         setUnitNo(challan.unitNo || "");
-        setDeliveredFrom(challan.deliveredFrom || "");
         // Ensure equipment has itemIds initialized
         const equipmentWithItemIds = challan.equipment.map(eq => ({
           ...eq,
@@ -546,7 +523,6 @@ export default function NewDeliveryChallans() {
     unitNo,
     pocName,
     pocNumber,
-    deliveredFrom,
     documentUrl: uploadedUrl, // 🔥 IMPORTANT
     equipment: validEquipment.map((e) => ({
       ...e,
@@ -1236,56 +1212,7 @@ export default function NewDeliveryChallans() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 min-w-0">
-            <div className="space-y-1 sm:space-y-2 min-w-0">
-              <Label htmlFor="delivered-from" className="font-semibold text-sm sm:text-base">Delivered From</Label>
-              <Popover open={deliveredFromOpen} onOpenChange={setDeliveredFromOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="delivered-from"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={deliveredFromOpen}
-                    className="w-full justify-between h-10 bg-white"
-                  >
-                    {deliveredFrom || "Select or enter store..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
-                    <CommandInput
-                      placeholder="Search or type store name..."
-                      value={deliveredFrom}
-                      onValueChange={setDeliveredFrom}
-                    />
-                    <CommandEmpty>No stores found. Add items to inventory first.</CommandEmpty>
-                    <CommandList>
-                      <CommandGroup>
-                        {storeNames.map((store) => (
-                          <CommandItem
-                            key={store}
-                            onSelect={() => {
-                              setDeliveredFrom(store);
-                              setDeliveredFromOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                deliveredFrom === store ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {store}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-              <p className="text-xs text-muted-foreground">Select from list or type a store name</p>
-            </div>
+          <div className="grid grid-cols-1 gap-3 min-w-0 sm:grid-cols-3 sm:gap-4">
             <div className="space-y-2 min-w-0">
               <Label htmlFor="poc-name">POC Name</Label>
               <Input
@@ -1304,96 +1231,72 @@ export default function NewDeliveryChallans() {
                 placeholder="Contact number"
               />
             </div>
-          </div>
-
-          {/* Document Upload */}
-          <div className="space-y-2 sm:space-y-3 pt-4 border-t">
-            <Label className="text-sm sm:text-base">Upload Document/Photo (Optional)</Label>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Upload proof of delivery - photo or document. Shows in portal only, not in PDF.
-            </p>
-
-            {documentPreview ? (
-              <div className="space-y-3">
-                <div className="relative border rounded-lg p-4 bg-muted/50">
-                  {documentPreview.startsWith("pdf:") ? (
-                    <div className="flex items-center gap-3 py-4">
-                      <FileIcon className="h-10 w-10 text-red-600" />
-                      <div>
-                        <p className="font-medium text-sm">PDF Document</p>
-                        <p className="text-xs text-muted-foreground">{documentPreview.replace("pdf:", "")}</p>
-                      </div>
-                    </div>
-                  ) : documentPreview.startsWith("file:") ? (
-                    <div className="flex items-center gap-3 py-4">
-                      <FileIcon className="h-10 w-10 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium text-sm">Document</p>
-                        <p className="text-xs text-muted-foreground">{documentPreview.replace("file:", "")}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <img
-                      src={documentPreview}
-                      alt="Document preview"
-                      className="max-h-40 rounded object-cover w-full"
-                    />
-                  )}
-                </div>
-                <div className="flex gap-2">
+            <div className="space-y-2 min-w-0">
+              <Label htmlFor="document-upload">Upload Document/Photo</Label>
+              <div className="flex h-10 min-w-0 items-center gap-2">
+                {documentPreview ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleDownloadDocument}
+                      className="h-10 min-w-0 flex-1 justify-start gap-2 px-2"
+                      title="Open current document"
+                    >
+                      {documentPreview.startsWith("pdf:") || documentPreview.startsWith("file:") ? (
+                        <FileIcon className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <img src={documentPreview} alt="" className="h-6 w-6 shrink-0 rounded object-cover" />
+                      )}
+                      <span className="truncate text-xs">
+                        {documentPreview.startsWith("pdf:")
+                          ? documentPreview.replace("pdf:", "")
+                          : documentPreview.startsWith("file:")
+                          ? documentPreview.replace("file:", "")
+                          : documentFileName || "Current document"}
+                      </span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => (document.getElementById("document-upload") as HTMLInputElement)?.click()}
+                      aria-label="Change document"
+                    >
+                      <Upload className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleRemoveDocument}
+                      aria-label="Remove document"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
                   <Button
+                    type="button"
                     variant="outline"
-                    size="sm"
-                    onClick={handleDownloadDocument}
-                    className="gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    Open Document
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const input = document.getElementById("document-upload") as HTMLInputElement;
-                      input?.click();
-                    }}
-                    className="gap-2 flex-1"
+                    onClick={() => (document.getElementById("document-upload") as HTMLInputElement)?.click()}
+                    className="h-10 w-full justify-center gap-2 border-dashed"
                   >
                     <Upload className="h-4 w-4" />
-                    Change Document
+                    Upload file
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRemoveDocument}
-                    className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-                  >
-                    <X className="h-4 w-4" />
-                    Remove
-                  </Button>
-                </div>
+                )}
+                <input
+                  id="document-upload"
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={handleDocumentUpload}
+                  className="hidden"
+                />
               </div>
-            ) : (
-              <div
-                onClick={() => {
-                  const input = document.getElementById("document-upload") as HTMLInputElement;
-                  input?.click();
-                }}
-                className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-5 text-center cursor-pointer hover:border-muted-foreground/50 hover:bg-muted/50 transition"
-              >
-                <ImageIcon className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm font-medium text-foreground mb-1">Click to upload document/photo</p>
-                <p className="text-xs text-muted-foreground">PNG, JPG, PDF (Max 10MB)</p>
-              </div>
-            )}
-
-            <input
-              id="document-upload"
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={handleDocumentUpload}
-              className="hidden"
-            />
+              <p className="text-xs text-muted-foreground">Image or PDF, up to 10MB</p>
+            </div>
           </div>
         </CardContent>
       </Card>
