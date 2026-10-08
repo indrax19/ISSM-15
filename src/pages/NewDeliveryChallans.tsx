@@ -1583,7 +1583,6 @@ export default function NewDeliveryChallans() {
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="space-y-1">
                           <Label className="text-sm sm:text-base font-medium">Serial Numbers ({eq.serialNumbers.filter(s => s.trim()).length}/{eq.quantity})</Label>
-                          <p className="text-xs text-muted-foreground">Manually enter or scan using the camera</p>
                         </div>
                         <Badge
                           variant={eq.serialNumbers.filter(s => s.trim()).length === eq.quantity ? "default" : "secondary"}
