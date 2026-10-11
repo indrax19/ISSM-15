@@ -1453,8 +1453,7 @@ export async function downloadSlaVisitCertificatePDF(
 ) {
   try {
     const blob = await generateSlaVisitCertificatePDF(projectName, site, profileId);
-    const reportNumber = site.maintenanceReport?.formNumber || site.maintenanceReport?.visitNumber || site.id || "Visit";
-    const filenamePart = reportNumber.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filenamePart = (site.millName || "Site").trim().replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "Site";
     await downloadHighQualityPDF(blob, `SLA_Certificate_${filenamePart}.pdf`);
   } catch (error) {
     console.error("Error downloading SLA visit certificate:", error);
@@ -1496,8 +1495,9 @@ export async function downloadDeploymentCertificatePDF(
       certificateType
     );
     const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : "DeploymentCertificate";
-    const filename = `${filenamePrefix}_${companyName.replace(/\s+/g, "_")}.pdf`;
-    await downloadHighQualityPDF(blob, filename);
+    const filenameSource = certificateType === "sla" ? millName : companyName;
+    const filenamePart = (filenameSource || "Site").trim().replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "Site";
+    await downloadHighQualityPDF(blob, `${filenamePrefix}_${filenamePart}.pdf`);
   } catch (error) {
     console.error("Error downloading deployment certificate PDF:", error);
     throw new Error("Failed to download deployment certificate PDF");
