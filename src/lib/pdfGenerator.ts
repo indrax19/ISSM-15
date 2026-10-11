@@ -1218,7 +1218,7 @@ yPosition += detailLineHeight;
     yPosition = margin;
   }
 
-  const issuerSignature = certificateType === "sla" ? await renderScriptSignature(issmName) : null;
+  const issuerSignature = await renderScriptSignature(issmName);
 
   doc.setFont(undefined, "bold");
   doc.setFontSize(12);
