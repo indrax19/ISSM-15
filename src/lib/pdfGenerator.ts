@@ -26,22 +26,22 @@ const formatCertificateDate = (dateString: string): string => {
 const renderScriptSignature = async (name: string) => {
   if (!name.trim()) return null;
 
-  await document.fonts.load(`96px "Great Vibes"`, name);
+  await document.fonts.load(`72px "Great Vibes"`, name);
   const canvas = document.createElement("canvas");
   const measureContext = canvas.getContext("2d");
   if (!measureContext) return null;
 
-  measureContext.font = `96px "Great Vibes"`;
+  measureContext.font = `72px "Great Vibes"`;
   const textWidth = measureContext.measureText(name).width;
   canvas.width = Math.ceil(textWidth + 20);
-  canvas.height = 120;
+  canvas.height = 90;
 
   const context = canvas.getContext("2d");
   if (!context) return null;
-  context.font = `96px "Great Vibes"`;
+  context.font = `72px "Great Vibes"`;
   context.fillStyle = "#111827";
   context.textBaseline = "middle";
-  context.fillText(name, 10, 60);
+  context.fillText(name, 10, 45);
 
   const width = Math.min(65, textWidth * 0.2646 + 5);
   return { dataUrl: canvas.toDataURL("image/png"), width, height: width * canvas.height / canvas.width };
