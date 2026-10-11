@@ -952,10 +952,11 @@ export async function generateDeploymentCertificatePDF(
   let rightY = yPosition;
 
   // Add logo on left side
-  if (companyProfile?.logo_url) {
+  const logoUrl = companyLogoUrl || companyProfile?.logo_url;
+  if (logoUrl) {
     const logoHeight = await addLogoToPDF(
       doc,
-      companyProfile.logo_url,
+      logoUrl,
       margin,
       leftY,
       { maxWidth: 50, maxHeight: 30, maintainAspectRatio: true }
