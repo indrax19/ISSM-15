@@ -80,14 +80,12 @@ const loadCertificateFormData = (siteId: string) => {
 
 const getFormDataWithSiteInfo = (site: any, defaultData: any) => {
   const savedData = loadCertificateFormData(site.id);
-  if (savedData) {
-    return savedData;
-  }
   return {
     ...defaultData,
-    client_name: site.pocName || "",
-    issm_name: site.supervisorName || "",
-    issm_designation: "Deployment Administrator",
+    ...savedData,
+    client_name: savedData?.client_name || site.pocName || defaultData.client_name,
+    issm_name: savedData?.issm_name || defaultData.issm_name,
+    issm_designation: savedData?.issm_designation || defaultData.issm_designation,
   };
 };
 
@@ -130,19 +128,16 @@ export default function SslProjectDetail() {
   const [siteForDownload, setSiteForDownload] = useState<any>(null);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
   const [selectedSiteForCert, setSelectedSiteForCert] = useState<any>(null);
-  const getDefaultFormData = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return {
-      certificate_type: "sla",
-      client_name: "",
-      client_designation: "",
-      client_date: today,
-      deployment_date: today,
-      issm_name: "",
-      issm_designation: "",
-      issm_date: today,
-    };
-  };
+  const getDefaultFormData = () => ({
+    certificate_type: "sla",
+    client_name: "",
+    client_designation: "",
+    client_date: "2026-10-11",
+    deployment_date: "2026-10-11",
+    issm_name: "Muhammad Umair",
+    issm_designation: "Deployment Administrator",
+    issm_date: "2026-10-11",
+  });
 
   const [certificateFormData, setCertificateFormData] = useState(getDefaultFormData());
   const [companyProfiles, setCompanyProfiles] = useState<any[]>([]);
@@ -170,7 +165,8 @@ export default function SslProjectDetail() {
         const profiles = await companyProfileAPI.getAll();
         setCompanyProfiles(profiles);
         if (profiles.length > 0) {
-          setSelectedCompanyProfile(profiles[0].id || "");
+          const issmProfile = profiles.find((profile) => profile.company_name === "ISSM Labelling Solutions");
+          setSelectedCompanyProfile(issmProfile?.id || profiles[0].id || "");
         }
       } catch (error) {
         console.log("Failed to load company profiles");

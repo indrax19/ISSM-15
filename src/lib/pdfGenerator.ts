@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import "@fontsource/great-vibes/latin-400.css";
 import { format } from "date-fns";
 import { Challan } from "@/integrations/firebase/challanAPI";
 import { Invoice } from "@/integrations/firebase/invoiceAPI";
@@ -20,6 +21,30 @@ const formatCertificateDate = (dateString: string): string => {
   const month = date.toLocaleString("en-US", { month: "long" });
   const year = date.getFullYear();
   return `${day} ${month} ${year}`;
+};
+
+const renderScriptSignature = async (name: string) => {
+  if (!name.trim()) return null;
+
+  await document.fonts.load(`96px "Great Vibes"`, name);
+  const canvas = document.createElement("canvas");
+  const measureContext = canvas.getContext("2d");
+  if (!measureContext) return null;
+
+  measureContext.font = `96px "Great Vibes"`;
+  const textWidth = measureContext.measureText(name).width;
+  canvas.width = Math.ceil(textWidth + 20);
+  canvas.height = 120;
+
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.font = `96px "Great Vibes"`;
+  context.fillStyle = "#111827";
+  context.textBaseline = "middle";
+  context.fillText(name, 10, 60);
+
+  const width = Math.min(65, textWidth * 0.2646 + 5);
+  return { dataUrl: canvas.toDataURL("image/png"), width, height: width * canvas.height / canvas.width };
 };
 
 const equipmentPDFOrder = [
@@ -1193,6 +1218,8 @@ yPosition += detailLineHeight;
     yPosition = margin;
   }
 
+  const issuerSignature = certificateType === "sla" ? await renderScriptSignature(issmName) : null;
+
   doc.setFont(undefined, "bold");
   doc.setFontSize(12);
   const sectionTitle = certificateType === "sla"
@@ -1216,8 +1243,14 @@ yPosition += detailLineHeight;
   doc.text(issmDesignation, margin + 25, yPosition);
   yPosition += detailLineHeight;
 
-  doc.text("Signature: " + "_________________", col1X, yPosition);
-  yPosition += detailLineHeight;
+  doc.text("Signature:", margin, yPosition);
+  doc.line(margin + 25, yPosition + 1, margin + 90, yPosition + 1);
+  if (issuerSignature) {
+    doc.addImage(issuerSignature.dataUrl, "PNG", margin + 25, yPosition - issuerSignature.height + 2, issuerSignature.width, issuerSignature.height);
+  } else {
+    doc.text("_________________", margin + 25, yPosition);
+  }
+  yPosition += Math.max(detailLineHeight, issuerSignature?.height || 0);
 
   doc.text("Date:", margin, yPosition);
   doc.text(formattedIssmDate, margin + 25, yPosition);
