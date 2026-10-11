@@ -29,22 +29,6 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Trash2, Download, Camera, X, Upload, FileIcon, ChevronsUpDown } from "lucide-react";
 
-const AUTO_ISSUE_EQUIPMENT = new Set([
-  "keyboard & mouse",
-  "led monitor screen",
-  "hdmi cables",
-  "pdu",
-  "power distribution unit",
-  "power distribution units",
-  "power distribution unit pdu",
-  "power cables pc",
-  "rack cabinet",
-  "rack cabine",
-]);
-
-const normalizeEquipmentName = (value?: string) =>
-  value?.toLowerCase().replace(/[\\()/\\-]+/g, " ").replace(/\\s+/g, " ").trim() || "";
-
 export default function NewDeliveryChallans() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -442,70 +426,59 @@ export default function NewDeliveryChallans() {
   let validEquipment = equipmentWithNames.filter((e) => e.category_id);
 
   {
-    const autoIssueEquipment = validEquipment.filter((item) =>
-      AUTO_ISSUE_EQUIPMENT.has(normalizeEquipmentName(item.name)) ||
-      AUTO_ISSUE_EQUIPMENT.has(normalizeEquipmentName(item.manualEquipmentDetails)) ||
-      AUTO_ISSUE_EQUIPMENT.has(normalizeEquipmentName(categories.find((category) => category.id === item.category_id)?.name)) ||
-      AUTO_ISSUE_EQUIPMENT.has(normalizeEquipmentName(subCategoriesMap[item.category_id]?.find((subCategory) => subCategory.id === item.subcategory_id)?.name))
+    const availableItems = (await inventoryItemsAPI.getAll()).filter((item) => item.status === "in");
+    const assignedItemIds = new Set(
+      validEquipment.flatMap((item) => (item.itemIds || []).filter(Boolean))
     );
+    const missingStock: string[] = [];
+    let newlyAssignedCount = 0;
 
-    if (autoIssueEquipment.length > 0) {
-      const availableItems = (await inventoryItemsAPI.getAll()).filter((item) => item.status === "in");
-      const assignedItemIds = new Set(
-        validEquipment.flatMap((item) => (item.itemIds || []).filter(Boolean))
+    validEquipment = validEquipment.map((equipmentItem) => {
+      const matchingItems = availableItems.filter((item) =>
+        item.id &&
+        !assignedItemIds.has(item.id) &&
+        item.category_id === equipmentItem.category_id &&
+        (!equipmentItem.subcategory_id || item.subcategory_id === equipmentItem.subcategory_id)
       );
-      const missingStock: string[] = [];
-      let newlyAssignedCount = 0;
+      const serialNumbers = [...equipmentItem.serialNumbers];
+      const itemIds = [...(equipmentItem.itemIds || [])];
+      let missingCount = 0;
 
-      validEquipment = validEquipment.map((equipmentItem) => {
-        if (!autoIssueEquipment.includes(equipmentItem)) return equipmentItem;
-
-        const categoryName = normalizeEquipmentName(
-          categories.find((category) => category.id === equipmentItem.category_id)?.name
-        );
-        const subCategoryName = normalizeEquipmentName(
-          subCategoriesMap[equipmentItem.category_id]?.find((subCategory) => subCategory.id === equipmentItem.subcategory_id)?.name
-        );
-        const equipmentName = normalizeEquipmentName(equipmentItem.name || equipmentItem.manualEquipmentDetails);
-        const matchingItems = availableItems.filter((item) =>
-          !assignedItemIds.has(item.id || "") &&
-          item.category_id === equipmentItem.category_id &&
-          (!equipmentItem.subcategory_id || item.subcategory_id === equipmentItem.subcategory_id) &&
-          (AUTO_ISSUE_EQUIPMENT.has(categoryName) || AUTO_ISSUE_EQUIPMENT.has(subCategoryName) || AUTO_ISSUE_EQUIPMENT.has(equipmentName))
-        );
-        const existingCount = Math.max(
-          (equipmentItem.itemIds || []).filter(Boolean).length,
-          equipmentItem.serialNumbers.filter((serial) => serial.trim()).length
-        );
-        const requiredCount = Math.max(0, equipmentItem.quantity - existingCount);
-
-        if (matchingItems.length < requiredCount) {
-          missingStock.push(`${equipmentItem.name || equipmentItem.manualEquipmentDetails} (available: ${matchingItems.length}, required: ${requiredCount})`);
+      for (let index = 0; index < equipmentItem.quantity; index += 1) {
+        if (itemIds[index]) {
+          assignedItemIds.add(itemIds[index]);
+          continue;
         }
 
-        const serialNumbers = [...equipmentItem.serialNumbers];
-        const itemIds = [...(equipmentItem.itemIds || [])];
-        let assigned = 0;
-        for (let index = 0; index < equipmentItem.quantity; index += 1) {
-          if (itemIds[index]) continue;
-          const inventoryItem = matchingItems[assigned++];
-          if (!inventoryItem?.id) continue;
-          serialNumbers[index] = inventoryItem.serial_number;
-          itemIds[index] = inventoryItem.id;
-          assignedItemIds.add(inventoryItem.id);
-          newlyAssignedCount += 1;
+        const serialNumber = serialNumbers[index]?.trim();
+        const inventoryItem = serialNumber
+          ? matchingItems.find((item) => item.serial_number === serialNumber)
+          : matchingItems.find((item) => !assignedItemIds.has(item.id || ""));
+
+        if (!inventoryItem?.id) {
+          missingCount += 1;
+          continue;
         }
 
-        return { ...equipmentItem, serialNumbers, itemIds };
-      });
-
-      if (newlyAssignedCount > 0) {
-        toast.success("Available inventory assigned automatically");
+        serialNumbers[index] = inventoryItem.serial_number;
+        itemIds[index] = inventoryItem.id;
+        assignedItemIds.add(inventoryItem.id);
+        newlyAssignedCount += 1;
       }
 
-      if (missingStock.length > 0) {
-        toast.warning(`Some items were not available and were saved without inventory issue: ${missingStock.join(", ")}`);
+      if (missingCount > 0) {
+        missingStock.push(`${equipmentItem.name || equipmentItem.manualEquipmentDetails} (available: ${equipmentItem.quantity - missingCount}, required: ${equipmentItem.quantity})`);
       }
+
+      return { ...equipmentItem, serialNumbers, itemIds };
+    });
+
+    if (newlyAssignedCount > 0) {
+      toast.success("Available inventory assigned automatically");
+    }
+
+    if (missingStock.length > 0) {
+      toast.warning(`Some items were not available and were saved without inventory issue: ${missingStock.join(", ")}`);
     }
   }
 
@@ -552,27 +525,31 @@ export default function NewDeliveryChallans() {
   });
 
   if (itemIdsToIssue.size > 0) {
-    await Promise.all(
+    const issueResults = await Promise.allSettled(
       [...itemIdsToIssue].map(async (itemId) => {
-        try {
-          if (id && initialChallanItemIdsRef.current.has(itemId)) return;
-          const inventoryItem = await inventoryItemsAPI.getById(itemId);
-          if (!inventoryItem || inventoryItem.status !== "in") return;
-          await inventoryTransactionsAPI.issueItemForChallan({
-            itemId,
-            challanId: challanResult.id,
-            challanNo: challanData.challanNo,
-            recipientName: customerName || "Delivery Challan",
-            siteName: siteLocation || "",
-            createdBy: appUser?.fullName || appUser?.email || "Unknown User",
-            internal: challanType === "internal",
-          });
-        } catch (error) {
-          console.error(`Failed to issue item ${itemId}:`, error);
-        }
+        if (id && initialChallanItemIdsRef.current.has(itemId)) return;
+        const inventoryItem = await inventoryItemsAPI.getById(itemId);
+        if (!inventoryItem || inventoryItem.status !== "in") return;
+        await inventoryTransactionsAPI.issueItemForChallan({
+          itemId,
+          challanId: challanResult.id,
+          challanNo: challanData.challanNo,
+          recipientName: customerName || "Delivery Challan",
+          siteName: siteLocation || "",
+          createdBy: appUser?.fullName || appUser?.email || "Unknown User",
+          internal: challanType === "internal",
+        });
       })
     );
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
     scannedItemIdSetRef.current.clear();
+
+    const issueErrors = issueResults
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason));
+    if (issueErrors.length > 0) {
+      throw new Error(`Challan saved, but some inventory items could not be issued: ${issueErrors.join("; ")}`);
+    }
   }
 
   if (challanResult.id) {
