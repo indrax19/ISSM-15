@@ -452,7 +452,11 @@ export default function NewDeliveryChallans() {
 
         const serialNumber = serialNumbers[index]?.trim();
         const inventoryItem = serialNumber
-          ? matchingItems.find((item) => item.serial_number === serialNumber)
+          ? availableItems.find((item) =>
+              item.id &&
+              !assignedItemIds.has(item.id) &&
+              item.serial_number?.trim().toLowerCase() === serialNumber.toLowerCase()
+            )
           : matchingItems.find((item) => !assignedItemIds.has(item.id || ""));
 
         if (!inventoryItem?.id) {
@@ -665,6 +669,7 @@ export default function NewDeliveryChallans() {
         setEquipment((prev) =>
           prev.map((eq, i) => {
             if (i === equipmentIndex) {
+              if (eq.serialNumbers[serialIndex]?.trim() !== serial.trim()) return eq;
               const updatedItemIds = [...(eq.itemIds || [])];
               updatedItemIds[serialIndex] = item.id || "";
               const updatedCategoryId = item.category_id || eq.category_id || "";
@@ -747,8 +752,10 @@ export default function NewDeliveryChallans() {
       prev.map((e, i) => {
         if (i === equipmentIndex) {
           const updated = [...e.serialNumbers];
+          const updatedItemIds = [...(e.itemIds || [])];
           updated[serialIndex] = value;
-          return { ...e, serialNumbers: updated };
+          updatedItemIds[serialIndex] = "";
+          return { ...e, serialNumbers: updated, itemIds: updatedItemIds };
         }
         return e;
       })
