@@ -29,22 +29,6 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Trash2, Download, Camera, X, Upload, FileIcon, ChevronsUpDown } from "lucide-react";
 
-const AUTO_ISSUE_EQUIPMENT = new Set([
-  "keyboard & mouse",
-  "led monitor screen",
-  "hdmi cables",
-  "pdu",
-  "power distribution unit",
-  "power distribution units",
-  "power distribution unit pdu",
-  "power cables pc",
-  "rack cabinet",
-  "rack cabine",
-]);
-
-const normalizeEquipmentName = (value?: string) =>
-  value?.toLowerCase().replace(/[\\()/\\-]+/g, " ").replace(/\\s+/g, " ").trim() || "";
-
 export default function NewDeliveryChallans() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -99,7 +83,6 @@ export default function NewDeliveryChallans() {
     () => [...new Set(equipment.flatMap((item) => item.itemIds || []).filter(Boolean))],
     [equipment]
   );
-  const initialChallanItemIdsRef = useRef(new Set<string>());
 
   // Serial number validation - track which serials are valid/invalid
   // Format: "equipmentIndex:serialIndex" -> "valid" | "invalid" | "checking" | ""
@@ -273,9 +256,6 @@ export default function NewDeliveryChallans() {
           itemIds: eq.itemIds || Array(eq.serialNumbers.length).fill("")
         }));
         setEquipment(equipmentWithItemIds);
-        initialChallanItemIdsRef.current = new Set(
-          equipmentWithItemIds.flatMap((item) => item.itemIds || []).filter(Boolean)
-        );
         setSelectedChallanProfileId(challan.companyProfileId || null);
         if (challan.documentUrl) {
           setDocumentUrl(challan.documentUrl);
@@ -380,16 +360,51 @@ export default function NewDeliveryChallans() {
   const addFieldError = (field: string) => {
     nextFieldErrors[field] = true;
   };
-  const namedEquipment = equipment.filter((item) => item.name.trim());
+  const availableItems = (await inventoryItemsAPI.getAll()).filter((item) => item.status === "in");
+  const assignedItemIds = new Set(
+    equipment.flatMap((item) => (item.itemIds || []).filter(Boolean))
+  );
+  let resolvedSerialCount = 0;
+  const equipmentWithItems = equipment.map((equipmentItem) => {
+    const serialNumbers = [...equipmentItem.serialNumbers];
+    const itemIds = [...(equipmentItem.itemIds || [])];
+    let categoryId = equipmentItem.category_id;
+    let subcategoryId = equipmentItem.subcategory_id;
+    let name = equipmentItem.name;
+
+    for (let index = 0; index < equipmentItem.quantity; index += 1) {
+      const serialNumber = serialNumbers[index]?.trim();
+      if (itemIds[index] || !serialNumber) continue;
+
+      const inventoryItem = availableItems.find((item) =>
+        item.id &&
+        !assignedItemIds.has(item.id) &&
+        item.serial_number?.trim().toLowerCase() === serialNumber.toLowerCase()
+      );
+      if (!inventoryItem?.id) continue;
+
+      itemIds[index] = inventoryItem.id;
+      assignedItemIds.add(inventoryItem.id);
+      categoryId = inventoryItem.category_id || categoryId;
+      subcategoryId = inventoryItem.subcategory_id || subcategoryId;
+      name = categories.find((category) => category.id === categoryId)?.name || name || inventoryItem.name || "Inventory item";
+      resolvedSerialCount += 1;
+    }
+
+    return { ...equipmentItem, serialNumbers, itemIds, category_id: categoryId, subcategory_id: subcategoryId, name };
+  });
+  const equipmentWithNames = equipmentWithItems.filter((item) =>
+    item.name.trim() || item.serialNumbers.some((serial) => serial.trim()) || (item.itemIds || []).some(Boolean)
+  );
 
   if (!selectedChallanProfileId) addFieldError("companyProfile");
   if (!date.trim()) addFieldError("date");
   if (!deliveryDate.trim()) addFieldError("deliveryDate");
   if (!customerName.trim()) addFieldError("customerName");
-  if (namedEquipment.length === 0) addFieldError("equipment-0-category");
+  if (equipmentWithNames.length === 0) addFieldError("equipment-0-category");
 
-  namedEquipment.forEach((item) => {
-    const index = equipment.indexOf(item);
+  equipmentWithNames.forEach((item) => {
+    const index = equipmentWithItems.indexOf(item);
     if (!item.category_id) addFieldError(`equipment-${index}-category`);
     if (!item.quantity || item.quantity < 1) addFieldError(`equipment-${index}-quantity`);
   });
@@ -437,75 +452,65 @@ export default function NewDeliveryChallans() {
   }
 
   // ✅ Step 2: Validate equipment
-  const equipmentWithNames = equipment.filter((e) => e.name.trim());
-
-  let validEquipment = equipmentWithNames.filter((e) => e.category_id);
+  let validEquipment = equipmentWithNames.filter((item) => item.category_id);
 
   {
-    const autoIssueEquipment = validEquipment.filter((item) =>
-      AUTO_ISSUE_EQUIPMENT.has(normalizeEquipmentName(item.name)) ||
-      AUTO_ISSUE_EQUIPMENT.has(normalizeEquipmentName(item.manualEquipmentDetails)) ||
-      AUTO_ISSUE_EQUIPMENT.has(normalizeEquipmentName(categories.find((category) => category.id === item.category_id)?.name)) ||
-      AUTO_ISSUE_EQUIPMENT.has(normalizeEquipmentName(subCategoriesMap[item.category_id]?.find((subCategory) => subCategory.id === item.subcategory_id)?.name))
+    const assignedItemIds = new Set(
+      validEquipment.flatMap((item) => (item.itemIds || []).filter(Boolean))
     );
+    const missingStock: string[] = [];
+    let newlyAssignedCount = resolvedSerialCount;
 
-    if (autoIssueEquipment.length > 0) {
-      const availableItems = (await inventoryItemsAPI.getAll()).filter((item) => item.status === "in");
-      const assignedItemIds = new Set(
-        validEquipment.flatMap((item) => (item.itemIds || []).filter(Boolean))
+    validEquipment = validEquipment.map((equipmentItem) => {
+      const matchingItems = availableItems.filter((item) =>
+        item.id &&
+        !assignedItemIds.has(item.id) &&
+        item.category_id === equipmentItem.category_id &&
+        (!equipmentItem.subcategory_id || item.subcategory_id === equipmentItem.subcategory_id)
       );
-      const missingStock: string[] = [];
-      let newlyAssignedCount = 0;
+      const serialNumbers = [...equipmentItem.serialNumbers];
+      const itemIds = [...(equipmentItem.itemIds || [])];
+      let missingCount = 0;
 
-      validEquipment = validEquipment.map((equipmentItem) => {
-        if (!autoIssueEquipment.includes(equipmentItem)) return equipmentItem;
-
-        const categoryName = normalizeEquipmentName(
-          categories.find((category) => category.id === equipmentItem.category_id)?.name
-        );
-        const subCategoryName = normalizeEquipmentName(
-          subCategoriesMap[equipmentItem.category_id]?.find((subCategory) => subCategory.id === equipmentItem.subcategory_id)?.name
-        );
-        const equipmentName = normalizeEquipmentName(equipmentItem.name || equipmentItem.manualEquipmentDetails);
-        const matchingItems = availableItems.filter((item) =>
-          !assignedItemIds.has(item.id || "") &&
-          item.category_id === equipmentItem.category_id &&
-          (!equipmentItem.subcategory_id || item.subcategory_id === equipmentItem.subcategory_id) &&
-          (AUTO_ISSUE_EQUIPMENT.has(categoryName) || AUTO_ISSUE_EQUIPMENT.has(subCategoryName) || AUTO_ISSUE_EQUIPMENT.has(equipmentName))
-        );
-        const existingCount = Math.max(
-          (equipmentItem.itemIds || []).filter(Boolean).length,
-          equipmentItem.serialNumbers.filter((serial) => serial.trim()).length
-        );
-        const requiredCount = Math.max(0, equipmentItem.quantity - existingCount);
-
-        if (matchingItems.length < requiredCount) {
-          missingStock.push(`${equipmentItem.name || equipmentItem.manualEquipmentDetails} (available: ${matchingItems.length}, required: ${requiredCount})`);
+      for (let index = 0; index < equipmentItem.quantity; index += 1) {
+        if (itemIds[index]) {
+          assignedItemIds.add(itemIds[index]);
+          continue;
         }
 
-        const serialNumbers = [...equipmentItem.serialNumbers];
-        const itemIds = [...(equipmentItem.itemIds || [])];
-        let assigned = 0;
-        for (let index = 0; index < equipmentItem.quantity; index += 1) {
-          if (itemIds[index]) continue;
-          const inventoryItem = matchingItems[assigned++];
-          if (!inventoryItem?.id) continue;
-          serialNumbers[index] = inventoryItem.serial_number;
-          itemIds[index] = inventoryItem.id;
-          assignedItemIds.add(inventoryItem.id);
-          newlyAssignedCount += 1;
+        const serialNumber = serialNumbers[index]?.trim();
+        const inventoryItem = serialNumber
+          ? availableItems.find((item) =>
+              item.id &&
+              !assignedItemIds.has(item.id) &&
+              item.serial_number?.trim().toLowerCase() === serialNumber.toLowerCase()
+            )
+          : matchingItems.find((item) => !assignedItemIds.has(item.id || ""));
+
+        if (!inventoryItem?.id) {
+          missingCount += 1;
+          continue;
         }
 
-        return { ...equipmentItem, serialNumbers, itemIds };
-      });
-
-      if (newlyAssignedCount > 0) {
-        toast.success("Available inventory assigned automatically");
+        serialNumbers[index] = inventoryItem.serial_number;
+        itemIds[index] = inventoryItem.id;
+        assignedItemIds.add(inventoryItem.id);
+        newlyAssignedCount += 1;
       }
 
-      if (missingStock.length > 0) {
-        toast.warning(`Some items were not available and were saved without inventory issue: ${missingStock.join(", ")}`);
+      if (missingCount > 0) {
+        missingStock.push(`${equipmentItem.name || equipmentItem.manualEquipmentDetails} (available: ${equipmentItem.quantity - missingCount}, required: ${equipmentItem.quantity})`);
       }
+
+      return { ...equipmentItem, serialNumbers, itemIds };
+    });
+
+    if (newlyAssignedCount > 0) {
+      toast.success("Available inventory assigned automatically");
+    }
+
+    if (missingStock.length > 0) {
+      toast.warning(`Some items were not available and were saved without inventory issue: ${missingStock.join(", ")}`);
     }
   }
 
@@ -552,27 +557,30 @@ export default function NewDeliveryChallans() {
   });
 
   if (itemIdsToIssue.size > 0) {
-    await Promise.all(
+    const issueResults = await Promise.allSettled(
       [...itemIdsToIssue].map(async (itemId) => {
-        try {
-          if (id && initialChallanItemIdsRef.current.has(itemId)) return;
-          const inventoryItem = await inventoryItemsAPI.getById(itemId);
-          if (!inventoryItem || inventoryItem.status !== "in") return;
-          await inventoryTransactionsAPI.issueItemForChallan({
-            itemId,
-            challanId: challanResult.id,
-            challanNo: challanData.challanNo,
-            recipientName: customerName || "Delivery Challan",
-            siteName: siteLocation || "",
-            createdBy: appUser?.fullName || appUser?.email || "Unknown User",
-            internal: challanType === "internal",
-          });
-        } catch (error) {
-          console.error(`Failed to issue item ${itemId}:`, error);
-        }
+        const inventoryItem = await inventoryItemsAPI.getById(itemId);
+        if (!inventoryItem || inventoryItem.status !== "in") return;
+        await inventoryTransactionsAPI.issueItemForChallan({
+          itemId,
+          challanId: challanResult.id,
+          challanNo: challanData.challanNo,
+          recipientName: customerName || "Delivery Challan",
+          siteName: siteLocation || "",
+          createdBy: appUser?.fullName || appUser?.email || "Unknown User",
+          internal: challanType === "internal",
+        });
       })
     );
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
     scannedItemIdSetRef.current.clear();
+
+    const issueErrors = issueResults
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason));
+    if (issueErrors.length > 0) {
+      throw new Error(`Challan saved, but some inventory items could not be issued: ${issueErrors.join("; ")}`);
+    }
   }
 
   if (challanResult.id) {
@@ -688,6 +696,7 @@ export default function NewDeliveryChallans() {
         setEquipment((prev) =>
           prev.map((eq, i) => {
             if (i === equipmentIndex) {
+              if (eq.serialNumbers[serialIndex]?.trim() !== serial.trim()) return eq;
               const updatedItemIds = [...(eq.itemIds || [])];
               updatedItemIds[serialIndex] = item.id || "";
               const updatedCategoryId = item.category_id || eq.category_id || "";
@@ -770,8 +779,10 @@ export default function NewDeliveryChallans() {
       prev.map((e, i) => {
         if (i === equipmentIndex) {
           const updated = [...e.serialNumbers];
+          const updatedItemIds = [...(e.itemIds || [])];
           updated[serialIndex] = value;
-          return { ...e, serialNumbers: updated };
+          updatedItemIds[serialIndex] = "";
+          return { ...e, serialNumbers: updated, itemIds: updatedItemIds };
         }
         return e;
       })

@@ -26,7 +26,7 @@ import { exportProjectTrackingToExcel } from "@/lib/excelExport";
 import { downloadProjectSitePDF } from "@/lib/pdfGenerator";
 import { ProjectProfileSelector } from "@/components/ProjectProfileSelector";
 import { companyProfileAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
-import { downloadDeploymentCertificatePDF, downloadSlaVisitCertificatePDF } from "@/lib/pdfGenerator";
+import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
 import { sslDeploymentCertificateAPI } from "@/integrations/firebase/sslDeploymentCertificateAPI";
 
 const SslSubProjectFormPreview = lazy(() => import("@/pages/SslSubProjectForm"));
@@ -80,14 +80,12 @@ const loadCertificateFormData = (siteId: string) => {
 
 const getFormDataWithSiteInfo = (site: any, defaultData: any) => {
   const savedData = loadCertificateFormData(site.id);
-  if (savedData) {
-    return savedData;
-  }
   return {
     ...defaultData,
-    client_name: site.pocName || "",
-    issm_name: site.supervisorName || "",
-    issm_designation: "Deployment Administrator",
+    ...savedData,
+    client_name: savedData?.client_name || site.pocName || defaultData.client_name,
+    issm_name: savedData?.issm_name || defaultData.issm_name,
+    issm_designation: savedData?.issm_designation || defaultData.issm_designation,
   };
 };
 
@@ -130,25 +128,21 @@ export default function SslProjectDetail() {
   const [siteForDownload, setSiteForDownload] = useState<any>(null);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
   const [selectedSiteForCert, setSelectedSiteForCert] = useState<any>(null);
-  const getDefaultFormData = () => {
-    const today = new Date().toISOString().split('T')[0];
-    return {
-      certificate_type: "issm",
-      client_name: "",
-      client_designation: "",
-      client_date: today,
-      deployment_date: today,
-      issm_name: "",
-      issm_designation: "",
-      issm_date: today,
-    };
-  };
+  const getDefaultFormData = () => ({
+    certificate_type: "sla",
+    client_name: "",
+    client_designation: "",
+    client_date: "2026-10-11",
+    deployment_date: "2026-10-11",
+    issm_name: "Muhammad Umair",
+    issm_designation: "Deployment Administrator",
+    issm_date: "2026-10-11",
+  });
 
   const [certificateFormData, setCertificateFormData] = useState(getDefaultFormData());
   const [companyProfiles, setCompanyProfiles] = useState<any[]>([]);
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
-  const [generatingSlaCertificateSiteId, setGeneratingSlaCertificateSiteId] = useState<string | null>(null);
   const [isSavingCert, setIsSavingCert] = useState(false);
 
   // Persist viewed sites to localStorage whenever they change
@@ -171,7 +165,8 @@ export default function SslProjectDetail() {
         const profiles = await companyProfileAPI.getAll();
         setCompanyProfiles(profiles);
         if (profiles.length > 0) {
-          setSelectedCompanyProfile(profiles[0].id || "");
+          const issmProfile = profiles.find((profile) => profile.company_name === "ISSM Labelling Solutions");
+          setSelectedCompanyProfile(issmProfile?.id || profiles[0].id || "");
         }
       } catch (error) {
         console.log("Failed to load company profiles");
@@ -333,21 +328,13 @@ export default function SslProjectDetail() {
     setShowProfileSelector(true);
   };
 
-  const handleGenerateSlaCertificate = async (site: SslSubProject) => {
-    if (!site.maintenanceReport) {
-      toast.error("Complete the SLA maintenance report before generating its certificate");
-      return;
-    }
-
-    setGeneratingSlaCertificateSiteId(site.id || "");
-    try {
-      await downloadSlaVisitCertificatePDF(project?.name || "", site, selectedCompanyProfile || undefined);
-      toast.success("SLA certificate downloaded");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to generate SLA certificate");
-    } finally {
-      setGeneratingSlaCertificateSiteId(null);
-    }
+  const openSlaCertificateForm = (site: SslSubProject) => {
+    setSelectedSiteForCert(site);
+    setCertificateFormData({
+      ...getFormDataWithSiteInfo(site, getDefaultFormData()),
+      certificate_type: "sla",
+    });
+    setShowCertificateDialog(true);
   };
 
   const createCertificateMutation = useMutation({
@@ -361,7 +348,7 @@ export default function SslProjectDetail() {
         company_name: project?.name || "",
         site_address: selectedSiteForCert.address || "",
         mill_name: selectedSiteForCert.millName || "",
-        certificate_type: data.certificate_type as "digital-eye" | "uqaab" | "issm",
+        certificate_type: data.certificate_type as "digital-eye" | "uqaab" | "issm" | "sla",
         client_name: data.client_name,
         client_designation: data.client_designation,
         client_date: data.client_date,
@@ -378,7 +365,7 @@ export default function SslProjectDetail() {
       return create(certData);
     },
     onSuccess: async () => {
-      toast.success(`Certificate created for ${selectedSiteForCert?.millName}`);
+      toast.success(`SLA certificate created for ${selectedSiteForCert?.millName}`);
 
       // Download the certificate PDF
       if (selectedCompanyProfile) {
@@ -399,11 +386,12 @@ export default function SslProjectDetail() {
             selectedProfile?.logo_url,
             selectedProfile?.logo_url,
             selectedCompanyProfile,
-            certificateFormData.certificate_type as "digital-eye" | "uqaab" | "issm"
+            certificateFormData.certificate_type as "digital-eye" | "uqaab" | "issm" | "sla"
           );
-          toast.success("Certificate PDF downloaded!");
+          toast.success("SLA certificate PDF downloaded!");
         } catch (error) {
-          console.error("Failed to download certificate:", error);
+          console.error("Failed to download SLA certificate:", error);
+          toast.error("SLA certificate was created, but the PDF could not be downloaded");
         } finally {
           setIsDownloadingCert(false);
         }
@@ -413,16 +401,7 @@ export default function SslProjectDetail() {
         clearCertificateFormData(selectedSiteForCert.id);
       }
       setShowCertificateDialog(false);
-      setCertificateFormData({
-        certificate_type: "digital-eye",
-        client_name: "",
-        client_designation: "",
-        client_date: "",
-        deployment_date: "",
-        issm_name: "",
-        issm_designation: "",
-        issm_date: "",
-      });
+      setCertificateFormData(getDefaultFormData());
       setSelectedSiteForCert(null);
     },
     onError: (error: any) => {
@@ -659,8 +638,8 @@ export default function SslProjectDetail() {
                         <div className="grid grid-cols-3 justify-items-center gap-1">
                           <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="View SLA form" title="View SLA form" onClick={() => handleViewVisit(site)}><Eye className="h-4 w-4" /></Button>
                           <Button variant="outline" size="icon" className="h-10 w-10 border-emerald-200 text-emerald-700 hover:bg-emerald-50" aria-label="Download SLA form PDF" title="Download SLA form PDF" onClick={() => handleDownloadVisit(site)}><Download className="h-4 w-4" /></Button>
-                          <Button variant="outline" size="icon" className="h-10 w-10 border-blue-200 text-blue-700 hover:bg-blue-50" aria-label="Generate SLA certificate" title="Generate SLA certificate" onClick={() => handleGenerateSlaCertificate(site)} disabled={generatingSlaCertificateSiteId === site.id}>
-                            {generatingSlaCertificateSiteId === site.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+                          <Button variant="outline" size="icon" className="h-10 w-10 border-blue-200 text-blue-700 hover:bg-blue-50" aria-label="Generate SLA certificate" title="Generate SLA certificate" onClick={() => openSlaCertificateForm(site)}>
+                            <BadgeCheck className="h-4 w-4" />
                           </Button>
                           {isUserAssigned && <>
                             <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="Edit visit" title="Edit visit" onClick={() => navigate(`/sla-sub-projects/${site.id}/${id}`)}><Pencil className="h-4 w-4" /></Button>
@@ -709,8 +688,8 @@ export default function SslProjectDetail() {
                     <div className="grid grid-cols-3 justify-items-center gap-2 border-t border-slate-100 pt-3">
                       <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="View SLA form" title="View SLA form" onClick={() => handleViewVisit(site)}><Eye className="h-4 w-4" /></Button>
                       <Button variant="outline" size="icon" className="h-10 w-10 border-emerald-200 text-emerald-700 hover:bg-emerald-50" aria-label="Download SLA form PDF" title="Download SLA form PDF" onClick={() => handleDownloadVisit(site)}><Download className="h-4 w-4" /></Button>
-                      <Button variant="outline" size="icon" className="h-10 w-10 border-blue-200 text-blue-700 hover:bg-blue-50" aria-label="Generate SLA certificate" title="Generate SLA certificate" onClick={() => handleGenerateSlaCertificate(site)} disabled={generatingSlaCertificateSiteId === site.id}>
-                        {generatingSlaCertificateSiteId === site.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+                      <Button variant="outline" size="icon" className="h-10 w-10 border-blue-200 text-blue-700 hover:bg-blue-50" aria-label="Generate SLA certificate" title="Generate SLA certificate" onClick={() => openSlaCertificateForm(site)}>
+                            <BadgeCheck className="h-4 w-4" />
                       </Button>
                       {isUserAssigned && <>
                         <Button variant="outline" size="icon" className="h-10 w-10 border-slate-200 text-slate-600 hover:bg-slate-50" aria-label="Edit visit" title="Edit visit" onClick={() => navigate(`/sla-sub-projects/${site.id}/${id}`)}><Pencil className="h-4 w-4" /></Button>
@@ -992,7 +971,7 @@ export default function SslProjectDetail() {
       <Dialog open={showCertificateDialog} onOpenChange={setShowCertificateDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
-            <DialogTitle className="text-xl font-bold text-gray-900">Create Deployment Certificate</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-gray-900">Create SLA Certificate</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1022,20 +1001,12 @@ export default function SslProjectDetail() {
 
               <div className="space-y-2">
                 <Label className="font-semibold text-gray-900">Certificate Type</Label>
-                <Select value={certificateFormData.certificate_type} onValueChange={(value) => setCertificateFormData({ ...certificateFormData, certificate_type: value })}>
-                  <SelectTrigger className="border border-gray-300">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="issm">ISSM</SelectItem>
-                    <SelectItem value="obsidian">Obsidian</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input value="SLA" readOnly className="border border-gray-300" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="client-name" className="font-semibold text-gray-900">Client Name</Label>
+                  <Label htmlFor="client-name" className="font-semibold text-gray-900">Company POC Name</Label>
                   <Input
                     id="client-name"
                     value={certificateFormData.client_name}
@@ -1045,7 +1016,7 @@ export default function SslProjectDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="client-designation" className="font-semibold text-gray-900">Client Designation</Label>
+                  <Label htmlFor="client-designation" className="font-semibold text-gray-900">Company POC Designation</Label>
                   <Input
                     id="client-designation"
                     value={certificateFormData.client_designation}
@@ -1058,7 +1029,7 @@ export default function SslProjectDetail() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="client-date" className="font-semibold text-gray-900">Client Date</Label>
+                  <Label htmlFor="client-date" className="font-semibold text-gray-900">Company POC Date</Label>
                   <Input
                     id="client-date"
                     type="date"
@@ -1068,7 +1039,7 @@ export default function SslProjectDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="deployment-date" className="font-semibold text-gray-900">Deployment Date</Label>
+                  <Label htmlFor="deployment-date" className="font-semibold text-gray-900">SLA Start Date</Label>
                   <Input
                     id="deployment-date"
                     type="date"
@@ -1082,19 +1053,19 @@ export default function SslProjectDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="issm-name" className="font-semibold text-gray-900">
-                    {certificateFormData.certificate_type === "obsidian" ? "Obsidian Name" : certificateFormData.certificate_type === "issm" ? "ISSM Name" : "Uqaab Name"}
+                    {certificateFormData.certificate_type === "sla" ? "SLA Provider Name" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Name" : certificateFormData.certificate_type === "issm" ? "ISSM Name" : "Uqaab Name"}
                   </Label>
                   <Input
                     id="issm-name"
                     value={certificateFormData.issm_name}
                     onChange={(e) => setCertificateFormData({ ...certificateFormData, issm_name: e.target.value })}
                     className="border border-gray-300"
-                    placeholder={certificateFormData.certificate_type === "obsidian" ? "Enter Obsidian name" : certificateFormData.certificate_type === "issm" ? "Enter ISSM name" : "Enter Uqaab name"}
+                    placeholder={certificateFormData.certificate_type === "sla" ? "Enter SLA provider name" : certificateFormData.certificate_type === "obsidian" ? "Enter Obsidian name" : certificateFormData.certificate_type === "issm" ? "Enter ISSM name" : "Enter Uqaab name"}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="issm-designation" className="font-semibold text-gray-900">
-                    {certificateFormData.certificate_type === "obsidian" ? "Obsidian Designation" : certificateFormData.certificate_type === "issm" ? "ISSM Designation" : "Uqaab Designation"}
+                    {certificateFormData.certificate_type === "sla" ? "SLA Provider Designation" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Designation" : certificateFormData.certificate_type === "issm" ? "ISSM Designation" : "Uqaab Designation"}
                   </Label>
                   <Input
                     id="issm-designation"
@@ -1108,7 +1079,7 @@ export default function SslProjectDetail() {
 
               <div className="space-y-2">
                 <Label htmlFor="issm-date" className="font-semibold text-gray-900">
-                  {certificateFormData.certificate_type === "obsidian" ? "Obsidian Date" : certificateFormData.certificate_type === "issm" ? "ISSM Date" : "Uqaab Date"}
+                  {certificateFormData.certificate_type === "sla" ? "SLA Provider Date" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Date" : certificateFormData.certificate_type === "issm" ? "ISSM Date" : "Uqaab Date"}
                 </Label>
                 <Input
                   id="issm-date"
@@ -1169,7 +1140,7 @@ export default function SslProjectDetail() {
               ) : (
                 <>
                   <Download className="h-4 w-4 mr-2" />
-                  Create & Download
+                  Create & Download SLA Certificate
                 </>
               )}
             </Button>
