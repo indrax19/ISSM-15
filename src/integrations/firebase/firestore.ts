@@ -96,6 +96,8 @@ export interface PersonItemTransaction {
   notes?: string;
   created_by?: string;
   created_at?: string;
+  reverted_at?: string;
+  reverted_by?: string;
 }
 
 export interface PersonSite {
@@ -1051,6 +1053,43 @@ export const personItemTransactionsAPI = {
         error.code === "permission-denied"
           ? "Permission denied. Check your Firestore rules."
           : error.message || "Failed to create transaction"
+      );
+    }
+  },
+
+  async revert(id: string, revertedBy?: string) {
+    try {
+      const transactionRef = doc(db, "person_item_transactions", id);
+      await runTransaction(db, async (firestoreTransaction) => {
+        const transactionSnapshot = await firestoreTransaction.get(transactionRef);
+        if (!transactionSnapshot.exists()) throw new Error("Issued item not found");
+
+        const issuedItem = transactionSnapshot.data() as PersonItemTransaction;
+        if (issuedItem.reverted_at) throw new Error("This item has already been reverted");
+
+        const itemRef = doc(db, "person_items", issuedItem.person_item_id);
+        const itemSnapshot = await firestoreTransaction.get(itemRef);
+        const now = new Date().toISOString();
+
+        if (itemSnapshot.exists()) {
+          const currentItem = itemSnapshot.data() as PersonItem;
+          firestoreTransaction.update(itemRef, { quantity: currentItem.quantity + issuedItem.quantity_issued });
+        } else {
+          firestoreTransaction.set(itemRef, {
+            person_id: issuedItem.person_id,
+            item_name: issuedItem.item_name,
+            quantity: issuedItem.quantity_issued,
+            created_at: now,
+          });
+        }
+
+        firestoreTransaction.update(transactionRef, { reverted_at: now, reverted_by: revertedBy || "Unknown user" });
+      });
+    } catch (error: any) {
+      throw new Error(
+        error.code === "permission-denied"
+          ? "Permission denied. Check your Firestore rules."
+          : error.message || "Failed to revert issued item"
       );
     }
   },

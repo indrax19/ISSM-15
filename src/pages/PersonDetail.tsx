@@ -167,6 +167,11 @@ export default function PersonDetail() {
         quantity: parseInt(quantity as string),
         notes: notes || undefined,
       });
+      const existingItem = items.find((item) => item.id === editItemId);
+      if (!existingItem) throw new Error("Item not found");
+      if (!isAdmin && parsed.quantity < existingItem.quantity) {
+        throw new Error("You can only increase an item's quantity");
+      }
       await personItemsAPI.update(editItemId!, {
         item_name: parsed.item_name,
         quantity: parsed.quantity,
@@ -190,13 +195,27 @@ export default function PersonDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: async (itemId: string) => {
+      if (!isAdmin) throw new Error("Only administrators can delete items");
       await personItemsAPI.delete(itemId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["person-items", id] });
       toast.success("Item deleted");
     },
-    onError: () => toast.error("Failed to delete item"),
+    onError: (error: Error) => toast.error(error.message || "Failed to delete item"),
+  });
+
+  const revertItemMutation = useMutation({
+    mutationFn: (transactionId: string) => {
+      if (!isAdmin) throw new Error("Only administrators can revert issued items");
+      return personItemTransactionsAPI.revert(transactionId, appUser?.fullName || appUser?.email);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["person-items", id] });
+      queryClient.invalidateQueries({ queryKey: ["person-issued-items", id] });
+      toast.success("Issued item returned to inventory");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to return item"),
   });
 
   const addSiteMutation = useMutation({
@@ -329,8 +348,10 @@ export default function PersonDetail() {
 
   const filtered = items?.filter(
     (i) =>
-      i.item_name.toLowerCase().includes(filter.toLowerCase()) ||
-      (i.notes && i.notes.toLowerCase().includes(filter.toLowerCase()))
+      i.quantity > 0 && (
+        i.item_name.toLowerCase().includes(filter.toLowerCase()) ||
+        (i.notes && i.notes.toLowerCase().includes(filter.toLowerCase()))
+      )
   );
 
   const openEdit = (item: any) => {
@@ -453,14 +474,16 @@ export default function PersonDetail() {
                           >
                             <Pencil className="h-3.5 w-3.5" /> Edit
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            onClick={() => handleDeleteItem(item.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Delete
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => handleDeleteItem(item.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -488,6 +511,8 @@ export default function PersonDetail() {
                       <TableHead>Recipient Name</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Issued On</TableHead>
+                      <TableHead>Status</TableHead>
+                      {isAdmin && <TableHead className="text-right">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -500,6 +525,25 @@ export default function PersonDetail() {
                         <TableCell className="text-sm text-muted-foreground">
                           {format(new Date(transaction.created_at), "MMM d, yyyy h:mm a")}
                         </TableCell>
+                        <TableCell>{transaction.reverted_at ? "Returned to inventory" : "Issued"}</TableCell>
+                        {isAdmin && (
+                          <TableCell className="text-right">
+                            {!transaction.reverted_at && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  if (window.confirm(`Return ${transaction.quantity_issued} ${transaction.item_name} to inventory?`)) {
+                                    revertItemMutation.mutate(transaction.id);
+                                  }
+                                }}
+                                disabled={revertItemMutation.isPending}
+                              >
+                                Revert
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
