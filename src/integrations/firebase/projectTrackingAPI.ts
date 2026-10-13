@@ -18,6 +18,7 @@ import { removeUndefined, handleFirestoreError } from "./utils";
 export interface ProjectRemark {
   text: string;
   authorName: string;
+  authorId?: string;
   createdAt: string;
 }
 
