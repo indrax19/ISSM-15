@@ -258,7 +258,9 @@ export const sslSubProjectsAPI = {
       const startDate = new Date(projectData.startDate);
       const endDate = new Date(projectData.endDate);
       const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      const counterRef = doc(db, "sequences", "slaVisitCounter");
+      const year = new Date().getFullYear();
+      const projectCode = (projectData.maintenanceReport.projectName.match(/[a-z]/gi) || []).join("").slice(0, 3).toUpperCase();
+      const counterRef = doc(db, "sequences", `slaVisitCounter_${projectData.project_id}_${year}`);
       const subProjectRef = doc(collection(db, "ssl_sub_projects"));
 
       return await runTransaction(db, async (transaction) => {
@@ -266,7 +268,7 @@ export const sslSubProjectsAPI = {
         const currentNumber = counterDoc.exists() ? counterDoc.data().nextNumber || 0 : 0;
         const nextNumber = currentNumber + 1;
         const now = new Date().toISOString();
-        const formNumber = `SLA-${String(nextNumber).padStart(5, "0")}`;
+        const formNumber = `SLA-${projectCode}-${year}-${String(nextNumber).padStart(5, "0")}`;
         const data = removeUndefined({
           ...projectData,
           maintenanceReport: { ...projectData.maintenanceReport, formNumber },
