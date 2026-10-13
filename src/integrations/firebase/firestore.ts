@@ -100,14 +100,22 @@ export interface PersonItemTransaction {
   reverted_by?: string;
 }
 
+export interface PersonSiteRemark {
+  id: string;
+  text: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
 export interface PersonSite {
   id?: string;
   person_id: string;
   site_name: string;
-  status: "Travelling" | "Onsite – Work In Progress" | "Onsite – Completed" | "Returned to Base" | "Standby / Idle";
+  status: "Completed" | "Travelling" | "Onsite – Work In Progress" | "Onsite – Completed" | "Returned to Base" | "Standby / Idle";
   poc_name?: string;
   poc_contact?: string;
   location?: string;
+  remarks?: PersonSiteRemark[];
   created_at?: string;
 }
 

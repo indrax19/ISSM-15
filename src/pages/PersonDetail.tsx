@@ -7,13 +7,13 @@ import { useAuth } from "@/context/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Package, Pencil, Trash2, Send } from "lucide-react";
+import { ArrowLeft, Plus, Package, Pencil, Trash2, Send, MessageSquarePlus } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
 
@@ -29,34 +29,17 @@ const issueItemSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
+const PERSON_SITE_STATUSES = ["Completed", "Travelling", "Onsite – Work In Progress", "Onsite – Completed", "Returned to Base", "Standby / Idle"] as const;
+
 const addSiteSchema = z.object({
   site_name: z.string().trim().min(1, "Site name required").max(100),
-  status: z.enum(["Completed", "Travelling", "Onsite – Work In Progress", "Onsite – Completed", "Returned to Base", "Standby / Idle"], {
+  status: z.enum(PERSON_SITE_STATUSES, {
     errorMap: () => ({ message: "Status required" }),
   }),
   poc_name: z.string().trim().max(100).optional(),
   poc_contact: z.string().trim().max(20).optional(),
   location: z.string().trim().max(100).optional(),
 });
-
-const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-  switch (status) {
-    case "Completed":
-      return "default";
-    case "Onsite – Completed":
-      return "default";
-    case "Travelling":
-      return "secondary";
-    case "Onsite – Work In Progress":
-      return "secondary";
-    case "Returned to Base":
-      return "outline";
-    case "Standby / Idle":
-      return "destructive";
-    default:
-      return "outline";
-  }
-};
 
 export default function PersonDetail() {
   const { id } = useParams<{ id: string }>();
@@ -86,7 +69,9 @@ export default function PersonDetail() {
   const [editSiteOpen, setEditSiteOpen] = useState(false);
   const [editSiteId, setEditSiteId] = useState<string | null>(null);
   const [siteName, setSiteName] = useState("");
-  const [siteStatus, setSiteStatus] = useState<"Completed", "Travelling" | "Onsite – Work In Progress" | "Onsite – Completed" | "Returned to Base" | "Standby / Idle" | "">("");
+  const [siteStatus, setSiteStatus] = useState<(typeof PERSON_SITE_STATUSES)[number] | "">("");
+  const [remarksSite, setRemarksSite] = useState<any>(null);
+  const [siteRemarkText, setSiteRemarkText] = useState("");
   const [pocName, setPocName] = useState("");
   const [pocContact, setPocContact] = useState("");
   const [location, setLocation] = useState("");
@@ -295,6 +280,32 @@ export default function PersonDetail() {
       toast.success("Site deleted");
     },
     onError: () => toast.error("Failed to delete site"),
+  });
+
+  const updateSiteStatusMutation = useMutation({
+    mutationFn: ({ siteId, status }: { siteId: string; status: (typeof PERSON_SITE_STATUSES)[number] }) =>
+      personSitesAPI.update(siteId, { status }),
+    onSuccess: () => toast.success("Site status updated"),
+    onError: () => toast.error("Failed to update site status"),
+  });
+
+  const addSiteRemarkMutation = useMutation({
+    mutationFn: async () => {
+      if (!remarksSite?.id || !siteRemarkText.trim()) throw new Error("Enter a remark first");
+      const remark = {
+        id: crypto.randomUUID(),
+        text: siteRemarkText.trim(),
+        createdAt: new Date().toISOString(),
+        createdBy: appUser?.fullName || appUser?.email,
+      };
+      await personSitesAPI.update(remarksSite.id, { remarks: [...(remarksSite.remarks || []), remark] });
+    },
+    onSuccess: () => {
+      toast.success("Remark saved to history");
+      setSiteRemarkText("");
+      setRemarksSite(null);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to save remark"),
   });
 
   const issueMutation = useMutation({
@@ -576,6 +587,7 @@ export default function PersonDetail() {
                       <TableHead>POC Name</TableHead>
                       <TableHead>POC Contact</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Remarks</TableHead>
                       <TableHead>Added</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -588,9 +600,21 @@ export default function PersonDetail() {
                         <TableCell className="text-sm text-muted-foreground">{site.poc_name || "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{site.poc_contact || "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={getStatusBadgeVariant(site.status)}>
-                            {site.status}
-                          </Badge>
+                          <select
+                            aria-label={`Status for ${site.site_name}`}
+                            value={site.status}
+                            onChange={(event) => updateSiteStatusMutation.mutate({ siteId: site.id, status: event.target.value as (typeof PERSON_SITE_STATUSES)[number] })}
+                            disabled={updateSiteStatusMutation.isPending}
+                            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                          >
+                            {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                          </select>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setSiteRemarkText(""); }}>
+                            <MessageSquarePlus className="h-3.5 w-3.5" />
+                            {site.remarks?.length || 0}
+                          </Button>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {format(new Date(site.created_at || ""), "MMM d, yyyy")}
@@ -840,7 +864,32 @@ export default function PersonDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Site Dialog */}
+      <Dialog open={remarksSite !== null} onOpenChange={(open) => !open && setRemarksSite(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Site remarks</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-64 space-y-3 overflow-y-auto">
+            {remarksSite?.remarks?.length ? [...remarksSite.remarks].reverse().map((remark: any) => (
+              <div key={remark.id} className="rounded-lg border p-3">
+                <p className="whitespace-pre-wrap">{remark.text}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{new Date(remark.createdAt).toLocaleString()}{remark.createdBy ? ` · ${remark.createdBy}` : ""}</p>
+              </div>
+            )) : <p className="py-6 text-center text-sm text-muted-foreground">No remarks yet.</p>}
+          </div>
+          <div>
+            <Label htmlFor="site-remark">Add remark</Label>
+            <Textarea id="site-remark" value={siteRemarkText} onChange={(event) => setSiteRemarkText(event.target.value)} placeholder="Document follow-up actions or important notes..." className="mt-2" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemarksSite(null)}>Close</Button>
+            <Button onClick={() => addSiteRemarkMutation.mutate()} disabled={addSiteRemarkMutation.isPending || !siteRemarkText.trim()}>
+              {addSiteRemarkMutation.isPending ? "Saving..." : "Save remark"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={editSiteOpen} onOpenChange={setEditSiteOpen}>
         <DialogContent>
           <DialogHeader>
