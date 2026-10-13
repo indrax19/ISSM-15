@@ -2,6 +2,8 @@ import { memo, useCallback } from "react";
 import { CompanyProfile } from "@/integrations/firebase/firestore";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import LoadingSpinner from "./LoadingSpinner";
 
 interface ProfileSelectionDialogProps {
@@ -16,6 +18,9 @@ interface ProfileSelectionDialogProps {
   confirmLabel?: string;
   description?: string;
   associatedProfileName?: string;
+  includeDigitalSignature?: boolean;
+  onIncludeDigitalSignatureChange?: (checked: boolean) => void;
+  signatureAvailable?: boolean;
 }
 
 const ProfileSelectionDialog = memo(function ProfileSelectionDialog({
@@ -30,6 +35,9 @@ const ProfileSelectionDialog = memo(function ProfileSelectionDialog({
   confirmLabel = "Download PDF",
   description = "Choose which company profile to use for this delivery challan PDF:",
   associatedProfileName,
+  includeDigitalSignature = false,
+  onIncludeDigitalSignatureChange,
+  signatureAvailable = false,
 }: ProfileSelectionDialogProps) {
   const handleConfirm = useCallback(async () => {
     await onConfirm();
@@ -98,6 +106,25 @@ const ProfileSelectionDialog = memo(function ProfileSelectionDialog({
                   </div>
                 </Button>
               ))}
+            </div>
+          )}
+
+          {onIncludeDigitalSignatureChange && (
+            <div>
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                <Checkbox
+                  id="include-digital-signature"
+                  checked={includeDigitalSignature}
+                  onCheckedChange={(checked) => onIncludeDigitalSignatureChange(checked === true)}
+                  disabled={!signatureAvailable || isConfirming || isLoading}
+                />
+                <Label htmlFor="include-digital-signature" className="cursor-pointer text-sm font-normal">
+                  Include digital signature
+                </Label>
+              </div>
+              {!signatureAvailable && (
+                <p className="mt-1 text-xs text-muted-foreground">Upload a signature for this company profile in Settings to enable.</p>
+              )}
             </div>
           )}
 

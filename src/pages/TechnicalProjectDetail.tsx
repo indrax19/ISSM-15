@@ -8,6 +8,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { BadgeCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -133,6 +134,11 @@ export default function TechnicalProjectDetail() {
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
   const [isSavingCert, setIsSavingCert] = useState(false);
+  const [includeDigitalSignature, setIncludeDigitalSignature] = useState(false);
+
+  useEffect(() => {
+    if (!showCertificateDialog) setIncludeDigitalSignature(false);
+  }, [showCertificateDialog]);
 
   const [project, setProject] = useState<any>(null);
   const [sites, setSites] = useState<SiteDetails[]>([]);
@@ -1306,7 +1312,10 @@ export default function TechnicalProjectDetail() {
       />
 
       {/* Create Certificate Dialog */}
-      <Dialog open={showCertificateDialog} onOpenChange={setShowCertificateDialog}>
+      <Dialog open={showCertificateDialog} onOpenChange={(open) => {
+        setShowCertificateDialog(open);
+        if (!open) setIncludeDigitalSignature(false);
+      }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
             <DialogTitle className="text-xl font-bold text-gray-900">Create Deployment Certificate</DialogTitle>
@@ -1319,7 +1328,10 @@ export default function TechnicalProjectDetail() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="font-semibold text-gray-900">Company Profile</Label>
-                <Select value={selectedCompanyProfile} onValueChange={setSelectedCompanyProfile}>
+                <Select value={selectedCompanyProfile} onValueChange={(value) => {
+                  setSelectedCompanyProfile(value);
+                  setIncludeDigitalSignature(false);
+                }}>
                   <SelectTrigger className="border border-gray-300">
                     <SelectValue placeholder="Select company profile" />
                   </SelectTrigger>
@@ -1335,6 +1347,20 @@ export default function TechnicalProjectDetail() {
                     )}
                   </SelectContent>
                 </Select>
+                <div className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
+                  <Checkbox
+                    id="include-digital-signature"
+                    checked={includeDigitalSignature}
+                    onCheckedChange={(checked) => setIncludeDigitalSignature(checked === true)}
+                    disabled={!companyProfiles.find((profile) => profile.id === selectedCompanyProfile)?.signature_url}
+                  />
+                  <Label htmlFor="include-digital-signature" className="cursor-pointer text-sm font-normal">
+                    Include digital signature
+                  </Label>
+                </div>
+                {!companyProfiles.find((profile) => profile.id === selectedCompanyProfile)?.signature_url && (
+                  <p className="text-xs text-gray-500">Upload a signature for this company profile in Settings to enable.</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1500,7 +1526,8 @@ export default function TechnicalProjectDetail() {
                     selectedProfile?.logo_url,
                     selectedProfile?.logo_url,
                     selectedProfile?.id,
-                    certificateFormData.certificate_type
+                    certificateFormData.certificate_type,
+                    includeDigitalSignature
                   );
                   toast.success("Certificate PDF downloaded!");
                   setShowCertificateDialog(false);

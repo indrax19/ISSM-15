@@ -30,6 +30,7 @@ export default function DeploymentCertificates() {
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
   const [isConfirmingDownload, setIsConfirmingDownload] = useState(false);
   const [loadingProfiles, setLoadingProfiles] = useState(false);
+  const [includeDigitalSignature, setIncludeDigitalSignature] = useState(false);
 
   // Load site, certificates, and company profiles
   useEffect(() => {
@@ -114,6 +115,7 @@ export default function DeploymentCertificates() {
   }, []);
 
   const handleDownloadPDF = useCallback((cert: DeploymentCertificate) => {
+    setIncludeDigitalSignature(false);
     setSelectedCertificate(cert);
     // Pre-select the certificate's company profile if available
     setSelectedProfileId(cert.companyProfileId || "");
@@ -152,7 +154,8 @@ export default function DeploymentCertificates() {
         selectedCertificate.company_stamp_url,
         undefined,
         selectedProfileId,
-        selectedCertificate.certificate_type || "digital-eye"
+        selectedCertificate.certificate_type || "digital-eye",
+        includeDigitalSignature
       );
 
       setShowProfileDialog(false);
@@ -163,7 +166,7 @@ export default function DeploymentCertificates() {
     } finally {
       setIsConfirmingDownload(false);
     }
-  }, [selectedCertificate, selectedProfileId, editingId, editData]);
+  }, [selectedCertificate, selectedProfileId, editingId, editData, includeDigitalSignature]);
 
   const startEdit = (cert: DeploymentCertificate) => {
     setEditingId(cert.id || null);
@@ -401,8 +404,14 @@ export default function DeploymentCertificates() {
         onOpenChange={setShowProfileDialog}
         profiles={allProfiles}
         selectedProfileId={selectedProfileId}
-        onProfileSelect={setSelectedProfileId}
+        onProfileSelect={(profileId) => {
+          setSelectedProfileId(profileId);
+          setIncludeDigitalSignature(false);
+        }}
         onConfirm={handleConfirmDownload}
+        includeDigitalSignature={includeDigitalSignature}
+        onIncludeDigitalSignatureChange={setIncludeDigitalSignature}
+        signatureAvailable={Boolean(allProfiles.find((profile) => profile.id === selectedProfileId)?.signature_url)}
         isLoading={loadingProfiles}
         isConfirming={isConfirmingDownload}
         confirmLabel="Download PDF"

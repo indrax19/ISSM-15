@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -150,6 +151,11 @@ export default function ProjectDetail() {
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
   const [isSavingCert, setIsSavingCert] = useState(false);
+  const [includeDigitalSignature, setIncludeDigitalSignature] = useState(false);
+
+  useEffect(() => {
+    if (!showCertificateDialog) setIncludeDigitalSignature(false);
+  }, [showCertificateDialog]);
 
   // Persist viewed sites to localStorage whenever they change
   useEffect(() => {
@@ -351,7 +357,8 @@ export default function ProjectDetail() {
             selectedProfile?.logo_url,
             selectedProfile?.logo_url,
             selectedCompanyProfile,
-            certificateFormData.certificate_type as "digital-eye" | "uqaab" | "issm"
+            certificateFormData.certificate_type as "digital-eye" | "uqaab" | "issm",
+            includeDigitalSignature
           );
           toast.success("Certificate PDF downloaded!");
         } catch (error) {
@@ -1198,7 +1205,10 @@ export default function ProjectDetail() {
       />
 
       {/* Create Certificate Dialog */}
-      <Dialog open={showCertificateDialog} onOpenChange={setShowCertificateDialog}>
+      <Dialog open={showCertificateDialog} onOpenChange={(open) => {
+        setShowCertificateDialog(open);
+        if (!open) setIncludeDigitalSignature(false);
+      }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
             <DialogTitle className="text-xl font-bold text-gray-900">Create Deployment Certificate</DialogTitle>
@@ -1221,7 +1231,10 @@ export default function ProjectDetail() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label className="font-semibold text-gray-900">Company Profile</Label>
-                <Select value={selectedCompanyProfile} onValueChange={setSelectedCompanyProfile}>
+                <Select value={selectedCompanyProfile} onValueChange={(value) => {
+                  setSelectedCompanyProfile(value);
+                  setIncludeDigitalSignature(false);
+                }}>
                   <SelectTrigger className="border border-gray-300">
                     <SelectValue placeholder="Select company profile" />
                   </SelectTrigger>
@@ -1237,6 +1250,20 @@ export default function ProjectDetail() {
                     )}
                   </SelectContent>
                 </Select>
+                <div className="mt-2 flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
+                  <Checkbox
+                    id="include-digital-signature"
+                    checked={includeDigitalSignature}
+                    onCheckedChange={(checked) => setIncludeDigitalSignature(checked === true)}
+                    disabled={!companyProfiles.find((profile) => profile.id === selectedCompanyProfile)?.signature_url}
+                  />
+                  <Label htmlFor="include-digital-signature" className="cursor-pointer text-sm font-normal">
+                    Include digital signature
+                  </Label>
+                </div>
+                {!companyProfiles.find((profile) => profile.id === selectedCompanyProfile)?.signature_url && (
+                  <p className="mt-1 text-xs text-gray-500">Upload a signature for this company profile in Settings to enable.</p>
+                )}
               </div>
 
               <div className="space-y-2">

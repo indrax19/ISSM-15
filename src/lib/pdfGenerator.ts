@@ -935,7 +935,8 @@ export async function generateDeploymentCertificatePDF(
   profileId?: string,
   companyStampUrl?: string,
   companyLogoUrl?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye"
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
+  includeDigitalSignature = false
 ): Promise<Blob> {
   const doc = new jsPDF({
     orientation: "portrait",
@@ -1245,7 +1246,13 @@ yPosition += detailLineHeight;
 
   doc.text("Signature:", margin, yPosition);
   doc.line(margin + 25, yPosition + 1, margin + 90, yPosition + 1);
-  if (issuerSignature) {
+  if (includeDigitalSignature && companyProfile?.signature_url) {
+    await addLogoToPDF(doc, companyProfile.signature_url, margin + 25, yPosition - 7, {
+      maxWidth: 65,
+      maxHeight: 12,
+      maintainAspectRatio: true,
+    });
+  } else if (issuerSignature) {
     doc.addImage(issuerSignature.dataUrl, "PNG", margin + 25, yPosition - issuerSignature.height + 2, issuerSignature.width, issuerSignature.height);
   } else {
     doc.text("_________________", margin + 25, yPosition);
@@ -1475,7 +1482,8 @@ export async function downloadDeploymentCertificatePDF(
   companyStampUrl?: string,
   companyLogoUrl?: string,
   profileId?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye"
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
+  includeDigitalSignature = false
 ) {
   try {
     const blob = await generateDeploymentCertificatePDF(
@@ -1492,7 +1500,8 @@ export async function downloadDeploymentCertificatePDF(
       profileId,
       companyStampUrl,
       companyLogoUrl,
-      certificateType
+      certificateType,
+      includeDigitalSignature
     );
     const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : "DeploymentCertificate";
     const filenameSource = certificateType === "sla" ? millName : companyName;
