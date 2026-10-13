@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Package, Pencil, Trash2, Send, MessageSquarePlus } from "lucide-react";
+import { ArrowLeft, Plus, Package, Pencil, Trash2, Send, MessageSquarePlus, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
 
@@ -456,7 +456,7 @@ export default function PersonDetail() {
                       <TableHead>Quantity</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead>Added</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="w-28 text-right"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -471,28 +471,34 @@ export default function PersonDetail() {
                         <TableCell className="text-right space-x-1">
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="gap-1 text-blue-600 hover:text-blue-700"
+                            size="icon"
+                            className="h-8 w-8 text-blue-600 hover:text-blue-700"
                             onClick={() => openIssue(item)}
+                            aria-label="Issue item"
+                            title="Issue item"
                           >
-                            <Send className="h-3.5 w-3.5" /> Issue
+                            <Send className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="gap-1 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                            size="icon"
+                            className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
                             onClick={() => openEdit(item)}
+                            aria-label="Edit item"
+                            title="Edit item"
                           >
-                            <Pencil className="h-3.5 w-3.5" /> Edit
+                            <Pencil className="h-4 w-4" />
                           </Button>
                           {isAdmin && (
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              size="icon"
+                              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
                               onClick={() => handleDeleteItem(item.id)}
+                              aria-label="Delete item"
+                              title="Delete item"
                             >
-                              <Trash2 className="h-3.5 w-3.5" /> Delete
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           )}
                         </TableCell>
@@ -522,8 +528,8 @@ export default function PersonDetail() {
                       <TableHead>Recipient Name</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Issued On</TableHead>
-                      <TableHead>Status</TableHead>
-                      {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                      <TableHead className="w-[1in] min-w-[1in] max-w-[1in] px-1">Status</TableHead>
+                      {isAdmin && <TableHead className="w-12 text-right"><span className="sr-only">Actions</span></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -542,15 +548,18 @@ export default function PersonDetail() {
                             {!transaction.reverted_at && (
                               <Button
                                 variant="outline"
-                                size="sm"
+                                size="icon"
+                                className="h-8 w-8"
                                 onClick={() => {
                                   if (window.confirm(`Return ${transaction.quantity_issued} ${transaction.item_name} to inventory?`)) {
                                     revertItemMutation.mutate(transaction.id);
                                   }
                                 }}
                                 disabled={revertItemMutation.isPending}
+                                aria-label="Revert item to inventory"
+                                title="Revert item to inventory"
                               >
-                                Revert
+                                <Undo2 className="h-4 w-4" />
                               </Button>
                             )}
                           </TableCell>
@@ -589,7 +598,7 @@ export default function PersonDetail() {
                       <TableHead>Status</TableHead>
                       <TableHead>Remarks</TableHead>
                       <TableHead>Added</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="w-20 text-right"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -599,13 +608,14 @@ export default function PersonDetail() {
                         <TableCell className="text-sm text-muted-foreground">{site.location || "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{site.poc_name || "—"}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{site.poc_contact || "—"}</TableCell>
-                        <TableCell>
+                        <TableCell className="w-[1in] min-w-[1in] max-w-[1in] px-1">
                           <select
                             aria-label={`Status for ${site.site_name}`}
+                            title={site.status}
                             value={site.status}
                             onChange={(event) => updateSiteStatusMutation.mutate({ siteId: site.id, status: event.target.value as (typeof PERSON_SITE_STATUSES)[number] })}
                             disabled={updateSiteStatusMutation.isPending}
-                            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                            className="h-9 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-1 text-xs"
                           >
                             {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                           </select>
@@ -622,19 +632,23 @@ export default function PersonDetail() {
                         <TableCell className="text-right space-x-1">
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="gap-1 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                            size="icon"
+                            className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
                             onClick={() => openEditSite(site)}
+                            aria-label="Edit site"
+                            title="Edit site"
                           >
-                            <Pencil className="h-3.5 w-3.5" /> Edit
+                            <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            size="icon"
+                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
                             onClick={() => handleDeleteSite(site.id!)}
+                            aria-label="Delete site"
+                            title="Delete site"
                           >
-                            <Trash2 className="h-3.5 w-3.5" /> Delete
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </TableCell>
                       </TableRow>
