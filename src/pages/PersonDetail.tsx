@@ -7,13 +7,13 @@ import { useAuth } from "@/context/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Package, Pencil, Trash2, Send } from "lucide-react";
+import { ArrowLeft, Plus, Package, Pencil, Trash2, Send, MessageSquarePlus, Undo2 } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
 
@@ -29,34 +29,17 @@ const issueItemSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
+const PERSON_SITE_STATUSES = ["Completed", "Travelling", "Onsite – Work In Progress", "Onsite – Completed", "Returned to Base", "Standby / Idle"] as const;
+
 const addSiteSchema = z.object({
   site_name: z.string().trim().min(1, "Site name required").max(100),
-  status: z.enum(["Completed", "Travelling", "Onsite – Work In Progress", "Onsite – Completed", "Returned to Base", "Standby / Idle"], {
+  status: z.enum(PERSON_SITE_STATUSES, {
     errorMap: () => ({ message: "Status required" }),
   }),
   poc_name: z.string().trim().max(100).optional(),
   poc_contact: z.string().trim().max(20).optional(),
   location: z.string().trim().max(100).optional(),
 });
-
-const getStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-  switch (status) {
-    case "Completed":
-      return "default";
-    case "Onsite – Completed":
-      return "default";
-    case "Travelling":
-      return "secondary";
-    case "Onsite – Work In Progress":
-      return "secondary";
-    case "Returned to Base":
-      return "outline";
-    case "Standby / Idle":
-      return "destructive";
-    default:
-      return "outline";
-  }
-};
 
 export default function PersonDetail() {
   const { id } = useParams<{ id: string }>();
@@ -86,7 +69,9 @@ export default function PersonDetail() {
   const [editSiteOpen, setEditSiteOpen] = useState(false);
   const [editSiteId, setEditSiteId] = useState<string | null>(null);
   const [siteName, setSiteName] = useState("");
-  const [siteStatus, setSiteStatus] = useState<"Completed", "Travelling" | "Onsite – Work In Progress" | "Onsite – Completed" | "Returned to Base" | "Standby / Idle" | "">("");
+  const [siteStatus, setSiteStatus] = useState<(typeof PERSON_SITE_STATUSES)[number] | "">("");
+  const [remarksSite, setRemarksSite] = useState<any>(null);
+  const [siteRemarkText, setSiteRemarkText] = useState("");
   const [pocName, setPocName] = useState("");
   const [pocContact, setPocContact] = useState("");
   const [location, setLocation] = useState("");
@@ -167,6 +152,11 @@ export default function PersonDetail() {
         quantity: parseInt(quantity as string),
         notes: notes || undefined,
       });
+      const existingItem = items.find((item) => item.id === editItemId);
+      if (!existingItem) throw new Error("Item not found");
+      if (!isAdmin && parsed.quantity < existingItem.quantity) {
+        throw new Error("You can only increase an item's quantity");
+      }
       await personItemsAPI.update(editItemId!, {
         item_name: parsed.item_name,
         quantity: parsed.quantity,
@@ -190,13 +180,27 @@ export default function PersonDetail() {
 
   const deleteMutation = useMutation({
     mutationFn: async (itemId: string) => {
+      if (!isAdmin) throw new Error("Only administrators can delete items");
       await personItemsAPI.delete(itemId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["person-items", id] });
       toast.success("Item deleted");
     },
-    onError: () => toast.error("Failed to delete item"),
+    onError: (error: Error) => toast.error(error.message || "Failed to delete item"),
+  });
+
+  const revertItemMutation = useMutation({
+    mutationFn: (transactionId: string) => {
+      if (!isAdmin) throw new Error("Only administrators can revert issued items");
+      return personItemTransactionsAPI.revert(transactionId, appUser?.fullName || appUser?.email);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["person-items", id] });
+      queryClient.invalidateQueries({ queryKey: ["person-issued-items", id] });
+      toast.success("Issued item returned to inventory");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to return item"),
   });
 
   const addSiteMutation = useMutation({
@@ -278,6 +282,32 @@ export default function PersonDetail() {
     onError: () => toast.error("Failed to delete site"),
   });
 
+  const updateSiteStatusMutation = useMutation({
+    mutationFn: ({ siteId, status }: { siteId: string; status: (typeof PERSON_SITE_STATUSES)[number] }) =>
+      personSitesAPI.update(siteId, { status }),
+    onSuccess: () => toast.success("Site status updated"),
+    onError: () => toast.error("Failed to update site status"),
+  });
+
+  const addSiteRemarkMutation = useMutation({
+    mutationFn: async () => {
+      if (!remarksSite?.id || !siteRemarkText.trim()) throw new Error("Enter a remark first");
+      const remark = {
+        id: crypto.randomUUID(),
+        text: siteRemarkText.trim(),
+        createdAt: new Date().toISOString(),
+        createdBy: appUser?.fullName || appUser?.email,
+      };
+      await personSitesAPI.update(remarksSite.id, { remarks: [...(remarksSite.remarks || []), remark] });
+    },
+    onSuccess: () => {
+      toast.success("Remark saved to history");
+      setSiteRemarkText("");
+      setRemarksSite(null);
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to save remark"),
+  });
+
   const issueMutation = useMutation({
     mutationFn: async () => {
       const parsed = issueItemSchema.parse({
@@ -329,8 +359,10 @@ export default function PersonDetail() {
 
   const filtered = items?.filter(
     (i) =>
-      i.item_name.toLowerCase().includes(filter.toLowerCase()) ||
-      (i.notes && i.notes.toLowerCase().includes(filter.toLowerCase()))
+      i.quantity > 0 && (
+        i.item_name.toLowerCase().includes(filter.toLowerCase()) ||
+        (i.notes && i.notes.toLowerCase().includes(filter.toLowerCase()))
+      )
   );
 
   const openEdit = (item: any) => {
@@ -424,7 +456,7 @@ export default function PersonDetail() {
                       <TableHead>Quantity</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead>Added</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="w-28 text-right"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -436,31 +468,41 @@ export default function PersonDetail() {
                         <TableCell className="text-sm text-muted-foreground">
                           {format(new Date(item.created_at), "MMM d, yyyy")}
                         </TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 text-blue-600 hover:text-blue-700"
-                            onClick={() => openIssue(item)}
-                          >
-                            <Send className="h-3.5 w-3.5" /> Issue
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                            onClick={() => openEdit(item)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" /> Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            onClick={() => handleDeleteItem(item.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Delete
-                          </Button>
+                        <TableCell className="whitespace-nowrap text-right">
+                          <div className="ml-auto flex w-max items-center justify-end gap-1 whitespace-nowrap">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700"
+                              onClick={() => openIssue(item)}
+                              aria-label="Issue item"
+                              title="Issue item"
+                            >
+                              <Send className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                              onClick={() => openEdit(item)}
+                              aria-label="Edit item"
+                              title="Edit item"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                onClick={() => handleDeleteItem(item.id)}
+                                aria-label="Delete item"
+                                title="Delete item"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -488,6 +530,8 @@ export default function PersonDetail() {
                       <TableHead>Recipient Name</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Issued On</TableHead>
+                      <TableHead className="w-[1in] min-w-[1in] max-w-[1in] px-1">Status</TableHead>
+                      {isAdmin && <TableHead className="w-12 text-right"><span className="sr-only">Actions</span></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -500,6 +544,28 @@ export default function PersonDetail() {
                         <TableCell className="text-sm text-muted-foreground">
                           {format(new Date(transaction.created_at), "MMM d, yyyy h:mm a")}
                         </TableCell>
+                        <TableCell>{transaction.reverted_at ? "Returned to inventory" : "Issued"}</TableCell>
+                        {isAdmin && (
+                          <TableCell className="text-right">
+                            {!transaction.reverted_at && (
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => {
+                                  if (window.confirm(`Return ${transaction.quantity_issued} ${transaction.item_name} to inventory?`)) {
+                                    revertItemMutation.mutate(transaction.id);
+                                  }
+                                }}
+                                disabled={revertItemMutation.isPending}
+                                aria-label="Revert item to inventory"
+                                title="Revert item to inventory"
+                              >
+                                <Undo2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -529,11 +595,11 @@ export default function PersonDetail() {
                     <TableRow>
                       <TableHead>Site Name</TableHead>
                       <TableHead>Location</TableHead>
-                      <TableHead>POC Name</TableHead>
-                      <TableHead>POC Contact</TableHead>
+                      <TableHead>POC Name / Contact</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Remarks</TableHead>
                       <TableHead>Added</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="w-20 text-right"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -541,33 +607,54 @@ export default function PersonDetail() {
                       <TableRow key={site.id}>
                         <TableCell className="font-medium">{site.site_name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{site.location || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{site.poc_name || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{site.poc_contact || "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={getStatusBadgeVariant(site.status)}>
-                            {site.status}
-                          </Badge>
+                          <div className="font-medium">{site.poc_name || "—"}</div>
+                          <div className="text-sm text-muted-foreground">{site.poc_contact || "—"}</div>
+                        </TableCell>
+                        <TableCell className="w-[1in] min-w-[1in] max-w-[1in] px-1">
+                          <select
+                            aria-label={`Status for ${site.site_name}`}
+                            title={site.status}
+                            value={site.status}
+                            onChange={(event) => updateSiteStatusMutation.mutate({ siteId: site.id, status: event.target.value as (typeof PERSON_SITE_STATUSES)[number] })}
+                            disabled={updateSiteStatusMutation.isPending}
+                            className="h-9 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-1 text-xs"
+                          >
+                            {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                          </select>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setSiteRemarkText(""); }}>
+                            <MessageSquarePlus className="h-3.5 w-3.5" />
+                            {site.remarks?.length || 0}
+                          </Button>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {format(new Date(site.created_at || ""), "MMM d, yyyy")}
                         </TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                            onClick={() => openEditSite(site)}
-                          >
-                            <Pencil className="h-3.5 w-3.5" /> Edit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="gap-1 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            onClick={() => handleDeleteSite(site.id!)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Delete
-                          </Button>
+                        <TableCell className="whitespace-nowrap text-right">
+                          <div className="ml-auto flex w-max items-center justify-end gap-1 whitespace-nowrap">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                              onClick={() => openEditSite(site)}
+                              aria-label="Edit site"
+                              title="Edit site"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => handleDeleteSite(site.id!)}
+                              aria-label="Delete site"
+                              title="Delete site"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -796,7 +883,32 @@ export default function PersonDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Site Dialog */}
+      <Dialog open={remarksSite !== null} onOpenChange={(open) => !open && setRemarksSite(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Site remarks</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-64 space-y-3 overflow-y-auto">
+            {remarksSite?.remarks?.length ? [...remarksSite.remarks].reverse().map((remark: any) => (
+              <div key={remark.id} className="rounded-lg border p-3">
+                <p className="whitespace-pre-wrap">{remark.text}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{new Date(remark.createdAt).toLocaleString()}{remark.createdBy ? ` · ${remark.createdBy}` : ""}</p>
+              </div>
+            )) : <p className="py-6 text-center text-sm text-muted-foreground">No remarks yet.</p>}
+          </div>
+          <div>
+            <Label htmlFor="site-remark">Add remark</Label>
+            <Textarea id="site-remark" value={siteRemarkText} onChange={(event) => setSiteRemarkText(event.target.value)} placeholder="Document follow-up actions or important notes..." className="mt-2" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemarksSite(null)}>Close</Button>
+            <Button onClick={() => addSiteRemarkMutation.mutate()} disabled={addSiteRemarkMutation.isPending || !siteRemarkText.trim()}>
+              {addSiteRemarkMutation.isPending ? "Saving..." : "Save remark"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={editSiteOpen} onOpenChange={setEditSiteOpen}>
         <DialogContent>
           <DialogHeader>

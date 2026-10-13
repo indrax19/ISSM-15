@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Download, Eye, FileIcon, X } from "lucide-react";
+import { ArrowLeft, Download, Eye, FileIcon, Pencil, Trash2, X } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { z } from "zod";
 
@@ -107,7 +107,7 @@ export default function ProjectSiteForm() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isEditing = !!siteId;
-  const { appUser } = useAuth();
+  const { appUser, isAdmin } = useAuth();
 
   // Form state
   const [millName, setMillName] = useState("");
@@ -146,6 +146,8 @@ export default function ProjectSiteForm() {
   const [teamStatus, setTeamStatus] = useState<string>("Scheduled");
   const [remarks, setRemarks] = useState("");
   const [remarksHistory, setRemarksHistory] = useState<ProjectRemark[]>([]);
+  const [editingRemarkIndex, setEditingRemarkIndex] = useState<number | null>(null);
+  const [editingRemarkText, setEditingRemarkText] = useState("");
   const [selectedDocument, setSelectedDocument] = useState<File | null>(null);
   const [siteDocumentUrl, setSiteDocumentUrl] = useState("");
   const [siteDocumentName, setSiteDocumentName] = useState("");
@@ -464,6 +466,7 @@ export default function ProjectSiteForm() {
         ? [{
             text: remarks.trim(),
             authorName: appUser?.fullName || appUser?.email || "Unknown user",
+            authorId: appUser?.id,
             createdAt: new Date().toISOString(),
           }]
         : [];
@@ -496,7 +499,7 @@ export default function ProjectSiteForm() {
           ...documentFields,
           ...dispatchSlipFields,
           poNumber,
-          remarks: remarks.trim() || undefined,
+          remarks: updatedRemarksHistory.at(-1)?.text || null,
           remarksHistory: updatedRemarksHistory,
           updated_by: appUser?.id,
         } as any);
@@ -507,7 +510,7 @@ export default function ProjectSiteForm() {
           ...documentFields,
           ...dispatchSlipFields,
           poNumber,
-          remarks: remarks.trim() || undefined,
+          remarks: updatedRemarksHistory.at(-1)?.text || null,
           remarksHistory: updatedRemarksHistory,
           created_by: appUser?.id,
           updated_by: appUser?.id,
@@ -599,6 +602,12 @@ export default function ProjectSiteForm() {
 
     setProjectStatuses(updatedStatuses);
   };
+
+  const latestOwnedRemarkIndex = remarksHistory.reduce((latestIndex, remark, index) => {
+    const isOwned = (appUser?.id && remark.authorId === appUser.id) ||
+      (!remark.authorId && [appUser?.fullName, appUser?.email].filter(Boolean).includes(remark.authorName));
+    return isOwned ? index : latestIndex;
+  }, -1);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1210,6 +1219,7 @@ export default function ProjectSiteForm() {
                       {
                         text: remarks.trim(),
                         authorName: appUser?.fullName || appUser?.email || "Unknown user",
+                        authorId: appUser?.id,
                         createdAt: new Date().toISOString(),
                       },
                     ]);
@@ -1229,17 +1239,61 @@ export default function ProjectSiteForm() {
             </div>
             {remarksHistory.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold">Remarks History</h3>
+                <div>
+                  <h3 className="text-sm font-semibold">Remarks History</h3>
+                  <p className="text-xs text-muted-foreground">Save the site to apply remark changes.</p>
+                </div>
                 <div className="space-y-2">
-                  {[...remarksHistory].reverse().map((remark, index) => (
-                    <div key={`${remark.createdAt}-${index}`} className="rounded-md border bg-muted/30 p-3">
-                      <p className="text-sm text-foreground whitespace-pre-wrap">{remark.text}</p>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Added by {remark.authorName || "Unknown user"}
-                        {remark.createdAt && ` • ${new Date(remark.createdAt).toLocaleString()}`}
-                      </p>
-                    </div>
-                  ))}
+                  {remarksHistory.map((remark, index) => ({ remark, index })).reverse().map(({ remark, index }) => {
+                    const canEdit = isAdmin || (index === latestOwnedRemarkIndex && latestOwnedRemarkIndex >= 0);
+                    const isEditingRemark = editingRemarkIndex === index;
+                    return (
+                      <div key={`${remark.createdAt}-${index}`} className="rounded-md border bg-muted/30 p-3">
+                        {isEditingRemark ? (
+                          <textarea
+                            value={editingRemarkText}
+                            onChange={(event) => setEditingRemarkText(event.target.value)}
+                            className="w-full min-h-20 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            aria-label="Edit remark"
+                          />
+                        ) : (
+                          <p className="text-sm text-foreground whitespace-pre-wrap">{remark.text}</p>
+                        )}
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            Added by {remark.authorName || "Unknown user"}
+                            {remark.createdAt && ` • ${new Date(remark.createdAt).toLocaleString()}`}
+                          </p>
+                          {canEdit && (
+                            <div className="flex shrink-0 gap-1">
+                              {isEditingRemark ? (
+                                <>
+                                  <Button type="button" size="sm" disabled={!editingRemarkText.trim()} onClick={() => {
+                                    setRemarksHistory((history) => history.map((item, itemIndex) => itemIndex === index ? { ...item, text: editingRemarkText.trim() } : item));
+                                    setEditingRemarkIndex(null);
+                                  }}>Save</Button>
+                                  <Button type="button" size="sm" variant="outline" onClick={() => setEditingRemarkIndex(null)}>Cancel</Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button type="button" size="icon" variant="ghost" aria-label="Edit remark" onClick={() => {
+                                    setEditingRemarkIndex(index);
+                                    setEditingRemarkText(remark.text);
+                                  }}><Pencil className="h-4 w-4" /></Button>
+                                  {isAdmin && (
+                                    <Button type="button" size="icon" variant="ghost" aria-label="Delete remark" onClick={() => {
+                                      setRemarksHistory((history) => history.filter((_, itemIndex) => itemIndex !== index));
+                                      setEditingRemarkIndex(null);
+                                    }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
