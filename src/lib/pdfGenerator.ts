@@ -43,8 +43,9 @@ const renderScriptSignature = async (name: string) => {
   context.textBaseline = "middle";
   context.fillText(name, 10, 45);
 
-  const width = Math.min(65, textWidth * 0.2646 + 5);
-  return { dataUrl: canvas.toDataURL("image/png"), width, height: width * canvas.height / canvas.width };
+  const height = 4.2;
+  const width = height * canvas.width / canvas.height;
+  return { dataUrl: canvas.toDataURL("image/png"), width, height };
 };
 
 const equipmentPDFOrder = [
@@ -1247,13 +1248,13 @@ yPosition += detailLineHeight;
   doc.text("Signature:", margin, yPosition);
   doc.line(margin + 25, yPosition + 1, margin + 90, yPosition + 1);
   if (includeDigitalSignature && companyProfile?.signature_url) {
-    await addLogoToPDF(doc, companyProfile.signature_url, margin + 25, yPosition - 7, {
+    await addLogoToPDF(doc, companyProfile.signature_url, margin + 25, yPosition - 4, {
       maxWidth: 65,
-      maxHeight: 12,
+      maxHeight: 4.2,
       maintainAspectRatio: true,
     });
   } else if (issuerSignature) {
-    doc.addImage(issuerSignature.dataUrl, "PNG", margin + 25, yPosition - issuerSignature.height + 2, issuerSignature.width, issuerSignature.height);
+    doc.addImage(issuerSignature.dataUrl, "PNG", margin + 25, yPosition - issuerSignature.height - 1, issuerSignature.width, issuerSignature.height);
   } else {
     doc.text("_________________", margin + 25, yPosition);
   }
