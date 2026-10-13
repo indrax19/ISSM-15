@@ -468,39 +468,41 @@ export default function PersonDetail() {
                         <TableCell className="text-sm text-muted-foreground">
                           {format(new Date(item.created_at), "MMM d, yyyy")}
                         </TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-blue-600 hover:text-blue-700"
-                            onClick={() => openIssue(item)}
-                            aria-label="Issue item"
-                            title="Issue item"
-                          >
-                            <Send className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                            onClick={() => openEdit(item)}
-                            aria-label="Edit item"
-                            title="Edit item"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {isAdmin && (
+                        <TableCell className="whitespace-nowrap text-right">
+                          <div className="ml-auto flex w-max items-center justify-end gap-1 whitespace-nowrap">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                              onClick={() => handleDeleteItem(item.id)}
-                              aria-label="Delete item"
-                              title="Delete item"
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700"
+                              onClick={() => openIssue(item)}
+                              aria-label="Issue item"
+                              title="Issue item"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Send className="h-4 w-4" />
                             </Button>
-                          )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                              onClick={() => openEdit(item)}
+                              aria-label="Edit item"
+                              title="Edit item"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                onClick={() => handleDeleteItem(item.id)}
+                                aria-label="Delete item"
+                                title="Delete item"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -593,8 +595,7 @@ export default function PersonDetail() {
                     <TableRow>
                       <TableHead>Site Name</TableHead>
                       <TableHead>Location</TableHead>
-                      <TableHead>POC Name</TableHead>
-                      <TableHead>POC Contact</TableHead>
+                      <TableHead>POC Name / Contact</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Remarks</TableHead>
                       <TableHead>Added</TableHead>
@@ -606,8 +607,10 @@ export default function PersonDetail() {
                       <TableRow key={site.id}>
                         <TableCell className="font-medium">{site.site_name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{site.location || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{site.poc_name || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{site.poc_contact || "—"}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{site.poc_name || "—"}</div>
+                          <div className="text-sm text-muted-foreground">{site.poc_contact || "—"}</div>
+                        </TableCell>
                         <TableCell className="w-[1in] min-w-[1in] max-w-[1in] px-1">
                           <select
                             aria-label={`Status for ${site.site_name}`}
@@ -629,27 +632,29 @@ export default function PersonDetail() {
                         <TableCell className="text-sm text-muted-foreground">
                           {format(new Date(site.created_at || ""), "MMM d, yyyy")}
                         </TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                            onClick={() => openEditSite(site)}
-                            aria-label="Edit site"
-                            title="Edit site"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                            onClick={() => handleDeleteSite(site.id!)}
-                            aria-label="Delete site"
-                            title="Delete site"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        <TableCell className="whitespace-nowrap text-right">
+                          <div className="ml-auto flex w-max items-center justify-end gap-1 whitespace-nowrap">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                              onClick={() => openEditSite(site)}
+                              aria-label="Edit site"
+                              title="Edit site"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              onClick={() => handleDeleteSite(site.id!)}
+                              aria-label="Delete site"
+                              title="Delete site"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
