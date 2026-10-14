@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { projectTrackingAPI, type ProjectTracking } from "@/integrations/firebase/projectTrackingAPI";
+import { projectTrackingAPI, type ProjectRemark, type ProjectTracking } from "@/integrations/firebase/projectTrackingAPI";
 import { useAuth } from "@/context/AuthContext";
 import { useRealtimeProject, useRealtimeSites } from "@/hooks/useProjectTracking";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -20,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, FileUp, CheckCircle, Clock, FileText, Loader2, Copy } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, FileUp, CheckCircle, Clock, FileText, Loader2, Copy, MessageSquarePlus } from "lucide-react";
 import { RealtimeStatusIndicator, DataLoadingSkeleton, ConnectionBadge } from "@/components/RealtimeStatusIndicator";
 import { format, differenceInHours } from "date-fns";
 import { exportProjectTrackingToExcel } from "@/lib/excelExport";
@@ -70,6 +71,13 @@ const isRecentlyModified = (site: any, viewedIds?: Set<string>, currentUserId?: 
   return getUpdateStatus(site, viewedIds, currentUserId) !== null;
 };
 
+const getSiteRemarks = (site: ProjectTracking): ProjectRemark[] =>
+  site.remarksHistory?.length
+    ? site.remarksHistory
+    : site.remarks
+      ? [{ text: site.remarks, authorName: "Previous entry", createdAt: site.updated_at || "" }]
+      : [];
+
 const getCertificateFormStorageKey = (siteId: string) => `certificate_form_${siteId}`;
 
 const loadCertificateFormData = (siteId: string) => {
@@ -116,6 +124,8 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const { isAdmin, appUser } = useAuth();
   const [viewSite, setViewSite] = useState<any>(null);
+  const [remarksSite, setRemarksSite] = useState<ProjectTracking | null>(null);
+  const [remarkText, setRemarkText] = useState("");
   const [viewedSiteIds, setViewedSiteIds] = useState<Set<string>>(() => {
     // Load viewed sites from localStorage on mount
     const storageKey = `viewed_sites_${id}_${appUser?.id}`;
@@ -241,6 +251,32 @@ export default function ProjectDetail() {
     [searchTerm, filterStatus, filterCity, filterSupplier]
   );
 
+  const isUserAssigned = project && (isAdmin || (project.assignedUsers || []).includes(appUser?.id || ""));
+
+  const addRemarkMutation = useMutation({
+    mutationFn: async ({ site, text }: { site: ProjectTracking; text: string }) => {
+      if (!site.id || !text.trim()) throw new Error("Enter a remark first");
+      if (!isUserAssigned) throw new Error("You don't have permission to edit this project");
+      const remark: ProjectRemark = {
+        text: text.trim(),
+        authorName: appUser?.fullName || appUser?.email || "Unknown user",
+        authorId: appUser?.id,
+        createdAt: new Date().toISOString(),
+      };
+      await projectTrackingAPI.update(site.id, {
+        remarks: remark.text,
+        remarksHistory: [...getSiteRemarks(site), remark],
+        updated_by: appUser?.id,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Remark saved to history");
+      setRemarkText("");
+      setRemarksSite(null);
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const deleteSiteMutation = useMutation({
     mutationFn: (siteId: string) => projectTrackingAPI.delete(siteId),
     onSuccess: () => {
@@ -257,9 +293,6 @@ export default function ProjectDetail() {
       toast.error(errorMessage);
     },
   });
-
-  // Check if current user is assigned to this project
-  const isUserAssigned = project && (isAdmin || (project.assignedUsers || []).includes(appUser?.id || ""));
 
   const handleDeleteSite = (siteId: string) => {
     if (!isUserAssigned) {
@@ -648,7 +681,7 @@ export default function ProjectDetail() {
 
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-            <Table className="min-w-[1320px] table-fixed">
+            <Table className="min-w-[1664px] table-fixed">
               <TableHeader className="bg-gray-50 border-b-2 border-gray-200">
                 <TableRow className="hover:bg-gray-50">
                   <TableHead className="w-16 font-semibold text-gray-700 h-12">Sr.</TableHead>
@@ -658,7 +691,8 @@ export default function ProjectDetail() {
                   <TableHead className="w-24 font-semibold text-gray-700">Unit #</TableHead>
                   <TableHead className="w-40 font-semibold text-gray-700">Status</TableHead>
                   <TableHead className="w-64 font-semibold text-gray-700">POC Name</TableHead>
-                  <TableHead className="w-40 font-semibold text-gray-700">Last Updated</TableHead>
+                  <TableHead className="w-60 font-semibold text-gray-700">Remarks</TableHead>
+                  <TableHead className="w-28 font-semibold text-gray-700">Last Updated</TableHead>
                   <TableHead className="w-44 font-semibold text-gray-700 text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -702,8 +736,25 @@ export default function ProjectDetail() {
                             <div><span className="text-xs text-gray-500">Site:</span> {site.pocSiteName || "—"}</div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600 py-4 whitespace-normal break-words">
-                          {site.updated_at ? format(new Date(site.updated_at), "MMM d, yyyy HH:mm") : "—"}
+                        <TableCell className="py-4">
+                          <div className="flex items-start gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 shrink-0 gap-1 px-2"
+                              onClick={() => { setRemarksSite(site); setRemarkText(""); }}
+                              aria-label={`View remarks for ${site.millName || "site"}`}
+                            >
+                              <MessageSquarePlus className="h-3.5 w-3.5" />
+                              {getSiteRemarks(site).length}
+                            </Button>
+                            <p className="min-w-0 whitespace-pre-wrap break-words text-xs text-gray-700">
+                              {getSiteRemarks(site).at(-1)?.text || "—"}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-4 text-xs text-gray-600 whitespace-normal break-words">
+                          {site.updated_at ? format(new Date(site.updated_at), "MMM d, yy HH:mm") : "—"}
                         </TableCell>
                         <TableCell className="py-4 align-top">
                           <div className="space-y-2">
@@ -788,7 +839,7 @@ export default function ProjectDetail() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                       No sites match your filters
                     </TableCell>
                   </TableRow>
@@ -873,6 +924,17 @@ export default function ProjectDetail() {
                         <p><span className="text-xs text-gray-500">Project:</span> {site.pocProjectName || site.pocName || "—"}</p>
                         <p className="text-xs text-gray-600">{site.pocProjectPhone || site.pocPhone || "—"}</p>
                         <p><span className="text-xs text-gray-500">Site:</span> {site.pocSiteName || "—"}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 border-t pt-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-gray-600">Remarks</p>
+                          <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-gray-900">{getSiteRemarks(site).at(-1)?.text || "No remarks yet."}</p>
+                        </div>
+                        <Button variant="outline" size="sm" className="shrink-0 gap-1" onClick={() => { setRemarksSite(site); setRemarkText(""); }}>
+                          <MessageSquarePlus className="h-3.5 w-3.5" />
+                          {getSiteRemarks(site).length}
+                        </Button>
                       </div>
 
                       {/* Actions */}
@@ -1176,6 +1238,36 @@ export default function ProjectDetail() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!remarksSite} onOpenChange={(open) => { if (!open) { setRemarksSite(null); setRemarkText(""); } }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Site remarks</DialogTitle>
+            <DialogDescription>{remarksSite?.millName}</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 space-y-3 overflow-y-auto">
+            {remarksSite && getSiteRemarks(remarksSite).length ? [...getSiteRemarks(remarksSite)].reverse().map((remark, index) => (
+              <div key={`${remark.createdAt}-${index}`} className="rounded-lg border p-3">
+                <p className="whitespace-pre-wrap">{remark.text}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {remark.createdAt ? format(new Date(remark.createdAt), "MMM d, yyyy HH:mm") : ""}
+                  {remark.authorName ? ` · ${remark.authorName}` : ""}
+                </p>
+              </div>
+            )) : <p className="py-6 text-center text-sm text-muted-foreground">No remarks yet.</p>}
+          </div>
+          {isUserAssigned && (
+            <div>
+              <Label htmlFor="site-remark">Add remark</Label>
+              <Textarea id="site-remark" value={remarkText} onChange={(event) => setRemarkText(event.target.value)} placeholder="Document follow-up actions or important notes..." className="mt-2" />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRemarksSite(null); setRemarkText(""); }}>Close</Button>
+            {isUserAssigned && <Button onClick={() => remarksSite && addRemarkMutation.mutate({ site: remarksSite, text: remarkText })} disabled={addRemarkMutation.isPending || !remarkText.trim()}>Save remark</Button>}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

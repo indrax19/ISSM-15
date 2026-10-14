@@ -115,6 +115,7 @@ export interface ProjectTracking {
   updated_at?: string;
   created_by?: string;
   updated_by?: string;
+  remarks?: string;
   remarksHistory?: ProjectRemark[];
 }
 
