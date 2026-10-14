@@ -1051,7 +1051,6 @@ export default function ProjectSiteForm() {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-sm font-semibold">Completion Progress</h3>
-                  <p className="text-xs text-muted-foreground">Progress reflects the weighted completion of each milestone.</p>
                 </div>
                 <span className="text-2xl font-bold text-primary">{projectCompletionPercent}%</span>
               </div>
