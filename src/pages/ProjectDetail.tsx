@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/button";
 import { BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, FileUp, CheckCircle, Clock, FileText, Loader2, Copy } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, FileUp, CheckCircle, Clock, FileText, Loader2, Copy, MessageSquarePlus } from "lucide-react";
 import { RealtimeStatusIndicator, DataLoadingSkeleton, ConnectionBadge } from "@/components/RealtimeStatusIndicator";
 import { format, differenceInHours } from "date-fns";
 import { exportProjectTrackingToExcel } from "@/lib/excelExport";
@@ -117,6 +118,10 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const { isAdmin, appUser } = useAuth();
   const [viewSite, setViewSite] = useState<any>(null);
+  const [remarksSite, setRemarksSite] = useState<ProjectTracking | null>(null);
+  const [remarkText, setRemarkText] = useState("");
+  const [editingRemarkIndex, setEditingRemarkIndex] = useState<number | null>(null);
+  const [editingRemarkText, setEditingRemarkText] = useState("");
   const [viewedSiteIds, setViewedSiteIds] = useState<Set<string>>(() => {
     // Load viewed sites from localStorage on mount
     const storageKey = `viewed_sites_${id}_${appUser?.id}`;
@@ -200,6 +205,56 @@ export default function ProjectDetail() {
     error: sitesError,
     isConnected: sitesConnected,
   } = useRealtimeSites(id);
+
+  const saveRemarksMutation = useMutation({
+    mutationFn: async ({ site, remarksHistory }: { site: ProjectTracking; remarksHistory: NonNullable<ProjectTracking["remarksHistory"]> }) => {
+      if (!site.id) throw new Error("Site not found");
+      await projectTrackingAPI.update(site.id, {
+        remarksHistory,
+        remarks: remarksHistory.at(-1)?.text || null,
+        updated_by: appUser?.id,
+      });
+    },
+    onSuccess: (_, { site, remarksHistory }) => {
+      setRemarksSite((current) => current?.id === site.id ? { ...current, remarksHistory, remarks: remarksHistory.at(-1)?.text || null } : current);
+      toast.success("Remarks updated");
+    },
+    onError: (error: Error) => toast.error(error.message || "Failed to update remarks"),
+  });
+
+  const getSiteRemarks = (site: ProjectTracking) => site.remarksHistory?.length
+    ? site.remarksHistory
+    : site.remarks
+      ? [{ text: site.remarks, authorName: "Previous entry", createdAt: site.updated_at || "" }]
+      : [];
+
+  const addRemark = () => {
+    if (!remarksSite || !remarkText.trim()) return;
+    const remarksHistory = [...getSiteRemarks(remarksSite), {
+      text: remarkText.trim(),
+      authorName: appUser?.fullName || appUser?.email || "Unknown user",
+      authorId: appUser?.id,
+      createdAt: new Date().toISOString(),
+    }];
+    saveRemarksMutation.mutate({ site: remarksSite, remarksHistory });
+    setRemarkText("");
+  };
+
+  const saveRemarkEdit = () => {
+    if (!remarksSite || editingRemarkIndex === null || !editingRemarkText.trim()) return;
+    const remarksHistory = getSiteRemarks(remarksSite).map((remark, index) =>
+      index === editingRemarkIndex ? { ...remark, text: editingRemarkText.trim() } : remark
+    );
+    saveRemarksMutation.mutate({ site: remarksSite, remarksHistory });
+    setEditingRemarkIndex(null);
+    setEditingRemarkText("");
+  };
+
+  const deleteRemark = (indexToDelete: number) => {
+    if (!remarksSite || !isAdmin) return;
+    const remarksHistory = getSiteRemarks(remarksSite).filter((_, index) => index !== indexToDelete);
+    saveRemarksMutation.mutate({ site: remarksSite, remarksHistory });
+  };
 
   // Filter sites and sort by most recently updated first (memoized to avoid recalculation)
   const filteredSites = useMemo(
@@ -655,7 +710,7 @@ export default function ProjectDetail() {
 
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-            <Table className="min-w-[1320px] table-fixed">
+            <Table className="min-w-[1440px] table-fixed">
               <TableHeader className="bg-gray-50 border-b-2 border-gray-200">
                 <TableRow className="hover:bg-gray-50">
                   <TableHead className="w-16 font-semibold text-gray-700 h-12">Sr.</TableHead>
@@ -665,7 +720,8 @@ export default function ProjectDetail() {
                   <TableHead className="w-24 font-semibold text-gray-700">Unit #</TableHead>
                   <TableHead className="w-40 font-semibold text-gray-700">Status</TableHead>
                   <TableHead className="w-64 font-semibold text-gray-700">POC Name</TableHead>
-                  <TableHead className="w-40 font-semibold text-gray-700">Last Updated</TableHead>
+                  <TableHead className="w-48 font-semibold text-gray-700">Remarks</TableHead>
+                  <TableHead className="w-24 whitespace-normal break-words leading-tight font-semibold text-gray-700">Last Updated</TableHead>
                   <TableHead className="w-44 font-semibold text-gray-700 text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -708,6 +764,25 @@ export default function ProjectDetail() {
                             <div className="text-xs text-gray-600">{site.pocProjectPhone || site.pocPhone || "—"}</div>
                             <div><span className="text-xs text-gray-500">Site:</span> {site.pocSiteName || "—"}</div>
                           </div>
+                        </TableCell>
+                        <TableCell className="py-4 whitespace-normal break-words">
+                          {(() => {
+                            const remarks = getSiteRemarks(site);
+                            return (
+                              <div className="space-y-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                                  onClick={() => { setRemarksSite(site); setRemarkText(""); setEditingRemarkIndex(null); }}
+                                >
+                                  <MessageSquarePlus className="h-4 w-4" />
+                                  {remarks.length ? `${remarks.length} remark${remarks.length === 1 ? "" : "s"}` : "Add remark"}
+                                </Button>
+                                {remarks.at(-1)?.text && <p className="line-clamp-2 text-xs text-gray-600">{remarks.at(-1)?.text}</p>}
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-sm text-gray-600 py-4 whitespace-normal break-words">
                           {site.updated_at ? format(new Date(site.updated_at), "MMM d, yyyy HH:mm") : "—"}
@@ -795,7 +870,7 @@ export default function ProjectDetail() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                       No sites match your filters
                     </TableCell>
                   </TableRow>
@@ -880,6 +955,22 @@ export default function ProjectDetail() {
                         <p><span className="text-xs text-gray-500">Project:</span> {site.pocProjectName || site.pocName || "—"}</p>
                         <p className="text-xs text-gray-600">{site.pocProjectPhone || site.pocPhone || "—"}</p>
                         <p><span className="text-xs text-gray-500">Site:</span> {site.pocSiteName || "—"}</p>
+                      </div>
+
+                      <div className="border-t pt-3 space-y-2">
+                        <p className="text-xs font-medium text-gray-600">Remarks</p>
+                        {(() => {
+                          const remarks = getSiteRemarks(site);
+                          return (
+                            <div className="space-y-2">
+                              <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setRemarkText(""); setEditingRemarkIndex(null); }}>
+                                <MessageSquarePlus className="h-4 w-4" />
+                                {remarks.length ? `${remarks.length} remark${remarks.length === 1 ? "" : "s"}` : "Add remark"}
+                              </Button>
+                              {remarks.at(-1)?.text && <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{remarks.at(-1)?.text}</p>}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Actions */}
@@ -982,6 +1073,60 @@ export default function ProjectDetail() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!remarksSite} onOpenChange={(open) => {
+        if (!open) {
+          setRemarksSite(null);
+          setEditingRemarkIndex(null);
+          setEditingRemarkText("");
+        }
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Site remarks</DialogTitle>
+            <p className="text-sm text-muted-foreground">{remarksSite?.millName}</p>
+          </DialogHeader>
+          <div className="max-h-80 space-y-3 overflow-y-auto">
+            {remarksSite && getSiteRemarks(remarksSite).length ? getSiteRemarks(remarksSite).map((remark, index) => ({ remark, index })).reverse().map(({ remark, index }) => (
+              <div key={`${remark.createdAt}-${index}`} className="rounded-lg border p-3">
+                {editingRemarkIndex === index ? (
+                  <Textarea value={editingRemarkText} onChange={(event) => setEditingRemarkText(event.target.value)} aria-label="Edit remark" />
+                ) : (
+                  <p className="whitespace-pre-wrap break-words">{remark.text}</p>
+                )}
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">{remark.createdAt ? format(new Date(remark.createdAt), "MMM d, yyyy HH:mm") : ""}{remark.authorName ? ` · ${remark.authorName}` : ""}</p>
+                  {isAdmin && (
+                    <div className="flex shrink-0 gap-1">
+                      {editingRemarkIndex === index ? (
+                        <>
+                          <Button size="sm" disabled={!editingRemarkText.trim() || saveRemarksMutation.isPending} onClick={saveRemarkEdit}>Save</Button>
+                          <Button size="sm" variant="outline" onClick={() => { setEditingRemarkIndex(null); setEditingRemarkText(""); }}>Cancel</Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button size="icon" variant="ghost" aria-label="Edit remark" onClick={() => { setEditingRemarkIndex(index); setEditingRemarkText(remark.text); }}><Pencil className="h-4 w-4" /></Button>
+                          <Button size="icon" variant="ghost" aria-label="Delete remark" disabled={saveRemarksMutation.isPending} onClick={() => deleteRemark(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )) : <p className="py-6 text-center text-sm text-muted-foreground">No remarks yet.</p>}
+          </div>
+          {isUserAssigned && (
+            <div>
+              <Label htmlFor="site-remark">Add remark</Label>
+              <Textarea id="site-remark" value={remarkText} onChange={(event) => setRemarkText(event.target.value)} placeholder="Document follow-up actions or important notes..." className="mt-2" />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemarksSite(null)}>Close</Button>
+            {isUserAssigned && <Button onClick={addRemark} disabled={saveRemarksMutation.isPending || !remarkText.trim()}>Save remark</Button>}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View Site Details Modal */}
       <Dialog open={!!viewSite} onOpenChange={(open) => !open && setViewSite(null)}>
