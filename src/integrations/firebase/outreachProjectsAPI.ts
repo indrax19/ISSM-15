@@ -17,6 +17,7 @@ export interface OutreachProject {
   id?: string;
   name: string;
   description?: string;
+  remarks?: { id: string; text: string; createdAt: string; createdBy?: string }[];
   created_at?: string;
   updated_at?: string;
 }
