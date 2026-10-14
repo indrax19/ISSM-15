@@ -737,21 +737,16 @@ export default function ProjectDetail() {
                           </div>
                         </TableCell>
                         <TableCell className="py-4">
-                          <div className="flex items-start gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 shrink-0 gap-1 px-2"
-                              onClick={() => { setRemarksSite(site); setRemarkText(""); }}
-                              aria-label={`View remarks for ${site.millName || "site"}`}
-                            >
-                              <MessageSquarePlus className="h-3.5 w-3.5" />
-                              {getSiteRemarks(site).length}
-                            </Button>
-                            <p className="min-w-0 whitespace-pre-wrap break-words text-xs text-gray-700">
-                              {getSiteRemarks(site).at(-1)?.text || "—"}
-                            </p>
-                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1 px-2"
+                            onClick={() => { setRemarksSite(site); setRemarkText(""); }}
+                            aria-label={`View remarks for ${site.millName || "site"}`}
+                          >
+                            <MessageSquarePlus className="h-3.5 w-3.5" />
+                            {getSiteRemarks(site).length}
+                          </Button>
                         </TableCell>
                         <TableCell className="py-4 text-xs text-gray-600 whitespace-normal break-words">
                           {site.updated_at ? format(new Date(site.updated_at), "MMM d, yy HH:mm") : "—"}
@@ -927,10 +922,7 @@ export default function ProjectDetail() {
                       </div>
 
                       <div className="flex items-center justify-between gap-3 border-t pt-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-gray-600">Remarks</p>
-                          <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-gray-900">{getSiteRemarks(site).at(-1)?.text || "No remarks yet."}</p>
-                        </div>
+                        <p className="text-xs font-medium text-gray-600">Remarks</p>
                         <Button variant="outline" size="sm" className="shrink-0 gap-1" onClick={() => { setRemarksSite(site); setRemarkText(""); }}>
                           <MessageSquarePlus className="h-3.5 w-3.5" />
                           {getSiteRemarks(site).length}
