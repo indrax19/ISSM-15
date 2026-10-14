@@ -91,7 +91,7 @@ const siteSchema = z.object({
 
 const LOGISTICS_STATUS_OPTIONS = ["Pending Dispatch", "Dispatched", "In Transit", "Arrived at Destination", "Delayed – Logistics"];
 const PO_STATUS_OPTIONS = ["Issue", "Pending", "On Hold", "Pause", "Awaiting conformation", "Cancelled"];
-const TIMELINE_STATUS_OPTIONS = ["Pause", "Hold by Team", "Hold by Mill", "Awaiting Confirmation"];
+const TIMELINE_STATUS_OPTIONS = ["Complete", "Pause", "Hold by Team", "Hold by Mill", "Awaiting Confirmation"];
 const TEAM_STATUS_OPTIONS = [
   "Scheduled",
   "Mobilized",
@@ -137,7 +137,7 @@ export default function ProjectSiteForm() {
   const [aviraPoDate, setAviraPoDate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [timelineStatus, setTimelineStatus] = useState("");
+  const [timelineStatus, setTimelineStatus] = useState("Complete");
   const [isManualTimelineStatus, setIsManualTimelineStatus] = useState(false);
   const [projectDurationDays, setProjectDurationDays] = useState(0);
   const [supervisorName, setSupervisorName] = useState("");
@@ -247,7 +247,7 @@ export default function ProjectSiteForm() {
       setAviraPoDate(site.aviraPoDate || "");
       setStartDate(site.startDate || "");
       setEndDate(site.endDate || "");
-      const savedTimelineStatus = site.timelineStatus || "";
+      const savedTimelineStatus = site.timelineStatus || "Complete";
       setTimelineStatus(savedTimelineStatus);
       setIsManualTimelineStatus(Boolean(savedTimelineStatus && !TIMELINE_STATUS_OPTIONS.includes(savedTimelineStatus)));
       setProjectDurationDays(site.projectDurationDays || 0);
@@ -279,7 +279,7 @@ export default function ProjectSiteForm() {
     if (startDate && endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
-      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       setProjectDurationDays(Math.max(0, days));
     }
   }, [startDate, endDate]);
