@@ -1111,7 +1111,6 @@ export default function ProjectSiteForm() {
                   disabled
                   className="bg-muted"
                 />
-                <p className="text-xs text-muted-foreground">Auto-calculated</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="timelineStatus">Status</Label>
