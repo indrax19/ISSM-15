@@ -769,18 +769,15 @@ export default function ProjectDetail() {
                           {(() => {
                             const remarks = getSiteRemarks(site);
                             return (
-                              <div className="space-y-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
-                                  onClick={() => { setRemarksSite(site); setRemarkText(""); setEditingRemarkIndex(null); }}
-                                >
-                                  <MessageSquarePlus className="h-4 w-4" />
-                                  {remarks.length ? `${remarks.length} remark${remarks.length === 1 ? "" : "s"}` : "Add remark"}
-                                </Button>
-                                {remarks.at(-1)?.text && <p className="line-clamp-2 text-xs text-gray-600">{remarks.at(-1)?.text}</p>}
-                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                                onClick={() => { setRemarksSite(site); setRemarkText(""); setEditingRemarkIndex(null); }}
+                              >
+                                <MessageSquarePlus className="h-4 w-4" />
+                                {remarks.length ? `${remarks.length} remark${remarks.length === 1 ? "" : "s"}` : "Add remark"}
+                              </Button>
                             );
                           })()}
                         </TableCell>
@@ -962,13 +959,10 @@ export default function ProjectDetail() {
                         {(() => {
                           const remarks = getSiteRemarks(site);
                           return (
-                            <div className="space-y-2">
-                              <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setRemarkText(""); setEditingRemarkIndex(null); }}>
-                                <MessageSquarePlus className="h-4 w-4" />
-                                {remarks.length ? `${remarks.length} remark${remarks.length === 1 ? "" : "s"}` : "Add remark"}
-                              </Button>
-                              {remarks.at(-1)?.text && <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">{remarks.at(-1)?.text}</p>}
-                            </div>
+                            <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setRemarkText(""); setEditingRemarkIndex(null); }}>
+                              <MessageSquarePlus className="h-4 w-4" />
+                              {remarks.length ? `${remarks.length} remark${remarks.length === 1 ? "" : "s"}` : "Add remark"}
+                            </Button>
                           );
                         })()}
                       </div>
