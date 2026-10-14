@@ -77,7 +77,7 @@ export interface ProjectTracking {
   // Project Timeline
   startDate: string;
   endDate: string;
-  timelineStatus?: "Pause" | "Hold" | "Hold by Mill" | "Awaiting Confirmation";
+  timelineStatus?: "Pause" | "Hold" | "Hold by Mill" | "Awaiting Confirmation" | "Completed";
   projectDurationDays?: number;
   
   // Supervisor / Team

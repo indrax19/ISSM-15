@@ -91,7 +91,7 @@ const siteSchema = z.object({
 
 const LOGISTICS_STATUS_OPTIONS = ["Pending Dispatch", "Dispatched", "In Transit", "Arrived at Destination", "Delayed – Logistics"];
 const PO_STATUS_OPTIONS = ["Issue", "Pending", "On Hold", "Pause", "Awaiting conformation", "Cancelled"];
-const TIMELINE_STATUS_OPTIONS = ["Pause", "Hold by Team", "Hold by Mill", "Awaiting Confirmation"];
+const TIMELINE_STATUS_OPTIONS = ["Pause", "Hold by Team", "Hold by Mill", "Awaiting Confirmation", "Completed"];
 const TEAM_STATUS_OPTIONS = [
   "Scheduled",
   "Mobilized",
