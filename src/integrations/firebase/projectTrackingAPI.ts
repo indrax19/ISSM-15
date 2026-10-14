@@ -115,6 +115,7 @@ export interface ProjectTracking {
   updated_at?: string;
   created_by?: string;
   updated_by?: string;
+  remarks?: string | null;
   remarksHistory?: ProjectRemark[];
 }
 
@@ -217,7 +218,7 @@ export const projectTrackingAPI = {
       const endDate = new Date(projectData.endDate);
       const durationDays = Math.ceil(
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
+      ) + 1;
 
       const now = new Date().toISOString();
       const data = removeUndefined({
@@ -251,7 +252,7 @@ export const projectTrackingAPI = {
         const endDate = new Date(projectData.endDate);
         const durationDays = Math.ceil(
           (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        ) + 1;
         updateData.projectDurationDays = durationDays > 0 ? durationDays : 0;
       }
 
