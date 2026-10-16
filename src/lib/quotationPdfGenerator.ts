@@ -54,63 +54,33 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
     const logoHeight = await addLogoToPDF(pdf, company.logo_url, margin, y, { maxWidth: 44, maxHeight: 22, maintainAspectRatio: true });
     y += logoHeight + 2;
   }
-
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
   pdf.text("Quote", pageWidth / 2, y + 1, { align: "center" });
   y += 7;
   pdf.setLineWidth(0.45);
   pdf.line(margin, y, pageWidth - margin, y);
-  y += 5;
+  y += 7;
 
-  // Quotation information: four fields per row, matching the quotation form layout.
-  const info = [
-    [
-      ["Quote Number", quotation.quotationNo || "—"],
-      ["Issue Date", formatDate(quotation.issueDate) || "—"],
-      ["Valid Till", formatDate(quotation.validTill) || "—"],
-      ["Quote Reference", quotation.quoteReference || "—"],
-    ],
-    [
-      ["FBR Reference", quotation.fbrReference || "FBR STGO NO. 27 OF 2026"],
-      ["Company Profile", company?.company_name || quotation.companyProfileName || "—"],
-      ["Quote To / Customer", quotation.customerName || "—"],
-      ["Phone", quotation.customerPhone || "—"],
-    ],
-  ];
-  const tableWidth = pageWidth - margin * 2;
-  const colWidth = tableWidth / 4;
-  const infoRowHeight = 12;
-  pdf.setDrawColor(190, 190, 190);
-  pdf.setLineWidth(0.15);
-  info.forEach((row, rowIndex) => {
-    row.forEach(([label, value], colIndex) => {
-      const x = margin + colIndex * colWidth;
-      const cellY = y + rowIndex * infoRowHeight;
-      pdf.rect(x, cellY, colWidth, infoRowHeight);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(6.5);
-      pdf.text(label, x + 2, cellY + 4);
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(7.2);
-      const valueLines = pdf.splitTextToSize(String(value), colWidth - 4);
-      pdf.text(valueLines.slice(0, 2), x + 2, cellY + 8);
-    });
-  });
-  y += infoRowHeight * 2;
-
-  // Address sits below the two four-column rows and uses the full quotation width.
-  const address = quotation.customerAddress || "—";
-  const addressLines = pdf.splitTextToSize(String(address), tableWidth - 4);
-  const addressHeight = Math.max(9, 5 + Math.min(addressLines.length, 2) * 3.2);
-  pdf.rect(margin, y, tableWidth, addressHeight);
+  pdf.setFontSize(8);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(6.5);
-  pdf.text("Address", margin + 2, y + 4);
+  pdf.text("QUOTE TO:", margin, y);
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(7.2);
-  pdf.text(addressLines.slice(0, 2), margin + 2, y + 7.5);
-  y += addressHeight + 5;
+  pdf.text(`Issue date   ${formatDate(quotation.issueDate)}`, pageWidth - 84, y);
+  y += 6;
+  pdf.setFont("helvetica", "bold");
+  pdf.text(quotation.customerName || "Customer", margin, y);
+  pdf.setFont("helvetica", "normal");
+  pdf.text(`Valid till   ${formatDate(quotation.validTill)}`, pageWidth - 84, y);
+  y += 5;
+  if (quotation.customerAddress) {
+    pdf.text(`Address: ${quotation.customerAddress}`, margin, y, { maxWidth: 106 });
+  }
+  pdf.text(`Quote Ref:   ${quotation.quoteReference || quotation.quotationNo}`, pageWidth - 84, y);
+  y += 5;
+  if (quotation.customerPhone) pdf.text(`Phone: ${quotation.customerPhone}`, margin, y);
+  pdf.text(`FBR Ref:   ${quotation.fbrReference || "—"}`, pageWidth - 84, y);
+  y += 6;
 
   autoTable(pdf, {
     startY: y,
@@ -134,19 +104,9 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   pdf.setFontSize(8);
   pdf.text(`Grand Total (PKR)     ${money(total)}`, pageWidth - margin, y, { align: "right" });
   y += 7;
-
-  // Bold only the "Amount in Words:" label; keep the amount text regular weight.
-  const amountLabel = "Amount in Words:";
-  const amountValue = amountInWords(total);
-  pdf.setFontSize(8);
-  pdf.setFont("helvetica", "bold");
-  pdf.text(amountLabel, margin, y);
-  const labelWidth = pdf.getTextWidth(`${amountLabel} `);
   pdf.setFont("helvetica", "normal");
-  const amountLines = pdf.splitTextToSize(amountValue, pageWidth - margin * 2 - labelWidth);
-  pdf.text(amountLines[0] || "", margin + labelWidth, y);
-  if (amountLines.length > 1) pdf.text(amountLines.slice(1), margin, y + 4);
-  y += Math.max(7, amountLines.length * 4 + 2);
+  pdf.text(`Amount in Words: ${amountInWords(total)}`, margin, y, { maxWidth: pageWidth - margin * 2 });
+  y += 7;
 
   const ensureSpace = (needed: number) => {
     if (y + needed > pageHeight - 14) {
@@ -175,7 +135,7 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
     y += 5;
     pdf.setFontSize(7);
     pdf.setFont("helvetica", "normal");
-    const paragraphs = quotation.terms.split(/\r?\n/).filter((line) => line.trim());
+    const paragraphs = quotation.terms.split("\n").filter((line) => line.trim());
     for (const paragraph of paragraphs) {
       const lines = pdf.splitTextToSize(paragraph, pageWidth - margin * 2 - 3);
       ensureSpace(lines.length * 3.5 + 2);
