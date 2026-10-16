@@ -111,7 +111,7 @@ function TermsRichEditor({ value, onChange }: { value: string; onChange: (value:
           lastEmitted.current = html;
           onChange(html);
         }}
-        className="min-h-[320px] space-y-2 p-4 text-sm outline-none [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:min-h-5 [&_ul]:my-2 [&_ol]:my-2"
+        className="min-h-[280px] space-y-2 p-3 text-sm outline-none sm:min-h-[320px] sm:p-4 [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:min-h-5 [&_ul]:my-2 [&_ol]:my-2"
       />
       <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
         Select text and use Bold, Italic, Heading, Bullets, or Numbering to format the terms.
@@ -243,41 +243,58 @@ export default function NewQuotation() {
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading quotation...</div>;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-8">
-      <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon" onClick={() => navigate("/quotations")} aria-label="Back to quotations"><ArrowLeft className="h-4 w-4" /></Button>
-        <div><h1 className="text-2xl font-bold">{id ? "Edit Quotation" : "New Quotation"}</h1><p className="text-sm text-muted-foreground">Create and manage customer quotations</p></div>
+    <div className="mx-auto w-full max-w-5xl space-y-4 pb-6 sm:space-y-6 sm:pb-8">
+      <div className="flex min-w-0 items-center gap-3">
+        <Button variant="outline" size="icon" className="shrink-0" onClick={() => navigate("/quotations")} aria-label="Back to quotations"><ArrowLeft className="h-4 w-4" /></Button>
+        <div className="min-w-0"><h1 className="text-xl font-bold sm:text-2xl">{id ? "Edit Quotation" : "New Quotation"}</h1><p className="text-sm text-muted-foreground">Create and manage customer quotations</p></div>
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Quotation Details</CardTitle></CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="space-y-2"><Label>Quote Number</Label><Input value={quotationNo} placeholder="Auto-generated on save" readOnly /></div>
-          <div className="space-y-2"><Label>Issue Date *</Label><Input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required /></div>
-          <div className="space-y-2"><Label>Valid Till *</Label><Input type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required /></div>
-          <div className="space-y-2"><Label>Quote Reference</Label><Input value={quoteReference} onChange={(event) => setQuoteReference(event.target.value)} placeholder="e.g. Q-2026-001" /></div>
-          <div className="space-y-2"><Label>Sector</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
-          <div className="space-y-2"><Label>FBR Reference</Label><Input value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR STGO NO. 27 OF 2026" /></div>
-          <div className="space-y-2"><Label>Company Profile</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
-          <div className="space-y-2"><Label>Quote To / Customer *</Label><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} required /></div>
-          <div className="space-y-2"><Label>Phone</Label><Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
-          <div className="space-y-2 sm:col-span-2 lg:col-span-5"><Label>Address</Label><Input value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
+        <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Quotation Details</CardTitle></CardHeader>
+        <CardContent className="grid min-w-0 grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0 xl:grid-cols-5">
+          <div className="min-w-0 space-y-2"><Label>Quote Number</Label><Input className="min-w-0" value={quotationNo} placeholder="Auto-generated on save" readOnly /></div>
+          <div className="min-w-0 space-y-2"><Label>Issue Date *</Label><Input className="min-w-0" type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required /></div>
+          <div className="min-w-0 space-y-2"><Label>Valid Till *</Label><Input className="min-w-0" type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required /></div>
+          <div className="min-w-0 space-y-2"><Label>Quote Reference</Label><Input className="min-w-0" value={quoteReference} onChange={(event) => setQuoteReference(event.target.value)} placeholder="e.g. Q-2026-001" /></div>
+          <div className="min-w-0 space-y-2"><Label>Sector</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
+          <div className="min-w-0 space-y-2"><Label>FBR Reference</Label><Input className="min-w-0" value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR STGO NO. 27 OF 2026" /></div>
+          <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
+          <div className="min-w-0 space-y-2"><Label>Quote To / Customer *</Label><Input className="min-w-0" value={customerName} onChange={(event) => setCustomerName(event.target.value)} required /></div>
+          <div className="min-w-0 space-y-2"><Label>Phone</Label><Input className="min-w-0" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
+          <div className="min-w-0 space-y-2 sm:col-span-2 xl:col-span-5"><Label>Address</Label><Input className="min-w-0" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <div>
+        <CardHeader className="flex flex-col items-start justify-between gap-3 p-4 sm:flex-row sm:items-center sm:p-6">
+          <div className="min-w-0">
             <CardTitle>Quoted Items</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">Add products or services and set quantity and unit price.</p>
           </div>
-          <Button variant="default" size="sm" onClick={() => setItems((current) => [{ description: "", quantity: 1, unitPrice: 0 }, ...current])}>
+          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => setItems((current) => [{ description: "", quantity: 1, unitPrice: 0 }, ...current])}>
             <Plus className="mr-2 h-4 w-4" />Add item
           </Button>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="overflow-x-auto rounded-lg border">
-            <table className="w-full min-w-[760px] border-collapse text-sm">
+        <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
+          <div className="space-y-3 xl:hidden">
+            {items.map((item, index) => (
+              <div key={index} className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</p>
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [{ description: "", quantity: 1, unitPrice: 0 }])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
+                </div>
+                <div className="space-y-2"><Label htmlFor={`quotation-item-description-${index}`}>Description</Label><Input id={`quotation-item-description-${index}`} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label htmlFor={`quotation-item-quantity-${index}`}>Quantity</Label><Input id={`quotation-item-quantity-${index}`} type="number" min="1" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor={`quotation-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`quotation-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
+                </div>
+                <div className="flex items-center justify-between border-t pt-3 text-sm"><span className="text-muted-foreground">Amount</span><span className="font-semibold tabular-nums">PKR {(item.quantity * item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+              </div>
+            ))}
+            <div className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3 text-sm"><span className="font-semibold">Grand Total</span><span className="font-bold tabular-nums">PKR {total.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+          </div>
+          <div className="hidden overflow-x-auto rounded-lg border xl:block">
+            <table className="w-full min-w-[860px] border-collapse text-sm">
               <thead className="bg-muted/60">
                 <tr className="border-b text-left">
                   <th className="w-12 px-4 py-3 font-semibold text-muted-foreground">#</th>
@@ -320,8 +337,8 @@ export default function NewQuotation() {
         </CardContent>
       </Card>
 
-      <Card><CardHeader><CardTitle>Note</CardTitle></CardHeader><CardContent><Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} /></CardContent></Card>
-      <Card><CardHeader><CardTitle>General Terms &amp; Conditions</CardTitle></CardHeader><CardContent><TermsRichEditor value={terms} onChange={setTerms} /></CardContent></Card>
+      <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Note</CardTitle></CardHeader><CardContent className="p-4 pt-0 sm:p-6 sm:pt-0"><Textarea className="w-full resize-y" value={note} onChange={(event) => setNote(event.target.value)} rows={4} /></CardContent></Card>
+      <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">General Terms &amp; Conditions</CardTitle></CardHeader><CardContent className="p-4 pt-0 sm:p-6 sm:pt-0"><TermsRichEditor value={terms} onChange={setTerms} /></CardContent></Card>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={() => navigate("/quotations")}>Cancel</Button>
