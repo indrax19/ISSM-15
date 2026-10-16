@@ -305,8 +305,6 @@ export default function NewQuotation() {
                 </tr>
               </tfoot>
             </table>
-          </div>
-          <p className="text-xs text-muted-foreground">Tip: Unit price can be left empty while you are entering items. Amounts and grand total update automatically.</p>
         </CardContent>
       </Card>
 
