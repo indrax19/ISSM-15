@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown, Copy, Download, Eye, FileText, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Download, Eye, FileText, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { quotationAPI, QUOTATION_STATUSES, Quotation, QuotationStatus } from "@/integrations/firebase/quotationAPI";
@@ -40,7 +40,6 @@ export default function Quotations() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDate, setFilterDate] = useState("");
   const [filterSector, setFilterSector] = useState("");
-  const [sectorSortDirection, setSectorSortDirection] = useState<"asc" | "desc" | null>(null);
   const [projects, setProjects] = useState<ParentProject[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [refreshing, setRefreshing] = useState(false);
@@ -74,13 +73,7 @@ export default function Quotations() {
       const matchesSector = !filterSector || quotation.sectorProjectId === filterSector;
       return matchesSearch && matchesDate && matchesSector;
     });
-    if (!sectorSortDirection) return matches;
-    return [...matches].sort((a, b) => {
-      const sectorA = (a.sectorProjectName || "").toLocaleLowerCase();
-      const sectorB = (b.sectorProjectName || "").toLocaleLowerCase();
-      return sectorSortDirection === "asc" ? sectorA.localeCompare(sectorB) : sectorB.localeCompare(sectorA);
-    });
-  }, [quotations, searchTerm, filterDate, filterSector, sectorSortDirection]);
+  }, [quotations, searchTerm, filterDate, filterSector]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -185,7 +178,6 @@ export default function Quotations() {
         <div className="space-y-2"><label htmlFor="quotation-search" className="text-sm font-medium">Search</label><Input id="quotation-search" placeholder="Search quote number, customer, or reference..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-date" className="text-sm font-medium">Filter by Issue Date</label><Input id="quotation-date" type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
-        <div className="space-y-2"><span className="text-sm font-medium">Sort by Sector</span><Button type="button" variant="outline" className="w-full justify-between" onClick={() => setSectorSortDirection((current) => current === "asc" ? "desc" : "asc")}>{sectorSortDirection === "asc" ? "A to Z" : sectorSortDirection === "desc" ? "Z to A" : "Default order"}<ArrowUpDown className="h-4 w-4" /></Button></div>
       </CardContent></Card>
 
       {fetchError && <ErrorAlert title="Error Loading Quotations" message={fetchError} onRetry={() => setRetry((value) => value + 1)} variant="destructive" />}
@@ -209,7 +201,7 @@ export default function Quotations() {
             </div>)}
           </div>
           <div className="hidden overflow-x-auto md:block"><Table className="min-w-[1100px]">
-            <TableHeader><TableRow><TableHead>Quote No</TableHead><TableHead>Issue Date</TableHead><TableHead>Valid Till</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Total (PKR)</TableHead><TableHead><Button type="button" variant="ghost" size="sm" className="-ml-3 gap-1" onClick={() => setSectorSortDirection((current) => current === "asc" ? "desc" : "asc")} title="Sort by sector">Sector <ArrowUpDown className="h-3.5 w-3.5" />{sectorSortDirection && <span className="sr-only">{sectorSortDirection === "asc" ? "ascending" : "descending"}</span>}</Button></TableHead><TableHead>Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Quote No</TableHead><TableHead>Issue Date</TableHead><TableHead>Valid Till</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Total (PKR)</TableHead><TableHead>Sector</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
             <TableBody>{paginated.map((quotation) => <TableRow key={quotation.id} className={quotationStatusStyles[quotation.quotationStatus || "Draft"]}>
               <TableCell className="font-mono font-semibold">{quotation.quotationNo}</TableCell><TableCell>{dateLabel(quotation.issueDate)}</TableCell><TableCell>{dateLabel(quotation.validTill)}</TableCell><TableCell>{quotation.customerName}</TableCell><TableCell className="text-right">{amount(quotation).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</TableCell><TableCell>{quotation.sectorProjectName || "—"}</TableCell>
               <TableCell><select className="h-9 min-w-28 rounded-md border border-input bg-background px-2 text-sm" value={quotation.quotationStatus || "Draft"} onChange={(event) => handleStatusChange(quotation, event.target.value as QuotationStatus)} aria-label={`Status for ${quotation.quotationNo}`}>{QUOTATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></TableCell>

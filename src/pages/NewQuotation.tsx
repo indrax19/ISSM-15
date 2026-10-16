@@ -251,17 +251,17 @@ export default function NewQuotation() {
 
       <Card>
         <CardHeader><CardTitle>Quotation Details</CardTitle></CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <div className="space-y-2"><Label>Quote Number</Label><Input value={quotationNo} placeholder="Auto-generated on save" readOnly /></div>
           <div className="space-y-2"><Label>Issue Date *</Label><Input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required /></div>
           <div className="space-y-2"><Label>Valid Till *</Label><Input type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required /></div>
           <div className="space-y-2"><Label>Quote Reference</Label><Input value={quoteReference} onChange={(event) => setQuoteReference(event.target.value)} placeholder="e.g. Q-2026-001" /></div>
+          <div className="space-y-2"><Label>Sector</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
           <div className="space-y-2"><Label>FBR Reference</Label><Input value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR STGO NO. 27 OF 2026" /></div>
           <div className="space-y-2"><Label>Company Profile</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
-          <div className="space-y-2"><Label>Sector</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
           <div className="space-y-2"><Label>Quote To / Customer *</Label><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} required /></div>
           <div className="space-y-2"><Label>Phone</Label><Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
-          <div className="space-y-2 sm:col-span-2 lg:col-span-4"><Label>Address</Label><Input value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
+          <div className="space-y-2 sm:col-span-2 lg:col-span-5"><Label>Address</Label><Input value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
         </CardContent>
       </Card>
 
