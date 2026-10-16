@@ -140,7 +140,7 @@ export default function NewQuotation() {
   const [customerAddress, setCustomerAddress] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [quoteReference, setQuoteReference] = useState("");
-  const [fbrReference, setFbrReference] = useState("");
+  const [fbrReference, setFbrReference] = useState("FBR STGO NO. 27 OF 2026");
   const [items, setItems] = useState<QuotationItem[]>([{ description: "", quantity: 1, unitPrice: 0 }]);
   const [note, setNote] = useState(DEFAULT_QUOTATION_NOTE);
   const [terms, setTerms] = useState(DEFAULT_QUOTATION_TERMS);
@@ -169,7 +169,7 @@ export default function NewQuotation() {
       setCustomerAddress(quotation.customerAddress || "");
       setCustomerPhone(quotation.customerPhone || "");
       setQuoteReference(quotation.quoteReference || "");
-      setFbrReference(quotation.fbrReference || "");
+      setFbrReference(quotation.fbrReference || "FBR STGO NO. 27 OF 2026");
       setItems(quotation.items?.length ? quotation.items : [{ description: "", quantity: 1, unitPrice: 0 }]);
       setNote(quotation.note ?? DEFAULT_QUOTATION_NOTE);
       setTerms(quotation.terms ?? DEFAULT_QUOTATION_TERMS);
@@ -246,7 +246,7 @@ export default function NewQuotation() {
           <div className="space-y-2"><Label>Issue Date *</Label><Input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required /></div>
           <div className="space-y-2"><Label>Valid Till *</Label><Input type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required /></div>
           <div className="space-y-2"><Label>Quote Reference</Label><Input value={quoteReference} onChange={(event) => setQuoteReference(event.target.value)} placeholder="e.g. Q-2026-001" /></div>
-          <div className="space-y-2"><Label>FBR Reference</Label><Input value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="Optional" /></div>
+          <div className="space-y-2"><Label>FBR Reference</Label><Input value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR STGO NO. 27 OF 2026" /></div>
           <div className="space-y-2"><Label>Company Profile</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
           <div className="space-y-2"><Label>Quote To / Customer *</Label><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} required /></div>
           <div className="space-y-2"><Label>Phone</Label><Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
@@ -260,7 +260,7 @@ export default function NewQuotation() {
             <CardTitle>Quoted Items</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">Add products or services and set quantity and unit price.</p>
           </div>
-          <Button variant="default" size="sm" onClick={() => setItems((current) => [...current, { description: "", quantity: 1, unitPrice: 0 }])}>
+          <Button variant="default" size="sm" onClick={() => setItems((current) => [{ description: "", quantity: 1, unitPrice: 0 }, ...current])}>
             <Plus className="mr-2 h-4 w-4" />Add item
           </Button>
         </CardHeader>
