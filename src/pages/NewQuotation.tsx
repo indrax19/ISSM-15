@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Bold, Italic, List, ListOrdered, Heading2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,87 @@ Warranty & Support:
 - All other material not included in this quote is provided by the client, as set out in the note above.
 - Core network connectivity from the IT Room to the camera location is to be provided by the client.
 - IT Room space for the NVR and network equipment is customer-provided.`;
+
+function termsTextToHtml(text: string) {
+  // Keep existing saved plain-text terms readable when opening an older quotation.
+  if (/<(h[1-6]|p|ul|ol|li|strong|em|div)\b/i.test(text)) return text;
+  return text.split(/\r?\n/).map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return "<p><br /></p>";
+    if (trimmed.endsWith(":") && !trimmed.startsWith("-")) {
+      return `<h3>${trimmed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h3>`;
+    }
+    if (trimmed.startsWith("- ")) {
+      const content = trimmed.slice(2).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return `<ul><li>${content}</li></ul>`;
+    }
+    return `<p>${trimmed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
+  }).join("");
+}
+
+function TermsRichEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastEmitted = useRef("");
+  const runCommand = (command: string, argument?: string) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false, argument);
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      lastEmitted.current = html;
+      onChange(html);
+    }
+  };
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || value === lastEmitted.current) return;
+    editor.innerHTML = termsTextToHtml(value);
+  }, [value]);
+
+  const toolbarButton = (label: string, title: string, command: string, icon: React.ReactNode, argument?: string) => (
+    <Button
+      key={command}
+      type="button"
+      variant="outline"
+      size="sm"
+      title={title}
+      aria-label={title}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => runCommand(command, argument)}
+    >
+      {icon}<span className="ml-1 hidden sm:inline">{label}</span>
+    </Button>
+  );
+
+  return (
+    <div className="overflow-hidden rounded-md border">
+      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 p-2">
+        {toolbarButton("Bold", "Bold", "bold", <Bold className="h-4 w-4" />)}
+        {toolbarButton("Italic", "Italic", "italic", <Italic className="h-4 w-4" />)}
+        {toolbarButton("Heading", "Section heading", "formatBlock", <Heading2 className="h-4 w-4" />, "h3")}
+        {toolbarButton("Bullets", "Bulleted list", "insertUnorderedList", <List className="h-4 w-4" />)}
+        {toolbarButton("Numbering", "Numbered list", "insertOrderedList", <ListOrdered className="h-4 w-4" />)}
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        aria-label="General Terms and Conditions editor"
+        aria-multiline="true"
+        onInput={(event) => {
+          const html = event.currentTarget.innerHTML;
+          lastEmitted.current = html;
+          onChange(html);
+        }}
+        className="min-h-[320px] space-y-2 p-4 text-sm outline-none [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:min-h-5 [&_ul]:my-2 [&_ol]:my-2"
+      />
+      <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        Select text and use Bold, Italic, Heading, Bullets, or Numbering to format the terms.
+      </p>
+    </div>
+  );
+}
 
 const today = () => new Date().toISOString().slice(0, 10);
 const defaultValidTill = () => {
@@ -188,7 +269,7 @@ export default function NewQuotation() {
       </Card>
 
       <Card><CardHeader><CardTitle>Note</CardTitle></CardHeader><CardContent><Textarea value={note} onChange={(event) => setNote(event.target.value)} rows={4} /></CardContent></Card>
-      <Card><CardHeader><CardTitle>General Terms &amp; Conditions</CardTitle></CardHeader><CardContent><Textarea value={terms} onChange={(event) => setTerms(event.target.value)} rows={16} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>General Terms &amp; Conditions</CardTitle></CardHeader><CardContent><TermsRichEditor value={terms} onChange={setTerms} /></CardContent></Card>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={() => navigate("/quotations")}>Cancel</Button>
