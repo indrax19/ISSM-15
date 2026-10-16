@@ -40,7 +40,7 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GB");
 }
 
-type QuotationTermBlock = { text: string; type: "heading" | "paragraph" | "list" | "blank" };
+type QuotationTermBlock = { text: string; type: "heading" | "paragraph" | "list" | "numbered" | "blank" };
 
 function quotationTermsToBlocks(value: string): QuotationTermBlock[] {
   if (!/<[a-z][^>]*>/i.test(value)) {
@@ -79,7 +79,7 @@ function quotationTermsToBlocks(value: string): QuotationTermBlock[] {
     if (tag === "UL" || tag === "OL") {
       Array.from(element.children).filter((child) => child.tagName === "LI").forEach((item, index) => {
         const text = nodeText(item).trim();
-        if (text) blocks.push({ text: `${tag === "OL" ? `${index + 1}.` : "-"} ${text}`, type: "list" });
+        if (text) blocks.push({ text: tag === "OL" ? `${index + 1}. ${text}` : text, type: tag === "OL" ? "numbered" : "list" });
       });
       return;
     }
@@ -106,37 +106,64 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 11;
   let y = 12;
+  const pageBodyTop = 51;
   const company = quotation.companyProfileId
     ? await companyProfileAPI.getById(quotation.companyProfileId)
     : await companyProfileAPI.get();
 
-  let logoHeight = 0;
-  if (company?.logo_url) {
-    logoHeight = await addLogoToPDF(pdf, company.logo_url, margin, y, { maxWidth: 44, maxHeight: 28, maintainAspectRatio: true });
-  }
-  let companyInfoY = margin + 3;
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(10);
-  pdf.text(company?.company_name || "", pageWidth - margin, companyInfoY, { align: "right" });
-  companyInfoY += 5;
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(8);
-  if (company?.phone) {
-    pdf.text(`Phone: ${company.phone}`, pageWidth - margin, companyInfoY, { align: "right" });
-    companyInfoY += 4;
-  }
-  if (company?.email) {
-    pdf.text(`Email: ${company.email}`, pageWidth - margin, companyInfoY, { align: "right" });
-    companyInfoY += 4;
-  }
-  if (company?.website) {
-    pdf.text(`Website: ${company.website}`, pageWidth - margin, companyInfoY, { align: "right" });
-    companyInfoY += 4;
-  }
-  y = Math.max(margin + logoHeight, companyInfoY) + 4;
-  pdf.setLineWidth(0.45);
-  pdf.line(margin, y, pageWidth - margin, y);
-  y += 7;
+  const drawCompanyHeader = async () => {
+    pdf.setTextColor(0);
+    let logoHeight = 0;
+    if (company?.logo_url) {
+      logoHeight = await addLogoToPDF(pdf, company.logo_url, margin, 12, { maxWidth: 44, maxHeight: 28, maintainAspectRatio: true });
+    }
+    let companyInfoY = margin + 3;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(company?.company_name || "", pageWidth - margin, companyInfoY, { align: "right" });
+    companyInfoY += 5;
+    pdf.setFontSize(8);
+    const companyDetail = (label: string, value?: string) => {
+      if (!value) return;
+      pdf.setFont("helvetica", "bold");
+      pdf.text(`${label}:`, pageWidth - margin - pdf.getTextWidth(`${label}: ${value}`), companyInfoY);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(value, pageWidth - margin - pdf.getTextWidth(value), companyInfoY);
+      companyInfoY += 4;
+    };
+    companyDetail("Phone", company?.phone);
+    companyDetail("Email", company?.email);
+    companyDetail("Website", company?.website);
+    const lineY = Math.max(12 + logoHeight, companyInfoY) + 4;
+    pdf.setLineWidth(0.45);
+    pdf.line(margin, lineY, pageWidth - margin, lineY);
+    return lineY + 7;
+  };
+
+  y = await drawCompanyHeader();
+  const drawRightField = (label: string, value: string, right: number, baseline: number) => {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    const valueWidth = pdf.getTextWidth(value);
+    pdf.setFont("helvetica", "bold");
+    const labelText = `${label}:`;
+    const labelWidth = pdf.getTextWidth(labelText);
+    const left = right - labelWidth - valueWidth - 1;
+    pdf.text(labelText, left, baseline);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(value, left + labelWidth + 1, baseline);
+  };
+  const drawLeftField = (label: string, value: string, left: number, baseline: number, maxWidth: number) => {
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
+    const labelText = `${label}:`;
+    pdf.text(labelText, left, baseline);
+    const valueLeft = left + pdf.getTextWidth(`${labelText} `);
+    pdf.setFont("helvetica", "normal");
+    const lines = pdf.splitTextToSize(value, maxWidth - valueLeft + left);
+    pdf.text(lines, valueLeft, baseline);
+    return lines.length;
+  };
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(14);
   pdf.text("QUOTATIONS", pageWidth / 2, y, { align: "center" });
@@ -145,26 +172,24 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   pdf.setFontSize(8);
   pdf.setFont("helvetica", "bold");
   pdf.text("QUOTE TO:", margin, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(`Issue date   ${formatDate(quotation.issueDate)}`, pageWidth - 84, y);
+  drawRightField("Issue date", formatDate(quotation.issueDate), pageWidth - margin, y);
   y += 6;
   pdf.setFont("helvetica", "bold");
   pdf.text(quotation.customerName || "Customer", margin, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.text(`Valid till   ${formatDate(quotation.validTill)}`, pageWidth - 84, y);
+  drawRightField("Valid till", formatDate(quotation.validTill), pageWidth - margin, y);
   y += 5;
-  if (quotation.customerAddress) {
-    pdf.text(`Address: ${quotation.customerAddress}`, margin, y, { maxWidth: 106 });
-  }
-  pdf.text(`Quote Ref:   ${quotation.quoteReference || quotation.quotationNo}`, pageWidth - 84, y);
-  y += 5;
-  if (quotation.customerPhone) pdf.text(`Phone: ${quotation.customerPhone}`, margin, y);
-  pdf.text(`FBR Ref:   ${quotation.fbrReference || "—"}`, pageWidth - 84, y);
+  const addressLines = quotation.customerAddress
+    ? drawLeftField("Address", quotation.customerAddress, margin, y, pageWidth - margin * 2 - 89)
+    : 1;
+  drawRightField("Quote Ref", quotation.quoteReference || quotation.quotationNo, pageWidth - margin, y);
+  y += Math.max(5, addressLines * 4);
+  if (quotation.customerPhone) drawLeftField("Phone", quotation.customerPhone, margin, y, pageWidth - margin * 2 - 89);
+  drawRightField("FBR Ref", quotation.fbrReference || "—", pageWidth - margin, y);
   y += 6;
 
   autoTable(pdf, {
     startY: y,
-    margin: { left: margin, right: margin },
+    margin: { left: margin, right: margin, top: pageBodyTop },
     head: [["#", "Description", "Qty", "Unit Price", "Total (PKR)"]],
     body: quotation.items.map((item, index) => [
       String(index + 1),
@@ -184,14 +209,20 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   pdf.setFontSize(8);
   pdf.text(`Grand Total (PKR)     ${money(total)}`, pageWidth - margin, y, { align: "right" });
   y += 7;
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8);
+  const amountLabel = "Amount in Words:";
+  pdf.text(amountLabel, margin, y);
+  const amountLabelWidth = pdf.getTextWidth(`${amountLabel} `);
   pdf.setFont("helvetica", "normal");
-  pdf.text(`Amount in Words: ${amountInWords(total)}`, margin, y, { maxWidth: pageWidth - margin * 2 });
-  y += 7;
+  const amountWords = pdf.splitTextToSize(amountInWords(total), pageWidth - margin * 2 - amountLabelWidth);
+  pdf.text(amountWords, margin + amountLabelWidth, y);
+  y += Math.max(7, amountWords.length * 4);
 
   const ensureSpace = (needed: number) => {
     if (y + needed > pageHeight - 14) {
       pdf.addPage();
-      y = 14;
+      y = pageBodyTop;
     }
   };
   if (quotation.note.trim()) {
@@ -223,10 +254,19 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
       }
       pdf.setFontSize(block.type === "heading" ? 7.5 : 7);
       pdf.setFont("helvetica", block.type === "heading" ? "bold" : "normal");
-      const wrappedLines = pdf.splitTextToSize(block.text, pageWidth - margin * 2 - 3);
-      for (const wrappedLine of wrappedLines) {
+      const isList = block.type === "list" || block.type === "numbered";
+      const textX = margin + (isList ? 8 : 2);
+      const numberEnd = block.type === "numbered" ? block.text.indexOf(" ") : -1;
+      const numberPrefix = numberEnd >= 0 ? block.text.slice(0, numberEnd) : "";
+      const bodyText = numberPrefix ? block.text.slice(numberEnd + 1) : block.text;
+      const wrappedLines = pdf.splitTextToSize(bodyText, pageWidth - margin - textX - margin);
+      for (const [lineIndex, wrappedLine] of wrappedLines.entries()) {
         ensureSpace(lineHeight);
-        pdf.text(wrappedLine, margin + 2, y);
+        if (isList && lineIndex === 0) {
+          if (block.type === "list") pdf.circle(margin + 4, y - 0.8, 0.55, "F");
+          else pdf.text(numberPrefix, margin + 2, y);
+        }
+        pdf.text(wrappedLine, textX, y);
         y += lineHeight;
       }
       if (block.type === "heading" || block.type === "paragraph") y += 1;
@@ -236,6 +276,7 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   const pageCount = pdf.getNumberOfPages();
   for (let page = 1; page <= pageCount; page++) {
     pdf.setPage(page);
+    if (page > 1) await drawCompanyHeader();
     pdf.setFontSize(6);
     pdf.setTextColor(90);
     pdf.text(`${company?.company_name || ""}  |  Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 6, { align: "right" });
