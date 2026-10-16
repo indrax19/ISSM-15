@@ -200,7 +200,7 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
     ]),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
-    headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold" },
+    headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold", halign: "center" },
     columnStyles: { 0: { cellWidth: 9, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 14, halign: "center" }, 3: { cellWidth: 30, halign: "right" }, 4: { cellWidth: 32, halign: "right" } },
   });
   y = (pdf as any).lastAutoTable.finalY + 5;
