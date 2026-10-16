@@ -166,7 +166,7 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   };
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(14);
-  pdf.text("QUOTATIONS", pageWidth / 2, y, { align: "center" });
+  pdf.text("Quote", pageWidth / 2, y, { align: "center" });
   y += 8;
 
   pdf.setFontSize(8);
@@ -277,6 +277,9 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   for (let page = 1; page <= pageCount; page++) {
     pdf.setPage(page);
     if (page > 1) await drawCompanyHeader();
+    pdf.setLineWidth(0.25);
+    pdf.setDrawColor(120, 120, 120);
+    pdf.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
     pdf.setFontSize(6);
     pdf.setTextColor(90);
     pdf.text(`${company?.company_name || ""}  |  Page ${page} of ${pageCount}`, pageWidth - margin, pageHeight - 6, { align: "right" });
