@@ -28,6 +28,7 @@ export interface OutreachMill {
   assignedToUserId?: string;
   transferredProjectId?: string;
   transferredSurveyReportId?: string;
+  transferredQuotationId?: string;
   transferredAt?: string;
   parentProjectId?: string;
   sequence?: number;
