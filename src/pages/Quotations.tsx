@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Copy, Download, Eye, FileText, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
-import { quotationAPI, Quotation } from "@/integrations/firebase/quotationAPI";
+import { quotationAPI, QUOTATION_STATUSES, Quotation, QuotationStatus } from "@/integrations/firebase/quotationAPI";
 import { downloadQuotationPDF, generateQuotationPDF } from "@/lib/quotationPdfGenerator";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,8 +93,20 @@ export default function Quotations() {
     }
   };
 
+  const handleStatusChange = async (quotation: Quotation, quotationStatus: QuotationStatus) => {
+    const previousStatus = quotation.quotationStatus || "Draft";
+    setQuotations((current) => current.map((item) => item.id === quotation.id ? { ...item, quotationStatus } : item));
+    try {
+      await quotationAPI.update(quotation.id!, { quotationStatus });
+      toast.success(`Status updated to ${quotationStatus}`);
+    } catch (error: any) {
+      setQuotations((current) => current.map((item) => item.id === quotation.id ? { ...item, quotationStatus: previousStatus } : item));
+      toast.error(error?.message || "Failed to update status");
+    }
+  };
+
   const handleDuplicate = async (quotation: Quotation) => {
-    const duplicate = { ...quotation, quotationNo: "", items: quotation.items.map((item) => ({ ...item })) };
+    const duplicate = { ...quotation, quotationNo: "", quotationStatus: "Draft" as QuotationStatus, items: quotation.items.map((item) => ({ ...item })) };
     delete duplicate.id;
     delete duplicate.created_at;
     delete duplicate.updated_at;
@@ -157,20 +169,24 @@ export default function Quotations() {
             {paginated.map((quotation) => <div key={quotation.id} className="space-y-3 rounded-lg border p-4">
               <div className="flex items-start justify-between gap-2"><div><div className="font-mono font-semibold">{quotation.quotationNo}</div><div className="text-sm text-muted-foreground">{quotation.customerName}</div></div><div className="text-right text-sm font-semibold">PKR {amount(quotation).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</div></div>
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>Issue: {dateLabel(quotation.issueDate)}</span><span>Valid: {dateLabel(quotation.validTill)}</span></div>
-              <div className="flex justify-end gap-1 border-t pt-2">
+              <div className="space-y-2 border-t pt-2">
+                <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">Status</span><select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={quotation.quotationStatus || "Draft"} onChange={(event) => handleStatusChange(quotation, event.target.value as QuotationStatus)} aria-label={`Status for ${quotation.quotationNo}`}>{QUOTATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
+                <div className="grid w-fit grid-cols-3 gap-1">
                 <Button variant="ghost" size="icon" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" onClick={() => handleDuplicate(quotation)} title="Duplicate quotation"><Copy className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
               </div>
             </div>)}
           </div>
-          <div className="hidden overflow-x-auto md:block"><Table className="min-w-[850px]">
-            <TableHeader><TableRow><TableHead>Quote No</TableHead><TableHead>Issue Date</TableHead><TableHead>Valid Till</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Total (PKR)</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+          <div className="hidden overflow-x-auto md:block"><Table className="min-w-[980px]">
+            <TableHeader><TableRow><TableHead>Quote No</TableHead><TableHead>Issue Date</TableHead><TableHead>Valid Till</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Total (PKR)</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
             <TableBody>{paginated.map((quotation) => <TableRow key={quotation.id}>
               <TableCell className="font-mono font-semibold">{quotation.quotationNo}</TableCell><TableCell>{dateLabel(quotation.issueDate)}</TableCell><TableCell>{dateLabel(quotation.validTill)}</TableCell><TableCell>{quotation.customerName}</TableCell><TableCell className="text-right">{amount(quotation).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</TableCell>
-              <TableCell><div className="flex justify-end gap-1">
+              <TableCell><select className="h-9 min-w-28 rounded-md border border-input bg-background px-2 text-sm" value={quotation.quotationStatus || "Draft"} onChange={(event) => handleStatusChange(quotation, event.target.value as QuotationStatus)} aria-label={`Status for ${quotation.quotationNo}`}>{QUOTATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></TableCell>
+              <TableCell><div className="grid w-fit grid-cols-3 gap-1">
                 <Button variant="ghost" size="icon" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>

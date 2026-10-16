@@ -22,6 +22,10 @@ export interface QuotationItem {
   unitPrice: number;
 }
 
+export type QuotationStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
+
+export const QUOTATION_STATUSES: QuotationStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled"];
+
 export interface Quotation {
   id?: string;
   quotationNo: string;
@@ -38,6 +42,7 @@ export interface Quotation {
   companyProfileId?: string;
   companyProfileName?: string;
   status?: "draft" | "completed";
+  quotationStatus?: QuotationStatus;
   created_at?: string;
   updated_at?: string;
 }
@@ -56,7 +61,10 @@ async function generateQuotationNumber(): Promise<string> {
 }
 
 function mapQuotation(id: string, data: Record<string, unknown>): Quotation {
-  return { id, ...data } as Quotation;
+  const quotationStatus = QUOTATION_STATUSES.includes(data.quotationStatus as QuotationStatus)
+    ? data.quotationStatus as QuotationStatus
+    : "Draft";
+  return { id, ...data, quotationStatus } as Quotation;
 }
 
 export const quotationAPI = {
@@ -80,7 +88,7 @@ export const quotationAPI = {
   async create(quotation: Quotation): Promise<Quotation> {
     const quotationNo = quotation.quotationNo || await generateQuotationNumber();
     const now = new Date().toISOString();
-    const data = removeUndefined({ ...quotation, quotationNo, status: "draft", created_at: now, updated_at: now });
+    const data = removeUndefined({ ...quotation, quotationNo, status: "draft", quotationStatus: quotation.quotationStatus || "Draft", created_at: now, updated_at: now });
     const ref = await addDoc(collection(db, QUOTATIONS_COLLECTION), data);
     return { id: ref.id, ...data } as Quotation;
   },
