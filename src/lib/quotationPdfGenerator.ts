@@ -50,17 +50,37 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
     ? await companyProfileAPI.getById(quotation.companyProfileId)
     : await companyProfileAPI.get();
 
+  let logoHeight = 0;
   if (company?.logo_url) {
-    const logoHeight = await addLogoToPDF(pdf, company.logo_url, margin, y, { maxWidth: 44, maxHeight: 22, maintainAspectRatio: true });
-    y += logoHeight + 2;
+    logoHeight = await addLogoToPDF(pdf, company.logo_url, margin, y, { maxWidth: 44, maxHeight: 28, maintainAspectRatio: true });
   }
+  let companyInfoY = margin + 3;
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(16);
-  pdf.text("Quote", pageWidth / 2, y + 1, { align: "center" });
-  y += 7;
+  pdf.setFontSize(10);
+  pdf.text(company?.company_name || "", pageWidth - margin, companyInfoY, { align: "right" });
+  companyInfoY += 5;
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  if (company?.phone) {
+    pdf.text(`Phone: ${company.phone}`, pageWidth - margin, companyInfoY, { align: "right" });
+    companyInfoY += 4;
+  }
+  if (company?.email) {
+    pdf.text(`Email: ${company.email}`, pageWidth - margin, companyInfoY, { align: "right" });
+    companyInfoY += 4;
+  }
+  if (company?.website) {
+    pdf.text(`Website: ${company.website}`, pageWidth - margin, companyInfoY, { align: "right" });
+    companyInfoY += 4;
+  }
+  y = Math.max(margin + logoHeight, companyInfoY) + 4;
   pdf.setLineWidth(0.45);
   pdf.line(margin, y, pageWidth - margin, y);
   y += 7;
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(14);
+  pdf.text("QUOTATIONS", pageWidth / 2, y, { align: "center" });
+  y += 8;
 
   pdf.setFontSize(8);
   pdf.setFont("helvetica", "bold");
@@ -135,12 +155,20 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
     y += 5;
     pdf.setFontSize(7);
     pdf.setFont("helvetica", "normal");
-    const paragraphs = quotation.terms.split("\n").filter((line) => line.trim());
-    for (const paragraph of paragraphs) {
-      const lines = pdf.splitTextToSize(paragraph, pageWidth - margin * 2 - 3);
-      ensureSpace(lines.length * 3.5 + 2);
-      pdf.text(lines, margin + 2, y);
-      y += lines.length * 3.5 + 1.5;
+    const lineHeight = 3.5;
+    const textLines = quotation.terms.replace(/\r\n/g, "\n").split("\n");
+    for (const textLine of textLines) {
+      if (!textLine.trim()) {
+        ensureSpace(lineHeight);
+        y += lineHeight;
+        continue;
+      }
+      const wrappedLines = pdf.splitTextToSize(textLine, pageWidth - margin * 2 - 3);
+      for (const wrappedLine of wrappedLines) {
+        ensureSpace(lineHeight);
+        pdf.text(wrappedLine, margin + 2, y);
+        y += lineHeight;
+      }
     }
   }
 
