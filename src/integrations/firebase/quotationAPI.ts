@@ -82,6 +82,11 @@ export const quotationAPI = {
     return snapshot.exists() ? mapQuotation(snapshot.id, snapshot.data()) : null;
   },
 
+  async getLatest(): Promise<Quotation[]> {
+    const snapshot = await getDocs(query(collection(db, QUOTATIONS_COLLECTION), orderBy("created_at", "desc"), limit(50)));
+    return snapshot.docs.map((quotation) => mapQuotation(quotation.id, quotation.data()));
+  },
+
   async getAll(): Promise<Quotation[]> {
     const snapshot = await getDocs(query(collection(db, QUOTATIONS_COLLECTION), orderBy("created_at", "desc")));
     return snapshot.docs.map((quotation) => mapQuotation(quotation.id, quotation.data()));

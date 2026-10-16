@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Copy, Download, Eye, FileText, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -32,7 +31,6 @@ const dateLabel = (value: string) => value ? new Date(`${value}T00:00:00`).toLoc
 
 export default function Quotations() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +50,6 @@ export default function Quotations() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
     setFetchError(null);
     const unsubscribe = quotationAPI.subscribeAll((data) => {
       setQuotations(data);
@@ -80,13 +77,18 @@ export default function Quotations() {
 
   useEffect(() => setCurrentPage(1), [searchTerm, filterDate, filterSector]);
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    setRetry((value) => value + 1);
-    queryClient.invalidateQueries({ queryKey: ["quotations"] });
-    toast.success("Quotations refreshed");
-    setTimeout(() => setRefreshing(false), 500);
-  }, [queryClient]);
+    try {
+      setQuotations(await quotationAPI.getLatest());
+      setFetchError(null);
+      toast.success("Quotations refreshed");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to refresh quotations");
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   const handleDownload = async (quotation: Quotation) => {
     setDownloadingId(quotation.id || null);
@@ -130,7 +132,6 @@ export default function Quotations() {
     delete duplicate.updated_at;
     try {
       await quotationAPI.create(duplicate);
-      queryClient.invalidateQueries({ queryKey: ["quotations"] });
       toast.success("Quotation duplicated");
     } catch (error: any) {
       toast.error(error?.message || "Failed to duplicate quotation");
@@ -145,7 +146,6 @@ export default function Quotations() {
     if (!window.confirm(`Delete quotation ${quotation.quotationNo}?`)) return;
     try {
       await quotationAPI.delete(quotation.id!);
-      queryClient.invalidateQueries({ queryKey: ["quotations"] });
       toast.success("Quotation deleted");
     } catch (error: any) {
       toast.error(error?.message || "Failed to delete quotation");
@@ -180,7 +180,7 @@ export default function Quotations() {
         <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
       </CardContent></Card>
 
-      {fetchError && <ErrorAlert title="Error Loading Quotations" message={fetchError} onRetry={() => setRetry((value) => value + 1)} variant="destructive" />}
+      {fetchError && <ErrorAlert title="Error Loading Quotations" message={fetchError} onRetry={() => { setLoading(quotations.length === 0); setRetry((value) => value + 1); }} variant="destructive" />}
 
       <Card className="border-0 shadow-sm"><CardContent className="p-0">
         {loading ? <ChallanTableSkeleton /> : filtered.length ? <>
