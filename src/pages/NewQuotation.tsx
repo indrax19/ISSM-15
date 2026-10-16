@@ -241,7 +241,7 @@ export default function NewQuotation() {
 
       <Card>
         <CardHeader><CardTitle>Quotation Details</CardTitle></CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2"><Label>Quote Number</Label><Input value={quotationNo} placeholder="Auto-generated on save" onChange={(event) => setQuotationNo(event.target.value)} /></div>
           <div className="space-y-2"><Label>Issue Date *</Label><Input type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required /></div>
           <div className="space-y-2"><Label>Valid Till *</Label><Input type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required /></div>
@@ -250,7 +250,7 @@ export default function NewQuotation() {
           <div className="space-y-2"><Label>Company Profile</Label><select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
           <div className="space-y-2"><Label>Quote To / Customer *</Label><Input value={customerName} onChange={(event) => setCustomerName(event.target.value)} required /></div>
           <div className="space-y-2"><Label>Phone</Label><Input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
-          <div className="space-y-2 sm:col-span-2 lg:col-span-3"><Label>Address</Label><Input value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
+          <div className="space-y-2 sm:col-span-2 lg:col-span-4"><Label>Address</Label><Input value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
         </CardContent>
       </Card>
 
