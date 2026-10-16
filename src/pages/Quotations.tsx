@@ -17,6 +17,15 @@ import ErrorAlert from "@/components/ErrorAlert";
 import EmptyState from "@/components/EmptyState";
 
 const ITEMS_PER_PAGE = 10;
+const quotationStatusStyles: Record<QuotationStatus, string> = {
+  Draft: "bg-gray-100 hover:bg-gray-200",
+  Send: "bg-blue-50 hover:bg-blue-100",
+  Pending: "bg-amber-50 hover:bg-amber-100",
+  Approved: "bg-green-50 hover:bg-green-100",
+  Reject: "bg-red-50 hover:bg-red-100",
+  Expired: "bg-orange-50 hover:bg-orange-100",
+  Cancelled: "bg-gray-100 text-gray-500 hover:bg-gray-200",
+};
 const amount = (quotation: Quotation) => quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 const dateLabel = (value: string) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
 
@@ -166,7 +175,7 @@ export default function Quotations() {
       <Card className="border-0 shadow-sm"><CardContent className="p-0">
         {loading ? <ChallanTableSkeleton /> : filtered.length ? <>
           <div className="space-y-3 px-4 pt-4 md:hidden">
-            {paginated.map((quotation) => <div key={quotation.id} className="space-y-3 rounded-lg border p-4">
+            {paginated.map((quotation) => <div key={quotation.id} className={`space-y-3 rounded-lg border p-4 transition-colors ${quotationStatusStyles[quotation.quotationStatus || "Draft"]}`}>
               <div className="flex items-start justify-between gap-2"><div><div className="font-mono font-semibold">{quotation.quotationNo}</div><div className="text-sm text-muted-foreground">{quotation.customerName}</div></div><div className="text-right text-sm font-semibold">PKR {amount(quotation).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</div></div>
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>Issue: {dateLabel(quotation.issueDate)}</span><span>Valid: {dateLabel(quotation.validTill)}</span></div>
               <div className="space-y-2 border-t pt-2">
@@ -183,7 +192,7 @@ export default function Quotations() {
           </div>
           <div className="hidden overflow-x-auto md:block"><Table className="min-w-[980px]">
             <TableHeader><TableRow><TableHead>Quote No</TableHead><TableHead>Issue Date</TableHead><TableHead>Valid Till</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Total (PKR)</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
-            <TableBody>{paginated.map((quotation) => <TableRow key={quotation.id}>
+            <TableBody>{paginated.map((quotation) => <TableRow key={quotation.id} className={quotationStatusStyles[quotation.quotationStatus || "Draft"]}>
               <TableCell className="font-mono font-semibold">{quotation.quotationNo}</TableCell><TableCell>{dateLabel(quotation.issueDate)}</TableCell><TableCell>{dateLabel(quotation.validTill)}</TableCell><TableCell>{quotation.customerName}</TableCell><TableCell className="text-right">{amount(quotation).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</TableCell>
               <TableCell><select className="h-9 min-w-28 rounded-md border border-input bg-background px-2 text-sm" value={quotation.quotationStatus || "Draft"} onChange={(event) => handleStatusChange(quotation, event.target.value as QuotationStatus)} aria-label={`Status for ${quotation.quotationNo}`}>{QUOTATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></TableCell>
               <TableCell><div className="grid w-fit grid-cols-3 gap-1">
