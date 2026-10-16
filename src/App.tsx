@@ -24,6 +24,8 @@ const PersonalInventory = lazy(() => import("@/pages/PersonalInventory"));
 const PersonDetail = lazy(() => import("@/pages/PersonDetail"));
 const DeliveryChallans = lazy(() => import("@/pages/DeliveryChallans"));
 const NewDeliveryChallans = lazy(() => import("@/pages/NewDeliveryChallans"));
+const Quotations = lazy(() => import("@/pages/Quotations"));
+const NewQuotation = lazy(() => import("@/pages/NewQuotation"));
 const Invoices = lazy(() => import("@/pages/Invoices"));
 const NewInvoice = lazy(() => import("@/pages/NewInvoice"));
 const Settings = lazy(() => import("@/pages/Settings"));
@@ -110,6 +112,9 @@ const App = () => (
               <Route path="/delivery-challans" element={<ProtectedRoute requiredPermission="delivery-challans"><Suspense fallback={<PageLoader />}><DeliveryChallans /></Suspense></ProtectedRoute>} />
               <Route path="/delivery-challans/new" element={<ProtectedRoute requiredPermission="delivery-challans"><Suspense fallback={<PageLoader />}><NewDeliveryChallans /></Suspense></ProtectedRoute>} />
               <Route path="/delivery-challans/:id" element={<ProtectedRoute requiredPermission="delivery-challans"><Suspense fallback={<PageLoader />}><NewDeliveryChallans /></Suspense></ProtectedRoute>} />
+              <Route path="/quotations" element={<ProtectedRoute requiredPermission="quotations"><Suspense fallback={<PageLoader />}><Quotations /></Suspense></ProtectedRoute>} />
+              <Route path="/quotations/new" element={<ProtectedRoute requiredPermission="quotations"><Suspense fallback={<PageLoader />}><NewQuotation /></Suspense></ProtectedRoute>} />
+              <Route path="/quotations/:id" element={<ProtectedRoute requiredPermission="quotations"><Suspense fallback={<PageLoader />}><NewQuotation /></Suspense></ProtectedRoute>} />
               <Route path="/invoices" element={<ProtectedRoute requiredPermission="invoices"><Suspense fallback={<PageLoader />}><Invoices /></Suspense></ProtectedRoute>} />
               <Route path="/invoices/new" element={<ProtectedRoute requiredPermission="invoices"><Suspense fallback={<PageLoader />}><NewInvoice /></Suspense></ProtectedRoute>} />
               <Route path="/invoices/:id" element={<ProtectedRoute requiredPermission="invoices"><Suspense fallback={<PageLoader />}><NewInvoice /></Suspense></ProtectedRoute>} />
