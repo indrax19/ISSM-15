@@ -255,16 +255,58 @@ export default function NewQuotation() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0"><CardTitle>Quoted Items</CardTitle><Button variant="outline" size="sm" onClick={() => setItems((current) => [...current, { description: "", quantity: 1, unitPrice: 0 }])}><Plus className="mr-2 h-4 w-4" />Add item</Button></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle>Quoted Items</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Add products or services and set quantity and unit price.</p>
+          </div>
+          <Button variant="default" size="sm" onClick={() => setItems((current) => [...current, { description: "", quantity: 1, unitPrice: 0 }])}>
+            <Plus className="mr-2 h-4 w-4" />Add item
+          </Button>
+        </CardHeader>
         <CardContent className="space-y-4">
-          {items.map((item, index) => <div key={index} className="grid items-end gap-3 rounded-lg border p-3 sm:grid-cols-[1fr_100px_150px_120px_40px]">
-            <div className="space-y-2"><Label>Description</Label><Input value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Item or service description" /></div>
-            <div className="space-y-2"><Label>Qty</Label><Input type="number" min="1" value={item.quantity} onChange={(event) => updateItem(index, "quantity", event.target.value)} /></div>
-            <div className="space-y-2"><Label>Unit Price (PKR)</Label><Input type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} /></div>
-            <div className="space-y-2"><Label>Total (PKR)</Label><div className="flex h-10 items-center font-medium">{(item.quantity * item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</div></div>
-            <Button variant="ghost" size="icon" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : current)} aria-label="Remove item"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-          </div>)}
-          <div className="text-right text-lg font-bold">Grand Total (PKR): {total.toLocaleString("en-PK", { minimumFractionDigits: 2 })}</div>
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full min-w-[760px] border-collapse text-sm">
+              <thead className="bg-muted/60">
+                <tr className="border-b text-left">
+                  <th className="w-12 px-4 py-3 font-semibold text-muted-foreground">#</th>
+                  <th className="px-4 py-3 font-semibold">Description</th>
+                  <th className="w-28 px-4 py-3 font-semibold">Quantity</th>
+                  <th className="w-44 px-4 py-3 font-semibold">Unit Price (PKR)</th>
+                  <th className="w-44 px-4 py-3 text-right font-semibold">Amount (PKR)</th>
+                  <th className="w-16 px-4 py-3 text-center font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => (
+                  <tr key={index} className="border-b last:border-0 transition-colors hover:bg-muted/20">
+                    <td className="px-4 py-3 align-middle text-muted-foreground">{String(index + 1).padStart(2, "0")}</td>
+                    <td className="px-4 py-3">
+                      <Input className="min-w-[240px] border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background" value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input className="w-24" type="number" min="1" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input className="w-40" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
+                    </td>
+                    <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{(item.quantity * item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-center">
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [{ description: "", quantity: 1, unitPrice: 0 }])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-muted/40">
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-right font-semibold">Grand Total</td>
+                  <td className="px-4 py-4 text-right text-base font-bold tabular-nums">PKR {total.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-4" />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground">Tip: Unit price can be left empty while you are entering items. Amounts and grand total update automatically.</p>
         </CardContent>
       </Card>
 
