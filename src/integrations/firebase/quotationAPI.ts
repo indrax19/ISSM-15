@@ -41,6 +41,8 @@ export interface Quotation {
   terms: string;
   companyProfileId?: string;
   companyProfileName?: string;
+  sectorProjectId?: string;
+  sectorProjectName?: string;
   status?: "draft" | "completed";
   quotationStatus?: QuotationStatus;
   created_at?: string;
