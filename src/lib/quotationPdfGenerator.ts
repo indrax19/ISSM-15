@@ -40,6 +40,66 @@ function formatDate(value: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString("en-GB");
 }
 
+type QuotationTermBlock = { text: string; type: "heading" | "paragraph" | "list" | "blank" };
+
+function quotationTermsToBlocks(value: string): QuotationTermBlock[] {
+  if (!/<[a-z][^>]*>/i.test(value)) {
+    return value.replace(/\r\n/g, "\n").split("\n").map((line) => {
+      const text = line.trim();
+      if (!text) return { text: "", type: "blank" };
+      if (text.endsWith(":") && !text.startsWith("- ")) return { text, type: "heading" };
+      if (text.startsWith("- ")) return { text: text.slice(2), type: "list" };
+      return { text, type: "paragraph" };
+    });
+  }
+
+  const parsed = new DOMParser().parseFromString(value, "text/html");
+  parsed.querySelectorAll("script, style").forEach((element) => element.remove());
+  const blocks: QuotationTermBlock[] = [];
+  const nodeText = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || "";
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const element = node as Element;
+    if (element.tagName === "BR") return "\n";
+    return Array.from(element.childNodes).map(nodeText).join("");
+  };
+  const visit = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = node.textContent?.trim();
+      if (text) blocks.push({ text, type: "paragraph" });
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const element = node as Element;
+    const tag = element.tagName;
+    if (/^H[1-6]$/.test(tag)) {
+      blocks.push({ text: nodeText(element).trim(), type: "heading" });
+      return;
+    }
+    if (tag === "UL" || tag === "OL") {
+      Array.from(element.children).filter((child) => child.tagName === "LI").forEach((item, index) => {
+        const text = nodeText(item).trim();
+        if (text) blocks.push({ text: `${tag === "OL" ? `${index + 1}.` : "-"} ${text}`, type: "list" });
+      });
+      return;
+    }
+    if (tag === "P") {
+      nodeText(element).split("\n").forEach((line) => {
+        const text = line.trim();
+        blocks.push({ text, type: text ? "paragraph" : "blank" });
+      });
+      return;
+    }
+    if (tag === "BR") {
+      blocks.push({ text: "", type: "blank" });
+      return;
+    }
+    Array.from(element.childNodes).forEach(visit);
+  };
+  Array.from(parsed.body.childNodes).forEach(visit);
+  return blocks;
+}
+
 export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> {
   const pdf = new jsPDF({ format: "a4", unit: "mm", compress: true });
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -153,22 +213,23 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
     pdf.setFontSize(8);
     pdf.text("General Terms & Conditions:", margin, y);
     y += 5;
-    pdf.setFontSize(7);
-    pdf.setFont("helvetica", "normal");
     const lineHeight = 3.5;
-    const textLines = quotation.terms.replace(/\r\n/g, "\n").split("\n");
-    for (const textLine of textLines) {
-      if (!textLine.trim()) {
+    const termsBlocks = quotationTermsToBlocks(quotation.terms);
+    for (const block of termsBlocks) {
+      if (block.type === "blank") {
         ensureSpace(lineHeight);
         y += lineHeight;
         continue;
       }
-      const wrappedLines = pdf.splitTextToSize(textLine, pageWidth - margin * 2 - 3);
+      pdf.setFontSize(block.type === "heading" ? 7.5 : 7);
+      pdf.setFont("helvetica", block.type === "heading" ? "bold" : "normal");
+      const wrappedLines = pdf.splitTextToSize(block.text, pageWidth - margin * 2 - 3);
       for (const wrappedLine of wrappedLines) {
         ensureSpace(lineHeight);
         pdf.text(wrappedLine, margin + 2, y);
         y += lineHeight;
       }
+      if (block.type === "heading" || block.type === "paragraph") y += 1;
     }
   }
 
