@@ -305,6 +305,7 @@ export default function NewQuotation() {
                 </tr>
               </tfoot>
             </table>
+          </div>
         </CardContent>
       </Card>
 
