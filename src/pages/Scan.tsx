@@ -230,49 +230,61 @@ export default function Scan() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Serial Number Scanner</h1>
-        <p className="text-muted-foreground text-sm mt-1">Scan serial numbers to add or issue inventory items</p>
+    <div className="min-h-screen space-y-6 rounded-2xl bg-gradient-to-br from-slate-50 via-background to-blue-50/60 p-4 md:space-y-8 md:p-8 dark:from-slate-950 dark:via-background dark:to-blue-950/20">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 rounded-2xl border border-border/60 bg-card/90 p-5 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between md:p-7">
+        <div className="flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+            <ScanBarcode className="h-7 w-7" />
+          </div>
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">Inventory Management</p>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Serial Number Scanner</h1>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Scan serial numbers to add items to stock or issue existing inventory.</p>
+          </div>
+        </div>
+        <Badge variant="outline" className="w-fit rounded-full border-primary/20 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary">
+          <span className="mr-2 inline-block h-2 w-2 rounded-full bg-emerald-500" />
+          Scanner ready
+        </Badge>
       </div>
 
       {/* Mode Selection with Visual Indicators */}
-      <div className="grid gap-3 grid-cols-2">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2">
         <Card
-          className={`cursor-pointer transition-all duration-300 animate-scale-in ${mode === "add" ? "ring-2 ring-success border-success shadow-lg" : "hover:border-accent"}`}
+          className={`group cursor-pointer overflow-hidden rounded-2xl border bg-card transition-all duration-300 animate-scale-in ${mode === "add" ? "border-emerald-500 ring-2 ring-emerald-500/20 shadow-lg shadow-emerald-500/10" : "border-border/70 shadow-sm hover:-translate-y-0.5 hover:border-emerald-500/50 hover:shadow-md"}`}
           onClick={() => setMode("add")}
         >
-          <CardContent className="pt-6 text-center">
-            <div className={`inline-flex h-12 w-12 items-center justify-center rounded-lg mb-3 transition-all duration-300 ${mode === "add" ? "bg-success/10 scale-110" : "bg-muted"}`}>
-              <Plus className={`h-6 w-6 transition-colors ${mode === "add" ? "text-success" : "text-muted-foreground"}`} />
+          <CardContent className="p-5 text-center md:p-7">
+            <div className={`mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl transition-all duration-300 ${mode === "add" ? "scale-105 bg-emerald-500/10" : "bg-muted group-hover:bg-emerald-500/10"}`}>
+              <Plus className={`h-6 w-6 transition-colors ${mode === "add" ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground group-hover:text-emerald-600"}`} />
             </div>
-            <p className={`font-semibold transition-colors ${mode === "add" ? "text-success" : "text-muted-foreground"}`}>Add Items</p>
+            <p className={`text-base font-semibold transition-colors ${mode === "add" ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>Add Items</p>
             <p className="text-xs text-muted-foreground mt-1">Stock in to inventory</p>
           </CardContent>
         </Card>
         <Card
-          className={`cursor-pointer transition-all duration-300 animate-scale-in ${mode === "issue" ? "ring-2 ring-destructive border-destructive shadow-lg" : "hover:border-accent"}`}
+          className={`group cursor-pointer overflow-hidden rounded-2xl border bg-card transition-all duration-300 animate-scale-in ${mode === "issue" ? "border-rose-500 ring-2 ring-rose-500/20 shadow-lg shadow-rose-500/10" : "border-border/70 shadow-sm hover:-translate-y-0.5 hover:border-rose-500/50 hover:shadow-md"}`}
           onClick={() => setMode("issue")}
         >
-          <CardContent className="pt-6 text-center">
-            <div className={`inline-flex h-12 w-12 items-center justify-center rounded-lg mb-3 transition-all duration-300 ${mode === "issue" ? "bg-destructive/10 scale-110" : "bg-muted"}`}>
-              <ArrowUpFromLine className={`h-6 w-6 transition-colors ${mode === "issue" ? "text-destructive" : "text-muted-foreground"}`} />
+          <CardContent className="p-5 text-center md:p-7">
+            <div className={`mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl transition-all duration-300 ${mode === "issue" ? "scale-105 bg-rose-500/10" : "bg-muted group-hover:bg-rose-500/10"}`}>
+              <ArrowUpFromLine className={`h-6 w-6 transition-colors ${mode === "issue" ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground group-hover:text-rose-600"}`} />
             </div>
-            <p className={`font-semibold transition-colors ${mode === "issue" ? "text-destructive" : "text-muted-foreground"}`}>Issue Items</p>
+            <p className={`text-base font-semibold transition-colors ${mode === "issue" ? "text-rose-600 dark:text-rose-400" : "text-foreground"}`}>Issue Items</p>
             <p className="text-xs text-muted-foreground mt-1">Stock out from inventory</p>
           </CardContent>
         </Card>
       </div>
 
       {mode === "add" && (
-        <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+        <Card className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl border-primary/15 bg-card shadow-sm">
+          <CardHeader className="border-b border-border/60 bg-muted/20 px-5 py-4 md:px-6">
+            <CardTitle className="flex items-center gap-3 text-base font-semibold md:text-lg">
               <Layers className="h-5 w-5 text-primary" />
               Select Category & Sub Category
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-5 md:p-6">
             <HierarchicalCategorySelect
               selectedCategoryId={categoryId}
               selectedSubcategoryId={subcategoryId}
@@ -292,30 +304,30 @@ export default function Scan() {
       )}
 
       {/* Input Mode Selection */}
-      <div className="grid gap-3 grid-cols-2">
+      <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2">
         <Card
-          className={`cursor-pointer transition-all duration-300 ${inputMode === "camera" ? "ring-2 ring-primary border-primary shadow-md" : "hover:border-accent"}`}
+          className={`group cursor-pointer rounded-2xl border bg-card transition-all duration-300 ${inputMode === "camera" ? "border-primary ring-2 ring-primary/20 shadow-md shadow-primary/10" : "border-border/70 shadow-sm hover:border-primary/40 hover:shadow-md"}`}
           onClick={() => {
             setInputMode("camera");
             setCameraActive(true);
           }}
         >
-          <CardContent className="pt-6 text-center">
-            <div className={`inline-flex h-10 w-10 items-center justify-center rounded-lg mb-2 transition-all duration-300 ${inputMode === "camera" ? "bg-primary/10 scale-110" : "bg-muted"}`}>
+          <CardContent className="p-5 text-center md:p-7">
+            <div className={`mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-300 ${inputMode === "camera" ? "scale-105 bg-primary/10" : "bg-muted group-hover:bg-primary/10"}`}>
               <Camera className={`h-5 w-5 transition-colors ${inputMode === "camera" ? "text-primary" : "text-muted-foreground"}`} />
             </div>
             <p className={`text-sm font-semibold transition-colors ${inputMode === "camera" ? "text-primary" : "text-muted-foreground"}`}>Camera</p>
           </CardContent>
         </Card>
         <Card
-          className={`cursor-pointer transition-all duration-300 ${inputMode === "manual" ? "ring-2 ring-primary border-primary shadow-md" : "hover:border-accent"}`}
+          className={`group cursor-pointer rounded-2xl border bg-card transition-all duration-300 ${inputMode === "manual" ? "border-primary ring-2 ring-primary/20 shadow-md shadow-primary/10" : "border-border/70 shadow-sm hover:border-primary/40 hover:shadow-md"}`}
           onClick={() => {
             setInputMode("manual");
             setCameraActive(false);
           }}
         >
-          <CardContent className="pt-6 text-center">
-            <div className={`inline-flex h-10 w-10 items-center justify-center rounded-lg mb-2 transition-all duration-300 ${inputMode === "manual" ? "bg-primary/10 scale-110" : "bg-muted"}`}>
+          <CardContent className="p-5 text-center md:p-7">
+            <div className={`mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl transition-all duration-300 ${inputMode === "manual" ? "scale-105 bg-primary/10" : "bg-muted group-hover:bg-primary/10"}`}>
               <ScanBarcode className={`h-5 w-5 transition-colors ${inputMode === "manual" ? "text-primary" : "text-muted-foreground"}`} />
             </div>
             <p className={`text-sm font-semibold transition-colors ${inputMode === "manual" ? "text-primary" : "text-muted-foreground"}`}>Manual</p>
@@ -324,20 +336,20 @@ export default function Scan() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+        <CardHeader className="border-b border-border/60 bg-muted/20 px-5 py-4 md:px-6">
+          <CardTitle className="flex items-center gap-3 text-base font-semibold md:text-lg">
             <ScanBarcode className="h-5 w-5" />
             {mode === "add" ? "Scan Serial to Add" : "Scan Serial to Issue"}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-5 md:p-6">
           {inputMode === "camera" ? (
             <BarcodeScanner onScan={handleScan} active={cameraActive} />
           ) : (
-            <form onSubmit={handleManualSubmit} className="flex flex-col gap-4">
+            <form onSubmit={handleManualSubmit} className="flex flex-col gap-5 rounded-xl border border-border/60 bg-muted/20 p-4 md:p-5">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="manual-barcode" className="font-semibold">Enter Serial Number</Label>
+                  <Label htmlFor="manual-barcode" className="text-sm font-semibold">Enter Serial Number</Label>
                   <span className={`text-xs flex items-center gap-1 px-2 py-1 rounded-full ${cameraActive ? "text-muted-foreground" : "bg-success/10 text-success font-medium"}`}>
                     <div className={`h-2 w-2 rounded-full ${cameraActive ? "" : "bg-success animate-pulse"}`} />
                     {cameraActive ? "Camera Active" : "USB Scanner Ready"}
@@ -350,11 +362,11 @@ export default function Scan() {
                   onChange={(e) => setManualCode(e.target.value)}
                   placeholder="Scan or type serial number..."
                   maxLength={200}
-                  className={`transition-all ${manualCode ? "border-success bg-success/5" : ""}`}
+                  className={`h-12 rounded-xl bg-background text-base transition-all focus-visible:ring-2 focus-visible:ring-primary/30 ${manualCode ? "border-emerald-500 bg-emerald-500/5" : ""}`}
                   autoFocus
                 />
               </div>
-              <Button type="submit" className="gap-2 h-10">
+              <Button type="submit" className="h-12 gap-2 rounded-xl px-5 font-semibold shadow-sm transition-all hover:shadow-md">
                 <ScanBarcode className="h-4 w-4" /> Process Serial Number
               </Button>
             </form>
@@ -364,7 +376,7 @@ export default function Scan() {
 
       {/* Add Mode Dialog */}
       <Dialog open={dialogOpen && mode === "add"} onOpenChange={(open) => !open && resetDialog()}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl border-border/70 p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-success/10">
@@ -374,12 +386,12 @@ export default function Scan() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-lg border-2 border-success bg-success/5 p-4">
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
               <p className="text-xs text-muted-foreground mb-2">Serial Number:</p>
               <p className="font-mono font-bold text-lg text-center text-success">{scannedCode}</p>
             </div>
 
-            <div className="space-y-3 bg-muted/30 rounded-lg p-3">
+            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/30 p-4">
               <div className="text-sm">
                 <p className="text-xs text-muted-foreground mb-1">Total Items Ready:</p>
                 <p className="font-bold text-lg text-primary">{serialNumbers.length}</p>
@@ -389,7 +401,7 @@ export default function Scan() {
             <div className="space-y-2">
               <Label htmlFor="store-name" className="font-semibold">Store Name *</Label>
               <Select value={storeName} onValueChange={setStoreName}>
-                <SelectTrigger id="store-name" className="text-sm">
+                <SelectTrigger id="store-name" className="h-11 rounded-xl text-sm">
                   <SelectValue placeholder="Select a store" />
                 </SelectTrigger>
                 <SelectContent>
@@ -419,7 +431,7 @@ export default function Scan() {
 
       {/* Issue Mode Dialog */}
       <Dialog open={dialogOpen && mode === "issue"} onOpenChange={(open) => !open && resetDialog()}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-2xl border-border/70 p-6 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
               <div className="flex h-6 w-6 items-center justify-center rounded-full bg-destructive/10">
@@ -430,7 +442,7 @@ export default function Scan() {
           </DialogHeader>
           {foundItem && (
             <div className="space-y-4">
-              <div className="rounded-lg border-2 border-destructive/20 bg-destructive/5 p-4 space-y-3">
+              <div className="space-y-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Item</p>
                   <p className="font-semibold text-base">{foundItem.name}</p>
@@ -454,7 +466,7 @@ export default function Scan() {
                   onChange={(e) => setRecipient(e.target.value)}
                   placeholder="Who receives this item?"
                   maxLength={200}
-                  className="text-sm"
+                  className="h-11 rounded-xl text-sm"
                   autoFocus
                 />
               </div>
@@ -465,7 +477,7 @@ export default function Scan() {
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Optional notes (reason, department, etc.)"
                   maxLength={500}
-                  className="text-sm"
+                  className="h-11 rounded-xl text-sm"
                 />
               </div>
             </div>
