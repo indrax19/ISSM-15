@@ -126,6 +126,8 @@ export default function SslProjectDetail() {
   const [filterSlaYear, setFilterSlaYear] = useState("");
   const [filterOverallStatus, setFilterOverallStatus] = useState("");
   const [filterCity, setFilterCity] = useState("");
+  const [pageSize, setPageSize] = useState<number | "all">(15);
+  const [page, setPage] = useState(1);
   const [showProfileSelector, setShowProfileSelector] = useState(false);
   const [siteForDownload, setSiteForDownload] = useState<any>(null);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
@@ -236,6 +238,15 @@ export default function SslProjectDetail() {
     uniqueSlaYears: Array.from(new Set(sites.map(getSlaYear).filter(Boolean))).sort((a, b) => b.localeCompare(a)),
     uniqueOverallStatuses: Array.from(new Set(sites.map(getOverallVisitStatus).filter(Boolean))).sort(),
   }), [sites]);
+
+  const pageCount = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filteredSites.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = pageSize === "all" ? 0 : (currentPage - 1) * pageSize;
+  const visibleSites = pageSize === "all" ? filteredSites : filteredSites.slice(pageStart, pageStart + pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterVisitType, filterSlaYear, filterOverallStatus, filterCity, pageSize]);
 
   const hasActiveFilters = useMemo(
     () => Boolean(searchTerm || filterVisitType || filterSlaYear || filterOverallStatus || filterCity),
@@ -615,7 +626,7 @@ export default function SslProjectDetail() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSites.length ? filteredSites.map((site) => {
+                {visibleSites.length ? visibleSites.map((site) => {
                   const report = site.maintenanceReport;
                   const recent = isRecentlyModified(site, viewedSiteIds, appUser?.id);
                   const visitType = getVisitType(site);
@@ -670,7 +681,7 @@ export default function SslProjectDetail() {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {filteredSites.length ? filteredSites.map((site) => {
+            {visibleSites.length ? visibleSites.map((site) => {
               const report = site.maintenanceReport;
               const visitStatus = getOverallVisitStatus(site);
               const recent = isRecentlyModified(site, viewedSiteIds, appUser?.id);
@@ -721,6 +732,30 @@ export default function SslProjectDetail() {
                 </CardContent>
               </Card>
             )}
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">
+              Showing {filteredSites.length ? pageStart + 1 : 0}–{pageSize === "all" ? filteredSites.length : Math.min(pageStart + pageSize, filteredSites.length)} of {filteredSites.length} visits
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="sla-visits-page-size" className="text-sm text-slate-600">Rows per page</Label>
+              <Select value={String(pageSize)} onValueChange={(value) => {
+                setPageSize(value === "all" ? "all" : Number(value));
+                setPage(1);
+              }}>
+                <SelectTrigger id="sla-visits-page-size" className="h-9 w-24 border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="min-w-20 text-center text-sm text-slate-600">Page {currentPage} of {pageCount}</span>
+              <Button variant="outline" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>Previous</Button>
+              <Button variant="outline" size="sm" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>Next</Button>
+            </div>
           </div>
         </div>
       ) : (
