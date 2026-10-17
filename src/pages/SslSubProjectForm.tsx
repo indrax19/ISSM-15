@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -360,6 +361,7 @@ export default function SslSubProjectForm({
   const isReadOnlyPreview = previewOnly || searchParams.has("view") || searchParams.has("print");
   const shouldPrint = searchParams.has("print");
   const previewRootRef = useRef<HTMLDivElement>(null);
+  const excelImportRef = useRef<HTMLInputElement>(null);
   const downloadStartedRef = useRef(false);
   const onDownloadCompleteRef = useRef(onDownloadComplete);
   onDownloadCompleteRef.current = onDownloadComplete;
@@ -503,6 +505,58 @@ export default function SslSubProjectForm({
 
   const updateReport = <K extends keyof SslMaintenanceVisitReport>(key: K, value: SslMaintenanceVisitReport[K]) => {
     setReport((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleExcelImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const workbook = XLSX.read(reader.result, { type: "array" });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "", raw: false });
+        if (!row) throw new Error("The Excel file has no data rows.");
+
+        const normalizedRow = Object.fromEntries(Object.entries(row).map(([key, value]) => [key.toLowerCase().replace(/[^a-z0-9]/g, ""), String(value).trim()]));
+        const getValue = (...headers: string[]) => headers.map((header) => normalizedRow[header.toLowerCase().replace(/[^a-z0-9]/g, "")]).find((value) => value !== undefined) || "";
+        const importedMillName = getValue("Mill Name", "Mill");
+        const importedUnit = getValue("Unit", "Unit No", "Unit Number");
+        const importedLocation = getValue("Location", "City");
+        const importedDistrict = getValue("District");
+        const importedVisitType = getValue("Visit Type");
+        const importedVisitNumber = getValue("SLA Visit No.", "Visit No.", "Visit Number");
+        const importedYear = getValue("SLA Year", "Year");
+        const importedPocName = getValue("Customer POC Name", "POC Name");
+        const importedDesignation = getValue("Customer Designation", "Designation");
+        const importedContact = getValue("Customer Contact No.", "Customer Contact Number", "Contact No.", "Contact Number");
+        const importedOtherVisitType = getValue("Other Visit Type");
+        const importedValues = [importedMillName, importedUnit, importedLocation, importedDistrict, importedVisitType, importedVisitNumber, importedYear, importedPocName, importedDesignation, importedContact];
+        if (!importedValues.some(Boolean)) throw new Error("No supported SLA columns with data were found.");
+        const visitTypes = ["Preventive", "Corrective", "Follow-up", "Pre-Season", "Other"];
+        const matchingVisitType = visitTypes.find((type) => type.toLowerCase() === importedVisitType.toLowerCase());
+
+        if (importedMillName) setMillName(importedMillName);
+        if (importedUnit) setUnitNo(importedUnit);
+        if (importedLocation) setCity(importedLocation);
+        if (importedDistrict) setDistrict(importedDistrict);
+        setReport((current) => ({
+          ...current,
+          ...(importedVisitType ? { visitType: matchingVisitType || "Other", otherVisitType: matchingVisitType === "Other" ? importedOtherVisitType : matchingVisitType ? current.otherVisitType : importedVisitType } : {}),
+          ...(importedVisitNumber ? { visitNumber: importedVisitNumber } : {}),
+          ...(importedYear ? { slaYear: importedYear } : {}),
+          ...(importedPocName ? { customerPocName: importedPocName } : {}),
+          ...(importedDesignation ? { customerDesignation: importedDesignation } : {}),
+          ...(importedContact ? { customerContact: importedContact } : {}),
+        }));
+        toast.success("Excel data imported into the SLA form.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Unable to import this Excel file.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const updateChecklist = (section: string, index: number, patch: Partial<SlaChecklistRow>) => {
@@ -657,6 +711,12 @@ export default function SslSubProjectForm({
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               {project && <p className="min-w-0 truncate text-xs font-medium text-slate-600">Project: <span className="font-semibold text-slate-800">{project.name}</span></p>}
+              {!isReadOnlyPreview && <>
+                <input ref={excelImportRef} type="file" accept=".xlsx,.xls" onChange={handleExcelImport} className="hidden" />
+                <Button type="button" variant="outline" size="sm" className="ml-auto shrink-0 gap-2 border-blue-200 text-blue-800 hover:bg-blue-50" onClick={() => excelImportRef.current?.click()}>
+                  <Upload className="h-4 w-4" />Import Excel
+                </Button>
+              </>}
             </div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-600 sm:text-xs">Video Analytics System (VAS)</p>
             <h1 className="text-xl font-extrabold leading-tight tracking-tight text-[#124c78] sm:text-2xl">SLA Maintenance Visit Completion Form</h1>
