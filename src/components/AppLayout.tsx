@@ -59,7 +59,7 @@ export function AppLayout() {
             <div className="flex flex-col items-center justify-center text-[8px] sm:text-[10px] text-muted-foreground gap-0.5 sm:gap-1">
               <span>© 2026 Avira Technologies. All rights reserved.</span>
               <span className="font-medium bg-muted px-2 py-0.5 rounded-full">
-                V 4.1.5
+                V 4.2.1
               </span>
             </div>
           </footer>

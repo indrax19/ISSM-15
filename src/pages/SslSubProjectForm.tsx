@@ -6,8 +6,6 @@ import {
   sslSubProjectsAPI,
   type SlaCameraInspection,
   type SlaChecklistRow,
-  type SlaIssueRecord,
-  type SlaRequirementRecord,
   type SlaSignoff,
   type SslMaintenanceVisitReport,
   type SslSubProject,
@@ -20,162 +18,8 @@ import { toast } from "sonner";
 import { ArrowLeft, FileDown, Plus, Printer, Trash2, Upload } from "lucide-react";
 import { z } from "zod";
 import { downloadSlaVisitPDF } from "@/lib/slaVisitPDF";
+import { CAMERA_COUNT_FIELDS, CHECKLIST_GROUPS, createBlankSlaReport, createCameraInspection, createIssueRecord, createSignoff, OVERALL_STATUSES, PHOTO_LABELS, PRODUCTION_CHANGES, trimTrailingEmptyRows } from "@/lib/slaVisitDefaults";
 
-const SITE_PRODUCTION_POINTS = [
-  "Sugar mill operational",
-  "Production season active",
-  "Production/turnkey unchanged",
-  "New production line installed",
-  "Existing conveyor modified/relocated",
-  "New conveyor installed",
-  "New shoot/chute installed",
-  "Any packing/dispatch area modification",
-  "Any other production changes",
-];
-
-const CHECKLIST_GROUPS = [
-  {
-    key: "networkingCabling",
-    title: "NETWORKING & CABLING",
-    points: [
-      "Camera network connectivity",
-      "Production cable condition",
-      "RJ45 connectors condition",
-      "Fiber connectivity if applicable",
-      "Junction boxes condition",
-      "Cables properly secured",
-      "PoE connectivity stable",
-      "No intermittent connection",
-    ],
-  },
-  {
-    key: "nvrHddPoe",
-    title: "NVR / HDD / PoE SWITCH",
-    points: [
-      "NVR operational",
-      "All cameras recording",
-      "Recording continuity verified",
-      "HDD health normal",
-      "Storage sufficient",
-      "PoE switch operational",
-      "All ports working",
-      "Proper configuration",
-    ],
-  },
-  {
-    key: "computeGpu",
-    title: "COMPUTE / GPU SYSTEM",
-    points: [
-      "System powered ON",
-      "OS functioning",
-      "VAS application running",
-      "GPU utilization normal",
-      "GPU temperature normal",
-      "Storage health normal",
-      "System logs checked",
-      "System update status verified",
-    ],
-  },
-  {
-    key: "powerUpsElectrical",
-    title: "POWER / UPS / ELECTRICAL",
-    points: [
-      "Power supply stable",
-      "UPS operational",
-      "UPS battery condition",
-      "NVR on backup power",
-      "Compute on backup power",
-      "PoE switch on backup power",
-      "Proper earthing",
-      "No loose connections",
-    ],
-  },
-] as const;
-
-const OVERALL_STATUSES = [
-  "Fully Operational",
-  "Operational with Minor Issues",
-  "Operational – Corrective Action Required",
-  "Additional Work / Expansion Required",
-  "Major Issue – Further Action Required",
-];
-
-const CAMERA_COUNT_FIELDS = [
-  ["totalInstalled", "Total Cameras Installed"],
-  ["online", "Online"],
-  ["imageOk", "Image OK"],
-  ["recordingOk", "Recording OK"],
-  ["issuesFound", "Issues Found"],
-  ["correctiveActionsCompleted", "Corrective Actions Completed"],
-] as const;
-
-const PRODUCTION_CHANGES = [
-  ["newConveyorInstalled", "New Conveyor Installed?"],
-  ["newShootChuteInstalled", "New Shoot/Chute Installed?"],
-  ["existingConveyorModified", "Existing Conveyor Modified?"],
-  ["newProductionPoint", "New Production Point?"],
-  ["additionalCameraRequired", "Additional Camera Required?"],
-] as const;
-
-const PHOTO_LABELS = ["Overall Site View"];
-
-const createChecklistRows = (points: readonly string[]): SlaChecklistRow[] =>
-  points.map((point) => ({ point, result: "", remarks: "" }));
-
-const createSignoff = (): SlaSignoff => ({ name: "", signature: "", date: "" });
-const createCameraInspection = (): SlaCameraInspection => ({ cameraId: "", location: "", online: false, imageOk: false, recordingOk: false, physicalCondition: "", remarks: "" });
-const createIssueRecord = (): SlaIssueRecord => ({ issue: "", category: "", priority: "", actionTaken: "", status: "", remarks: "" });
-
-const trimTrailingEmptyRows = <T,>(rows: T[], isEmpty: (row: T) => boolean) => {
-  let lastFilledIndex = -1;
-  rows.forEach((row, index) => {
-    if (!isEmpty(row)) lastFilledIndex = index;
-  });
-  return rows.slice(0, Math.max(1, lastFilledIndex + 1));
-};
-
-const createBlankReport = (projectName = ""): SslMaintenanceVisitReport => {
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10);
-  return {
-    formNumber: "",
-    documentDate: date,
-    slaYear: String(now.getFullYear()),
-    projectName,
-    fbrSiteId: "",
-    visitDate: "",
-    visitType: "",
-    otherVisitType: "",
-    visitNumber: "",
-    previousVisitDate: "",
-    customerPocName: "",
-    customerDesignation: "",
-    customerContact: "",
-    customerEmail: "",
-    engineerNames: ["", ""],
-    engineerDesignations: ["", ""],
-    cameraCounts: Object.fromEntries(CAMERA_COUNT_FIELDS.map(([key]) => [key, ""])),
-    additionalRequirements: [],
-    overallStatus: "",
-    siteProductionRows: createChecklistRows(SITE_PRODUCTION_POINTS),
-    cameraInspections: [createCameraInspection()],
-    checklistRows: Object.fromEntries(CHECKLIST_GROUPS.map((group) => [group.key, createChecklistRows(group.points)])),
-    productionChanges: Object.fromEntries(PRODUCTION_CHANGES.map(([key]) => [key, null])),
-    productionObservations: "",
-    issues: [createIssueRecord()],
-    changeRequests: Array.from({ length: 8 }, (): SlaRequirementRecord => ({
-      requirement: "",
-      reason: "",
-      hardwareRequired: "",
-      priority: "",
-    })),
-    photoUrls: Array.from({ length: PHOTO_LABELS.length }, () => null),
-    engineerRemarks: "",
-    customerSignoff: createSignoff(),
-    engineerSignoffs: [createSignoff()],
-    fbrSubmission: { ...createSignoff(), fbrSiteId: "", designation: "" },
-  };
-};
 
 const inputClass = "sla-input h-7 w-full rounded border border-slate-300 bg-white px-1.5 text-[11px] text-slate-900 outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700";
 const compactInputClass = "sla-input h-6 w-full rounded border border-slate-300 bg-white px-1 text-[10px] text-slate-900 outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700";
@@ -371,7 +215,7 @@ export default function SslSubProjectForm({
   const [district, setDistrict] = useState("");
   const [address, setAddress] = useState("");
   const [unitNo, setUnitNo] = useState("");
-  const [report, setReport] = useState<SslMaintenanceVisitReport>(() => createBlankReport());
+  const [report, setReport] = useState<SslMaintenanceVisitReport>(() => createBlankSlaReport());
   const [photoFiles, setPhotoFiles] = useState<Array<File | null>>(() => Array.from({ length: PHOTO_LABELS.length }, () => null));
   const [photoPreviews, setPhotoPreviews] = useState<Array<string | null>>(() => Array.from({ length: PHOTO_LABELS.length }, () => null));
   const [site, setSite] = useState<SslSubProject | null>(null);
@@ -407,7 +251,7 @@ export default function SslSubProjectForm({
   useEffect(() => {
     if (!site || site.id !== siteId || !siteId || initializedSiteIdRef.current === siteId) return;
     initializedSiteIdRef.current = siteId;
-    const emptyReport = createBlankReport(project?.name || "");
+    const emptyReport = createBlankSlaReport(project?.name || "");
     const savedReport = site.maintenanceReport;
     const reportData: SslMaintenanceVisitReport = {
       ...emptyReport,

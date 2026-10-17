@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, CheckCircle, Clock, FileText, Loader2, Copy, BadgeCheck } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, CheckCircle, Clock, FileText, Loader2, Copy, BadgeCheck, FileUp } from "lucide-react";
 import { RealtimeStatusIndicator, DataLoadingSkeleton, ConnectionBadge } from "@/components/RealtimeStatusIndicator";
 import { format, differenceInHours } from "date-fns";
 import { exportProjectTrackingToExcel } from "@/lib/excelExport";
@@ -29,6 +29,7 @@ import { ProjectProfileSelector } from "@/components/ProjectProfileSelector";
 import { companyProfileAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
 import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
 import { sslDeploymentCertificateAPI } from "@/integrations/firebase/sslDeploymentCertificateAPI";
+import { BulkImportSlaVisits } from "@/components/BulkImportSlaVisits";
 
 const SslSubProjectFormPreview = lazy(() => import("@/pages/SslSubProjectForm"));
 
@@ -125,10 +126,13 @@ export default function SslProjectDetail() {
   const [filterSlaYear, setFilterSlaYear] = useState("");
   const [filterOverallStatus, setFilterOverallStatus] = useState("");
   const [filterCity, setFilterCity] = useState("");
+  const [pageSize, setPageSize] = useState<number | "all">(15);
+  const [page, setPage] = useState(1);
   const [showProfileSelector, setShowProfileSelector] = useState(false);
   const [siteForDownload, setSiteForDownload] = useState<any>(null);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
   const [selectedSiteForCert, setSelectedSiteForCert] = useState<any>(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const getDefaultFormData = () => ({
     certificate_type: "sla",
     client_name: "",
@@ -234,6 +238,15 @@ export default function SslProjectDetail() {
     uniqueSlaYears: Array.from(new Set(sites.map(getSlaYear).filter(Boolean))).sort((a, b) => b.localeCompare(a)),
     uniqueOverallStatuses: Array.from(new Set(sites.map(getOverallVisitStatus).filter(Boolean))).sort(),
   }), [sites]);
+
+  const pageCount = pageSize === "all" ? 1 : Math.max(1, Math.ceil(filteredSites.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = pageSize === "all" ? 0 : (currentPage - 1) * pageSize;
+  const visibleSites = pageSize === "all" ? filteredSites : filteredSites.slice(pageStart, pageStart + pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterVisitType, filterSlaYear, filterOverallStatus, filterCity, pageSize]);
 
   const hasActiveFilters = useMemo(
     () => Boolean(searchTerm || filterVisitType || filterSlaYear || filterOverallStatus || filterCity),
@@ -482,11 +495,14 @@ export default function SslProjectDetail() {
             <Button onClick={() => exportProjectTrackingToExcel(filteredSites)} disabled={filteredSites.length === 0} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
               <Download className="h-4 w-4" />Download Excel
             </Button>
-            {isUserAssigned && (
+            {isUserAssigned && <>
+              <Button onClick={() => setShowBulkImport(true)} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
+                <FileUp className="h-4 w-4" />Import Multiple Sites
+              </Button>
               <Button onClick={() => navigate(`/sla-sub-projects/new/${id}`)} className="h-10 gap-2 bg-white text-[#124c78] shadow-sm hover:bg-blue-50" size="sm">
                 <Plus className="h-4 w-4" />New SLA Visit
               </Button>
-            )}
+            </>}
           </div>
         </div>
       </section>
@@ -610,7 +626,7 @@ export default function SslProjectDetail() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSites.length ? filteredSites.map((site) => {
+                {visibleSites.length ? visibleSites.map((site) => {
                   const report = site.maintenanceReport;
                   const recent = isRecentlyModified(site, viewedSiteIds, appUser?.id);
                   const visitType = getVisitType(site);
@@ -665,7 +681,7 @@ export default function SslProjectDetail() {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {filteredSites.length ? filteredSites.map((site) => {
+            {visibleSites.length ? visibleSites.map((site) => {
               const report = site.maintenanceReport;
               const visitStatus = getOverallVisitStatus(site);
               const recent = isRecentlyModified(site, viewedSiteIds, appUser?.id);
@@ -716,6 +732,30 @@ export default function SslProjectDetail() {
                 </CardContent>
               </Card>
             )}
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">
+              Showing {filteredSites.length ? pageStart + 1 : 0}–{pageSize === "all" ? filteredSites.length : Math.min(pageStart + pageSize, filteredSites.length)} of {filteredSites.length} visits
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Label htmlFor="sla-visits-page-size" className="text-sm text-slate-600">Rows per page</Label>
+              <Select value={String(pageSize)} onValueChange={(value) => {
+                setPageSize(value === "all" ? "all" : Number(value));
+                setPage(1);
+              }}>
+                <SelectTrigger id="sla-visits-page-size" className="h-9 w-24 border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15</SelectItem>
+                  <SelectItem value="30">30</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="min-w-20 text-center text-sm text-slate-600">Page {currentPage} of {pageCount}</span>
+              <Button variant="outline" size="sm" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>Previous</Button>
+              <Button variant="outline" size="sm" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>Next</Button>
+            </div>
           </div>
         </div>
       ) : (
@@ -962,6 +1002,14 @@ export default function SslProjectDetail() {
           )}
         </DialogContent>
       </Dialog>
+
+      <BulkImportSlaVisits
+        projectId={id || ""}
+        projectName={project?.name || ""}
+        createdBy={appUser?.id}
+        open={showBulkImport}
+        onOpenChange={setShowBulkImport}
+      />
 
       {/* Company Profile Selector Dialog */}
       <ProjectProfileSelector
