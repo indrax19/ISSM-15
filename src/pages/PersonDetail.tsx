@@ -173,7 +173,9 @@ export default function PersonDetail() {
       setNotes("");
     },
     onError: (err: any) => {
-      if (err.issues) toast.error(err.issues[0].message);
+      if (err.message === "You can only increase an item's quantity") {
+        if (!isAdmin) toast.warning("You can’t decrease this item’s quantity. Contact an administrator if the quantity needs correction.");
+      } else if (err.issues) toast.error(err.issues[0].message);
       else toast.error("Failed to update item");
     },
   });
@@ -364,6 +366,8 @@ export default function PersonDetail() {
         (i.notes && i.notes.toLowerCase().includes(filter.toLowerCase()))
       )
   );
+  const editedItem = items.find((item) => item.id === editItemId);
+  const isQuantityDecrease = !isAdmin && !!editedItem && quantity !== "" && Number(quantity) < editedItem.quantity;
 
   const openEdit = (item: any) => {
     setEditItemId(item.id);
@@ -742,7 +746,10 @@ export default function PersonDetail() {
                 onChange={(e) => setQuantity(e.target.value)}
                 placeholder="e.g. 4"
                 min="1"
+                aria-invalid={isQuantityDecrease}
+                aria-describedby={isQuantityDecrease ? "quantity-decrease-warning" : undefined}
               />
+              {isQuantityDecrease && <p id="quantity-decrease-warning" role="alert" className="text-sm font-medium text-amber-700">You can’t decrease this item’s quantity. Contact an administrator if the quantity needs correction.</p>}
             </div>
             <div className="space-y-2">
               <Label>Notes</Label>
@@ -758,7 +765,7 @@ export default function PersonDetail() {
             <Button variant="outline" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => editMutation.mutate()} disabled={editMutation.isPending}>
+            <Button onClick={() => editMutation.mutate()} disabled={editMutation.isPending || isQuantityDecrease}>
               {editMutation.isPending ? "Updating..." : "Update Item"}
             </Button>
           </DialogFooter>
