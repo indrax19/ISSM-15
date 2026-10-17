@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, CheckCircle, Clock, FileText, Loader2, Copy, BadgeCheck } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Pencil, Trash2, Eye, Download, Wifi, Zap, CheckCircle, Clock, FileText, Loader2, Copy, BadgeCheck, FileUp } from "lucide-react";
 import { RealtimeStatusIndicator, DataLoadingSkeleton, ConnectionBadge } from "@/components/RealtimeStatusIndicator";
 import { format, differenceInHours } from "date-fns";
 import { exportProjectTrackingToExcel } from "@/lib/excelExport";
@@ -29,6 +29,7 @@ import { ProjectProfileSelector } from "@/components/ProjectProfileSelector";
 import { companyProfileAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
 import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
 import { sslDeploymentCertificateAPI } from "@/integrations/firebase/sslDeploymentCertificateAPI";
+import { BulkImportSlaVisits } from "@/components/BulkImportSlaVisits";
 
 const SslSubProjectFormPreview = lazy(() => import("@/pages/SslSubProjectForm"));
 
@@ -129,6 +130,7 @@ export default function SslProjectDetail() {
   const [siteForDownload, setSiteForDownload] = useState<any>(null);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
   const [selectedSiteForCert, setSelectedSiteForCert] = useState<any>(null);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const getDefaultFormData = () => ({
     certificate_type: "sla",
     client_name: "",
@@ -482,11 +484,14 @@ export default function SslProjectDetail() {
             <Button onClick={() => exportProjectTrackingToExcel(filteredSites)} disabled={filteredSites.length === 0} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
               <Download className="h-4 w-4" />Download Excel
             </Button>
-            {isUserAssigned && (
+            {isUserAssigned && <>
+              <Button onClick={() => setShowBulkImport(true)} variant="outline" className="h-10 gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white" size="sm">
+                <FileUp className="h-4 w-4" />Import Multiple Sites
+              </Button>
               <Button onClick={() => navigate(`/sla-sub-projects/new/${id}`)} className="h-10 gap-2 bg-white text-[#124c78] shadow-sm hover:bg-blue-50" size="sm">
                 <Plus className="h-4 w-4" />New SLA Visit
               </Button>
-            )}
+            </>}
           </div>
         </div>
       </section>
@@ -962,6 +967,14 @@ export default function SslProjectDetail() {
           )}
         </DialogContent>
       </Dialog>
+
+      <BulkImportSlaVisits
+        projectId={id || ""}
+        projectName={project?.name || ""}
+        createdBy={appUser?.id}
+        open={showBulkImport}
+        onOpenChange={setShowBulkImport}
+      />
 
       {/* Company Profile Selector Dialog */}
       <ProjectProfileSelector

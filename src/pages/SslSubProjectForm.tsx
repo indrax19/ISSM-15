@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -7,8 +6,6 @@ import {
   sslSubProjectsAPI,
   type SlaCameraInspection,
   type SlaChecklistRow,
-  type SlaIssueRecord,
-  type SlaRequirementRecord,
   type SlaSignoff,
   type SslMaintenanceVisitReport,
   type SslSubProject,
@@ -21,162 +18,8 @@ import { toast } from "sonner";
 import { ArrowLeft, FileDown, Plus, Printer, Trash2, Upload } from "lucide-react";
 import { z } from "zod";
 import { downloadSlaVisitPDF } from "@/lib/slaVisitPDF";
+import { CAMERA_COUNT_FIELDS, CHECKLIST_GROUPS, createBlankSlaReport, createCameraInspection, createIssueRecord, createSignoff, OVERALL_STATUSES, PHOTO_LABELS, PRODUCTION_CHANGES, trimTrailingEmptyRows } from "@/lib/slaVisitDefaults";
 
-const SITE_PRODUCTION_POINTS = [
-  "Sugar mill operational",
-  "Production season active",
-  "Production/turnkey unchanged",
-  "New production line installed",
-  "Existing conveyor modified/relocated",
-  "New conveyor installed",
-  "New shoot/chute installed",
-  "Any packing/dispatch area modification",
-  "Any other production changes",
-];
-
-const CHECKLIST_GROUPS = [
-  {
-    key: "networkingCabling",
-    title: "NETWORKING & CABLING",
-    points: [
-      "Camera network connectivity",
-      "Production cable condition",
-      "RJ45 connectors condition",
-      "Fiber connectivity if applicable",
-      "Junction boxes condition",
-      "Cables properly secured",
-      "PoE connectivity stable",
-      "No intermittent connection",
-    ],
-  },
-  {
-    key: "nvrHddPoe",
-    title: "NVR / HDD / PoE SWITCH",
-    points: [
-      "NVR operational",
-      "All cameras recording",
-      "Recording continuity verified",
-      "HDD health normal",
-      "Storage sufficient",
-      "PoE switch operational",
-      "All ports working",
-      "Proper configuration",
-    ],
-  },
-  {
-    key: "computeGpu",
-    title: "COMPUTE / GPU SYSTEM",
-    points: [
-      "System powered ON",
-      "OS functioning",
-      "VAS application running",
-      "GPU utilization normal",
-      "GPU temperature normal",
-      "Storage health normal",
-      "System logs checked",
-      "System update status verified",
-    ],
-  },
-  {
-    key: "powerUpsElectrical",
-    title: "POWER / UPS / ELECTRICAL",
-    points: [
-      "Power supply stable",
-      "UPS operational",
-      "UPS battery condition",
-      "NVR on backup power",
-      "Compute on backup power",
-      "PoE switch on backup power",
-      "Proper earthing",
-      "No loose connections",
-    ],
-  },
-] as const;
-
-const OVERALL_STATUSES = [
-  "Fully Operational",
-  "Operational with Minor Issues",
-  "Operational – Corrective Action Required",
-  "Additional Work / Expansion Required",
-  "Major Issue – Further Action Required",
-];
-
-const CAMERA_COUNT_FIELDS = [
-  ["totalInstalled", "Total Cameras Installed"],
-  ["online", "Online"],
-  ["imageOk", "Image OK"],
-  ["recordingOk", "Recording OK"],
-  ["issuesFound", "Issues Found"],
-  ["correctiveActionsCompleted", "Corrective Actions Completed"],
-] as const;
-
-const PRODUCTION_CHANGES = [
-  ["newConveyorInstalled", "New Conveyor Installed?"],
-  ["newShootChuteInstalled", "New Shoot/Chute Installed?"],
-  ["existingConveyorModified", "Existing Conveyor Modified?"],
-  ["newProductionPoint", "New Production Point?"],
-  ["additionalCameraRequired", "Additional Camera Required?"],
-] as const;
-
-const PHOTO_LABELS = ["Overall Site View"];
-
-const createChecklistRows = (points: readonly string[]): SlaChecklistRow[] =>
-  points.map((point) => ({ point, result: "", remarks: "" }));
-
-const createSignoff = (): SlaSignoff => ({ name: "", signature: "", date: "" });
-const createCameraInspection = (): SlaCameraInspection => ({ cameraId: "", location: "", online: false, imageOk: false, recordingOk: false, physicalCondition: "", remarks: "" });
-const createIssueRecord = (): SlaIssueRecord => ({ issue: "", category: "", priority: "", actionTaken: "", status: "", remarks: "" });
-
-const trimTrailingEmptyRows = <T,>(rows: T[], isEmpty: (row: T) => boolean) => {
-  let lastFilledIndex = -1;
-  rows.forEach((row, index) => {
-    if (!isEmpty(row)) lastFilledIndex = index;
-  });
-  return rows.slice(0, Math.max(1, lastFilledIndex + 1));
-};
-
-const createBlankReport = (projectName = ""): SslMaintenanceVisitReport => {
-  const now = new Date();
-  const date = now.toISOString().slice(0, 10);
-  return {
-    formNumber: "",
-    documentDate: date,
-    slaYear: String(now.getFullYear()),
-    projectName,
-    fbrSiteId: "",
-    visitDate: "",
-    visitType: "",
-    otherVisitType: "",
-    visitNumber: "",
-    previousVisitDate: "",
-    customerPocName: "",
-    customerDesignation: "",
-    customerContact: "",
-    customerEmail: "",
-    engineerNames: ["", ""],
-    engineerDesignations: ["", ""],
-    cameraCounts: Object.fromEntries(CAMERA_COUNT_FIELDS.map(([key]) => [key, ""])),
-    additionalRequirements: [],
-    overallStatus: "",
-    siteProductionRows: createChecklistRows(SITE_PRODUCTION_POINTS),
-    cameraInspections: [createCameraInspection()],
-    checklistRows: Object.fromEntries(CHECKLIST_GROUPS.map((group) => [group.key, createChecklistRows(group.points)])),
-    productionChanges: Object.fromEntries(PRODUCTION_CHANGES.map(([key]) => [key, null])),
-    productionObservations: "",
-    issues: [createIssueRecord()],
-    changeRequests: Array.from({ length: 8 }, (): SlaRequirementRecord => ({
-      requirement: "",
-      reason: "",
-      hardwareRequired: "",
-      priority: "",
-    })),
-    photoUrls: Array.from({ length: PHOTO_LABELS.length }, () => null),
-    engineerRemarks: "",
-    customerSignoff: createSignoff(),
-    engineerSignoffs: [createSignoff()],
-    fbrSubmission: { ...createSignoff(), fbrSiteId: "", designation: "" },
-  };
-};
 
 const inputClass = "sla-input h-7 w-full rounded border border-slate-300 bg-white px-1.5 text-[11px] text-slate-900 outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700";
 const compactInputClass = "sla-input h-6 w-full rounded border border-slate-300 bg-white px-1 text-[10px] text-slate-900 outline-none focus:border-blue-700 focus:ring-1 focus:ring-blue-700";
@@ -361,7 +204,6 @@ export default function SslSubProjectForm({
   const isReadOnlyPreview = previewOnly || searchParams.has("view") || searchParams.has("print");
   const shouldPrint = searchParams.has("print");
   const previewRootRef = useRef<HTMLDivElement>(null);
-  const excelImportRef = useRef<HTMLInputElement>(null);
   const downloadStartedRef = useRef(false);
   const onDownloadCompleteRef = useRef(onDownloadComplete);
   onDownloadCompleteRef.current = onDownloadComplete;
@@ -373,7 +215,7 @@ export default function SslSubProjectForm({
   const [district, setDistrict] = useState("");
   const [address, setAddress] = useState("");
   const [unitNo, setUnitNo] = useState("");
-  const [report, setReport] = useState<SslMaintenanceVisitReport>(() => createBlankReport());
+  const [report, setReport] = useState<SslMaintenanceVisitReport>(() => createBlankSlaReport());
   const [photoFiles, setPhotoFiles] = useState<Array<File | null>>(() => Array.from({ length: PHOTO_LABELS.length }, () => null));
   const [photoPreviews, setPhotoPreviews] = useState<Array<string | null>>(() => Array.from({ length: PHOTO_LABELS.length }, () => null));
   const [site, setSite] = useState<SslSubProject | null>(null);
@@ -409,7 +251,7 @@ export default function SslSubProjectForm({
   useEffect(() => {
     if (!site || site.id !== siteId || !siteId || initializedSiteIdRef.current === siteId) return;
     initializedSiteIdRef.current = siteId;
-    const emptyReport = createBlankReport(project?.name || "");
+    const emptyReport = createBlankSlaReport(project?.name || "");
     const savedReport = site.maintenanceReport;
     const reportData: SslMaintenanceVisitReport = {
       ...emptyReport,
@@ -505,58 +347,6 @@ export default function SslSubProjectForm({
 
   const updateReport = <K extends keyof SslMaintenanceVisitReport>(key: K, value: SslMaintenanceVisitReport[K]) => {
     setReport((current) => ({ ...current, [key]: value }));
-  };
-
-  const handleExcelImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const workbook = XLSX.read(reader.result, { type: "array" });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const [row] = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: "", raw: false });
-        if (!row) throw new Error("The Excel file has no data rows.");
-
-        const normalizedRow = Object.fromEntries(Object.entries(row).map(([key, value]) => [key.toLowerCase().replace(/[^a-z0-9]/g, ""), String(value).trim()]));
-        const getValue = (...headers: string[]) => headers.map((header) => normalizedRow[header.toLowerCase().replace(/[^a-z0-9]/g, "")]).find((value) => value !== undefined) || "";
-        const importedMillName = getValue("Mill Name", "Mill");
-        const importedUnit = getValue("Unit", "Unit No", "Unit Number");
-        const importedLocation = getValue("Location", "City");
-        const importedDistrict = getValue("District");
-        const importedVisitType = getValue("Visit Type");
-        const importedVisitNumber = getValue("SLA Visit No.", "Visit No.", "Visit Number");
-        const importedYear = getValue("SLA Year", "Year");
-        const importedPocName = getValue("Customer POC Name", "POC Name");
-        const importedDesignation = getValue("Customer Designation", "Designation");
-        const importedContact = getValue("Customer Contact No.", "Customer Contact Number", "Contact No.", "Contact Number");
-        const importedOtherVisitType = getValue("Other Visit Type");
-        const importedValues = [importedMillName, importedUnit, importedLocation, importedDistrict, importedVisitType, importedVisitNumber, importedYear, importedPocName, importedDesignation, importedContact];
-        if (!importedValues.some(Boolean)) throw new Error("No supported SLA columns with data were found.");
-        const visitTypes = ["Preventive", "Corrective", "Follow-up", "Pre-Season", "Other"];
-        const matchingVisitType = visitTypes.find((type) => type.toLowerCase() === importedVisitType.toLowerCase());
-
-        if (importedMillName) setMillName(importedMillName);
-        if (importedUnit) setUnitNo(importedUnit);
-        if (importedLocation) setCity(importedLocation);
-        if (importedDistrict) setDistrict(importedDistrict);
-        setReport((current) => ({
-          ...current,
-          ...(importedVisitType ? { visitType: matchingVisitType || "Other", otherVisitType: matchingVisitType === "Other" ? importedOtherVisitType : matchingVisitType ? current.otherVisitType : importedVisitType } : {}),
-          ...(importedVisitNumber ? { visitNumber: importedVisitNumber } : {}),
-          ...(importedYear ? { slaYear: importedYear } : {}),
-          ...(importedPocName ? { customerPocName: importedPocName } : {}),
-          ...(importedDesignation ? { customerDesignation: importedDesignation } : {}),
-          ...(importedContact ? { customerContact: importedContact } : {}),
-        }));
-        toast.success("Excel data imported into the SLA form.");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Unable to import this Excel file.");
-      }
-    };
-    reader.readAsArrayBuffer(file);
   };
 
   const updateChecklist = (section: string, index: number, patch: Partial<SlaChecklistRow>) => {
@@ -711,12 +501,6 @@ export default function SslSubProjectForm({
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               {project && <p className="min-w-0 truncate text-xs font-medium text-slate-600">Project: <span className="font-semibold text-slate-800">{project.name}</span></p>}
-              {!isReadOnlyPreview && <>
-                <input ref={excelImportRef} type="file" accept=".xlsx,.xls" onChange={handleExcelImport} className="hidden" />
-                <Button type="button" variant="outline" size="sm" className="ml-auto shrink-0 gap-2 border-blue-200 text-blue-800 hover:bg-blue-50" onClick={() => excelImportRef.current?.click()}>
-                  <Upload className="h-4 w-4" />Import Excel
-                </Button>
-              </>}
             </div>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-600 sm:text-xs">Video Analytics System (VAS)</p>
             <h1 className="text-xl font-extrabold leading-tight tracking-tight text-[#124c78] sm:text-2xl">SLA Maintenance Visit Completion Form</h1>
