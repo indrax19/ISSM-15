@@ -29,6 +29,8 @@ import { ProjectProfileSelector } from "@/components/ProjectProfileSelector";
 import { companyProfileAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
 import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
 import { sslDeploymentCertificateAPI } from "@/integrations/firebase/sslDeploymentCertificateAPI";
+import { usersAPI } from "@/integrations/firebase/usersAPI";
+import { supabase } from "@/integrations/supabase/client";
 import { BulkImportSlaVisits } from "@/components/BulkImportSlaVisits";
 
 const SslSubProjectFormPreview = lazy(() => import("@/pages/SslSubProjectForm"));
@@ -149,11 +151,13 @@ export default function SslProjectDetail() {
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
   const [isSavingCert, setIsSavingCert] = useState(false);
-  const [includeDigitalSignature, setIncludeDigitalSignature] = useState(false);
+  const [userSignatureUrl, setUserSignatureUrl] = useState(appUser?.signatureUrl || "");
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false);
 
   useEffect(() => {
-    if (!showCertificateDialog) setIncludeDigitalSignature(false);
-  }, [showCertificateDialog]);
+    const storedSignature = appUser?.id ? localStorage.getItem(`user_signature_${appUser.id}`) : null;
+    setUserSignatureUrl(appUser?.signatureUrl || storedSignature || "");
+  }, [appUser?.id, appUser?.signatureUrl]);
 
   // Persist viewed sites to localStorage whenever they change
   useEffect(() => {
@@ -347,6 +351,38 @@ export default function SslProjectDetail() {
     setShowProfileSelector(true);
   };
 
+  const handleUserSignatureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !appUser?.id) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      toast.error("Upload a PNG, JPG, or WebP signature image");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Signature image must be smaller than 5MB");
+      return;
+    }
+
+    setIsUploadingSignature(true);
+    try {
+      const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+      const filePath = `user_signatures/${appUser.id}/${Date.now()}.${extension}`;
+      const { error } = await supabase.storage.from("company-logos").upload(filePath, file);
+      if (error) throw error;
+
+      const signatureUrl = supabase.storage.from("company-logos").getPublicUrl(filePath).data.publicUrl;
+      await usersAPI.update(appUser.id, { signatureUrl });
+      localStorage.setItem(`user_signature_${appUser.id}`, signatureUrl);
+      setUserSignatureUrl(signatureUrl);
+      toast.success("Your signature has been saved");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save your signature");
+    } finally {
+      setIsUploadingSignature(false);
+    }
+  };
+
   const openSlaCertificateForm = (site: SslSubProject) => {
     setSelectedSiteForCert(site);
     setCertificateFormData({
@@ -375,6 +411,7 @@ export default function SslProjectDetail() {
         deployment_date: data.deployment_date,
         issm_name: data.issm_name,
         issm_designation: data.issm_designation,
+        issm_signature: userSignatureUrl || undefined,
         issm_date: data.issm_date,
         companyProfileId: selectedCompanyProfile,
         companyProfileName: selectedProfile?.company_name,
@@ -408,7 +445,8 @@ export default function SslProjectDetail() {
             selectedProfile?.logo_url,
             selectedCompanyProfile,
             certificateFormData.certificate_type as "digital-eye" | "uqaab" | "issm" | "sla",
-            includeDigitalSignature
+            false,
+            userSignatureUrl || undefined
           );
           toast.success("SLA certificate PDF downloaded!");
         } catch (error) {
@@ -1025,10 +1063,7 @@ export default function SslProjectDetail() {
       />
 
       {/* Create Certificate Dialog */}
-      <Dialog open={showCertificateDialog} onOpenChange={(open) => {
-        setShowCertificateDialog(open);
-        if (!open) setIncludeDigitalSignature(false);
-      }}>
+      <Dialog open={showCertificateDialog} onOpenChange={setShowCertificateDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
             <DialogTitle className="text-xl font-bold text-gray-900">Create SLA Certificate</DialogTitle>
@@ -1041,10 +1076,7 @@ export default function SslProjectDetail() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="font-semibold text-gray-900">Company Profile</Label>
-                <Select value={selectedCompanyProfile} onValueChange={(value) => {
-                  setSelectedCompanyProfile(value);
-                  setIncludeDigitalSignature(false);
-                }}>
+                <Select value={selectedCompanyProfile} onValueChange={setSelectedCompanyProfile}>
                   <SelectTrigger className="border border-gray-300">
                     <SelectValue placeholder="Select company profile" />
                   </SelectTrigger>
@@ -1060,20 +1092,25 @@ export default function SslProjectDetail() {
                     )}
                   </SelectContent>
                 </Select>
-                <div className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
-                  <Checkbox
-                    id="include-digital-signature"
-                    checked={includeDigitalSignature}
-                    onCheckedChange={(checked) => setIncludeDigitalSignature(checked === true)}
-                    disabled={!companyProfiles.find((profile) => profile.id === selectedCompanyProfile)?.signature_url}
+                <div className="space-y-2 rounded-md border border-gray-200 p-3">
+                  <Label htmlFor="user-signature" className="font-semibold text-gray-900">Your Digital Signature</Label>
+                  <Input
+                    id="user-signature"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={handleUserSignatureUpload}
+                    disabled={isUploadingSignature}
+                    className="border border-gray-300"
                   />
-                  <Label htmlFor="include-digital-signature" className="cursor-pointer text-sm font-normal">
-                    Include digital signature
-                  </Label>
+                  {userSignatureUrl ? (
+                    <div className="flex items-center gap-3">
+                      <img src={userSignatureUrl} alt="Your saved digital signature" className="h-12 max-w-48 rounded border border-gray-200 bg-white object-contain p-1" />
+                      <p className="text-xs text-gray-600">Saved to your account and used on your certificates.</p>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">Upload a PNG, JPG, or WebP image (max 5MB). Save your signature before creating the certificate.</p>
+                  )}
                 </div>
-                {!companyProfiles.find((profile) => profile.id === selectedCompanyProfile)?.signature_url && (
-                  <p className="text-xs text-gray-500">Upload a signature for this company profile in Settings to enable.</p>
-                )}
               </div>
 
               <div className="space-y-2">
@@ -1178,7 +1215,7 @@ export default function SslProjectDetail() {
                 setSelectedSiteForCert(null);
               }}
               className="border-gray-300 hover:bg-gray-50"
-              disabled={createCertificateMutation.isPending || isDownloadingCert || isSavingCert}
+              disabled={createCertificateMutation.isPending || isDownloadingCert || isSavingCert || isUploadingSignature}
             >
               Cancel
             </Button>
@@ -1193,7 +1230,7 @@ export default function SslProjectDetail() {
               }}
               variant="outline"
               className="border-blue-300 hover:bg-blue-50 text-blue-600"
-              disabled={createCertificateMutation.isPending || isDownloadingCert || isSavingCert}
+              disabled={createCertificateMutation.isPending || isDownloadingCert || isSavingCert || isUploadingSignature}
             >
               {isSavingCert ? (
                 <>
@@ -1207,7 +1244,7 @@ export default function SslProjectDetail() {
             <Button
               onClick={() => createCertificateMutation.mutate(certificateFormData)}
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={createCertificateMutation.isPending || isDownloadingCert || isSavingCert || !selectedCompanyProfile}
+              disabled={createCertificateMutation.isPending || isDownloadingCert || isSavingCert || isUploadingSignature || !selectedCompanyProfile || !userSignatureUrl}
             >
               {createCertificateMutation.isPending || isDownloadingCert ? (
                 <>

@@ -939,7 +939,8 @@ export async function generateDeploymentCertificatePDF(
   companyStampUrl?: string,
   companyLogoUrl?: string,
   certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
-  includeDigitalSignature = false
+  includeDigitalSignature = false,
+  issuerSignatureUrl?: string
 ): Promise<Blob> {
   const doc = new jsPDF({
     orientation: "portrait",
@@ -1222,7 +1223,7 @@ yPosition += detailLineHeight;
     yPosition = margin;
   }
 
-  const issuerSignature = await renderScriptSignature(issmName);
+  const issuerSignature = issuerSignatureUrl ? null : await renderScriptSignature(issmName);
 
   doc.setFont(undefined, "bold");
   doc.setFontSize(12);
@@ -1249,7 +1250,13 @@ yPosition += detailLineHeight;
 
   doc.text("Signature:", margin, yPosition);
   doc.line(margin + 25, yPosition + 1, margin + 90, yPosition + 1);
-  if (includeDigitalSignature && companyProfile?.signature_url) {
+  if (issuerSignatureUrl) {
+    await addLogoToPDF(doc, issuerSignatureUrl, margin + 25, yPosition - 4, {
+      maxWidth: 65,
+      maxHeight: certificateSignatureHeight,
+      maintainAspectRatio: true,
+    });
+  } else if (includeDigitalSignature && companyProfile?.signature_url) {
     await addLogoToPDF(doc, companyProfile.signature_url, margin + 25, yPosition - 4, {
       maxWidth: 65,
       maxHeight: certificateSignatureHeight,
@@ -1486,7 +1493,8 @@ export async function downloadDeploymentCertificatePDF(
   companyLogoUrl?: string,
   profileId?: string,
   certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
-  includeDigitalSignature = false
+  includeDigitalSignature = false,
+  issuerSignatureUrl?: string
 ) {
   try {
     const blob = await generateDeploymentCertificatePDF(
@@ -1504,7 +1512,8 @@ export async function downloadDeploymentCertificatePDF(
       companyStampUrl,
       companyLogoUrl,
       certificateType,
-      includeDigitalSignature
+      includeDigitalSignature,
+      issuerSignatureUrl
     );
     const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : "DeploymentCertificate";
     const filenameSource = certificateType === "sla" ? millName : companyName;
