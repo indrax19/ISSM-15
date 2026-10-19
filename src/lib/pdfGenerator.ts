@@ -1121,7 +1121,7 @@ doc.setFontSize(12);
 const systemName = certificateType === "uqaab" ? "Uqaab" : certificateType === "obsidian" ? "Uqaab" : "Digital Eye";
 const systemFullName = certificateType === "uqaab" ? "Uqaab AI-Based Video Analytics System" : certificateType === "obsidian" ? "Uqaab AI-Based Video Analytics System" : "Digital Eye AI-Based Video Analytics System";
 
-const slaText = `This certificate confirms the service-level agreement for ${millName || companyName || "the listed site"}, represented by ${clientName || "the client representative"}, effective from ${formattedDeploymentDate}.`;
+  const slaText = `This certificate confirms the Annual Maintenance Visit Acknowledgment (SLA) for ${millName || companyName || "the listed site"}, represented by ${clientName || "the client representative"}, effective from ${formattedDeploymentDate}.`;
 const certText = certificateType === "sla"
   ? slaText
   : `This is to certify that the ${systemFullName} has been deployed at the undermentioned mill in accordance with the approved deployment scope of the relevant Sales Tax General Order and applicable regulatory requirements. The mentioned system, Electronic Monitoring of Production through Video Analytics, is operational.`;
