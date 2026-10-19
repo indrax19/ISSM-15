@@ -17,6 +17,7 @@ export interface OutreachProject {
   id?: string;
   name: string;
   description?: string;
+  projectIconUrl?: string;
   created_at?: string;
   updated_at?: string;
 }

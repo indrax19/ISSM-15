@@ -26,6 +26,7 @@ interface ProjectData {
   address?: string;
   pocName?: string;
   pocPhone?: string;
+  email?: string;
   errors?: string[];
 }
 
@@ -43,14 +44,15 @@ const downloadSampleTemplate = () => {
     'Address',
     'POC Name',
     'POC Phone',
+    'Email',
   ];
 
   // Create sample data rows
   const sampleData = [
     headers,
-    ['ABC Textile Mill', 'Mumbai', 'Mumbai', 'Maharashtra', 'Unit A', '123 Industrial Area, Mumbai', 'Rajesh Kumar', '9876543210'],
-    ['XYZ Cotton Mill', 'Ahmedabad', 'Ahmedabad', 'Gujarat', 'Unit B', '456 Textile Park, Ahmedabad', 'Priya Sharma', '9123456789'],
-    ['DEF Spinning Unit', 'Coimbatore', 'Coimbatore', 'Tamil Nadu', 'Unit 1', '789 Spinning Complex, Coimbatore', 'Arun Singh', '9234567890'],
+    ['ABC Textile Mill', 'Mumbai', 'Mumbai', 'Maharashtra', 'Unit A', '123 Industrial Area, Mumbai', 'Rajesh Kumar', '9876543210', 'rajesh@example.com'],
+    ['XYZ Cotton Mill', 'Ahmedabad', 'Ahmedabad', 'Gujarat', 'Unit B', '456 Textile Park, Ahmedabad', 'Priya Sharma', '9123456789', 'priya@example.com'],
+    ['DEF Spinning Unit', 'Coimbatore', 'Coimbatore', 'Tamil Nadu', 'Unit 1', '789 Spinning Complex, Coimbatore', 'Arun Singh', '9234567890', 'arun@example.com'],
   ];
 
   const worksheet = XLSX.utils.aoa_to_sheet(sampleData);
@@ -65,6 +67,7 @@ const downloadSampleTemplate = () => {
     { wch: 30 }, // Address
     { wch: 20 }, // POC Name
     { wch: 15 }, // POC Phone
+    { wch: 30 }, // Email
   ];
 
   // Freeze header row
@@ -123,6 +126,7 @@ export function BulkImportProjects({ open, onOpenChange, projectId }: BulkImport
             cityDistrict: cityDistrict, // Add for backward compatibility
             pocName: row.pocName || "",
             pocPhone: row.pocPhone || "",
+            pocProjectEmail: row.email || "",
             projectStatus: "Not Yet Started",
             supplierName: "",
             logisticsStatus: "Pending Dispatch",
@@ -235,6 +239,7 @@ export function BulkImportProjects({ open, onOpenChange, projectId }: BulkImport
             address: toString(findKey(["address", "site address", "location"])),
             pocName: toString(findKey(["pocName", "poc name", "poc", "point of contact"])),
             pocPhone: toString(findKey(["pocPhone", "poc phone", "phone", "contact"])),
+            email: toString(findKey(["email", "poc email", "pocEmail"])),
           };
         });
 
@@ -289,7 +294,7 @@ export function BulkImportProjects({ open, onOpenChange, projectId }: BulkImport
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Mill Name</strong> is required. Other columns (City, District, State, Unit No, Address, POC Name, POC Phone) are optional.
+                  <strong>Mill Name</strong> is required. Other columns (City, District, State, Unit No, Address, POC Name, POC Phone, Email) are optional.
                 </AlertDescription>
               </Alert>
 
@@ -372,6 +377,7 @@ export function BulkImportProjects({ open, onOpenChange, projectId }: BulkImport
                         <th className="px-4 py-2 text-left font-medium">Address</th>
                         <th className="px-4 py-2 text-left font-medium">POC Name</th>
                         <th className="px-4 py-2 text-left font-medium">POC Phone</th>
+                        <th className="px-4 py-2 text-left font-medium">Email</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -392,6 +398,7 @@ export function BulkImportProjects({ open, onOpenChange, projectId }: BulkImport
                             <td className="px-4 py-2">{row.address || "—"}</td>
                             <td className="px-4 py-2">{row.pocName || "—"}</td>
                             <td className="px-4 py-2">{row.pocPhone || "—"}</td>
+                            <td className="px-4 py-2">{row.email || "—"}</td>
                           </tr>
                         );
                       })}
