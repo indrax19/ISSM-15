@@ -17,6 +17,8 @@ export interface OutreachProject {
   id?: string;
   name: string;
   description?: string;
+  assignedUsers?: string[];
+  projectIconUrl?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -26,7 +28,7 @@ const projectsCollection = collection(db, "outreach_projects");
 export const outreachProjectsAPI = {
   async create(project: Omit<OutreachProject, "id" | "created_at" | "updated_at">) {
     const now = new Date().toISOString();
-    const data = removeUndefined({ ...project, created_at: now, updated_at: now });
+    const data = removeUndefined({ ...project, assignedUsers: project.assignedUsers ?? [], created_at: now, updated_at: now });
     const reference = await addDoc(projectsCollection, data);
     return { id: reference.id, ...data } as OutreachProject;
   },
