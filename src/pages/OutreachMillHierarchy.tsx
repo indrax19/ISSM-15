@@ -26,7 +26,7 @@ import OutreachMillDetailsDialog from "@/components/OutreachMillDetailsDialog";
 
 const statuses = ["Outreach", "Working", "On Hold", "Follow Up", "Data Not Found", "Association", "Other Vendor", "Shutdown", "Closed"] as const;
 const statusClass = (status: string) => ({ Outreach: "border-violet-200 bg-violet-50 text-violet-700", Working: "border-blue-200 bg-blue-50 text-blue-700", "On Hold": "border-amber-200 bg-amber-50 text-amber-700", "Follow Up": "border-emerald-200 bg-emerald-50 text-emerald-700", "Data Not Found": "border-orange-200 bg-orange-50 text-orange-700", Association: "border-cyan-200 bg-cyan-50 text-cyan-700", Other Vendor: "border-slate-300 bg-slate-200 text-slate-800", Shutdown: "border-rose-200 bg-rose-50 text-rose-700", Closed: "border-red-200 bg-red-100 text-red-800" }[status] || "border-slate-200 bg-slate-50 text-slate-700");
-const isTerminalMillStatus = (status?: string) => /^(closed|shutdown|obsidian)$/i.test(status?.trim() || "");
+const isTerminalMillStatus = (status?: string) => /^(closed|shutdown|Other Vendor)$/i.test(status?.trim() || "");
 const pageButtonClass = "transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 hover:-translate-y-px hover:shadow-sm active:translate-y-0";
 const tableActionButtonClass = "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2";
 const emptyMill = (): Omit<OutreachMill, "id" | "created_at" | "updated_at"> => ({
