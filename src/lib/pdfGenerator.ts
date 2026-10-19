@@ -1080,7 +1080,7 @@ export async function generateDeploymentCertificatePDF(
   const maxValueWidth = detailsWidth - labelWidth - 3;
 
   for (let i = 0; i < details.length; i += 2) {
-    if (yPosition > pageHeight - 30) {
+    if (yPosition > pageHeight - 40) {
       doc.addPage();
       yPosition = margin;
     }
