@@ -19,7 +19,7 @@ import { textileSurveyReportAPI } from "@/integrations/firebase/siteSurveyReport
 import { defaultTextileData } from "@/components/SurveyTemplates/SurveyTemplateBase";
 import OutreachMillDetailsDialog from "@/components/OutreachMillDetailsDialog";
 
-const statuses = ["Outreach", "Working", "On Hold", "Follow Up", "Data Not Found", "APTMA", "Shutdown", "Obsidian", "Closed"] as const;
+const statuses = ["Outreach", "Working", "On Hold", "Follow Up", "Data Not Found", "APTMA", "Shutdown", "Other Vendor", "Closed"] as const;
 const categories = [
   "Textile",
   "Iron & Steel",
