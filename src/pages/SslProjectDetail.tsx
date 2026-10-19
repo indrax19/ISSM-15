@@ -88,7 +88,8 @@ const getFormDataWithSiteInfo = (site: any, defaultData: any) => {
     ...defaultData,
     ...savedData,
     client_name: savedData?.client_name || site.pocName || defaultData.client_name,
-    issm_name: savedData?.issm_name || defaultData.issm_name,
+    client_designation: savedData?.client_designation || site.maintenanceReport?.customerDesignation || defaultData.client_designation,
+    issm_name: savedData?.issm_name || site.maintenanceReport?.engineerNames?.[0] || defaultData.issm_name,
     issm_designation: savedData?.issm_designation || defaultData.issm_designation,
   };
 };
@@ -96,14 +97,6 @@ const getFormDataWithSiteInfo = (site: any, defaultData: any) => {
 const saveCertificateFormData = (siteId: string, data: any) => {
   try {
     localStorage.setItem(getCertificateFormStorageKey(siteId), JSON.stringify(data));
-  } catch {
-    // Silently fail if localStorage is unavailable
-  }
-};
-
-const clearCertificateFormData = (siteId: string) => {
-  try {
-    localStorage.removeItem(getCertificateFormStorageKey(siteId));
   } catch {
     // Silently fail if localStorage is unavailable
   }
@@ -366,12 +359,11 @@ export default function SslProjectDetail() {
 
     setIsUploadingSignature(true);
     try {
-      const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-      const filePath = `user_signatures/${appUser.id}/${Date.now()}.${extension}`;
-      const { error } = await supabase.storage.from("company-logos").upload(filePath, file);
+      const filePath = `user_signatures/${appUser.id}/signature`;
+      const { error } = await supabase.storage.from("company-logos").upload(filePath, file, { upsert: true, contentType: file.type });
       if (error) throw error;
 
-      const signatureUrl = supabase.storage.from("company-logos").getPublicUrl(filePath).data.publicUrl;
+      const signatureUrl = `${supabase.storage.from("company-logos").getPublicUrl(filePath).data.publicUrl}?v=${Date.now()}`;
       await usersAPI.update(appUser.id, { signatureUrl });
       localStorage.setItem(`user_signature_${appUser.id}`, signatureUrl);
       setUserSignatureUrl(signatureUrl);
@@ -457,9 +449,6 @@ export default function SslProjectDetail() {
         }
       }
 
-      if (selectedSiteForCert?.id) {
-        clearCertificateFormData(selectedSiteForCert.id);
-      }
       setShowCertificateDialog(false);
       setCertificateFormData(getDefaultFormData());
       setSelectedSiteForCert(null);
