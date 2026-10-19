@@ -23,7 +23,7 @@ const formatCertificateDate = (dateString: string): string => {
   return `${day} ${month} ${year}`;
 };
 
-const certificateSignatureHeight = 18 / 2.83465;
+const certificateSignatureHeight = 20 / 2.83465;
 
 const renderScriptSignature = async (name: string) => {
   if (!name.trim()) return null;
