@@ -1032,7 +1032,7 @@ export async function generateDeploymentCertificatePDF(
   doc.setFontSize(16);
   doc.setFont(undefined, "bold");
   const certTitle = certificateType === "sla"
-    ? "SLA – SERVICE LEVEL AGREEMENT CERTIFICATE"
+    ? "Annual Maintenance Visit Acknowledgment (SLA)"
     : certificateType === "uqaab"
     ? "UQAAB – DEPLOYMENT CERTIFICATE"
     : certificateType === "issm"
