@@ -14,8 +14,8 @@ function DetailTable({ title, rows }: { title: string; rows: DetailRow[] }) {
         <tbody className="divide-y divide-slate-100">
           {rows.map(([label, value]) => (
             <tr key={label}>
-              <th className="w-40 bg-white px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</th>
-              <td className="whitespace-pre-wrap bg-white px-4 py-3 text-slate-900">{value || "—"}</td>
+              <th className="w-32 bg-white px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 sm:w-40 sm:px-4">{label}</th>
+              <td className="break-words whitespace-pre-wrap bg-white px-3 py-3 text-slate-900 sm:px-4">{value || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -39,7 +39,7 @@ function statusClass(status: string) {
 export default function OutreachMillDetailsDialog({ mill, onClose }: { mill: OutreachMill | null; onClose: () => void }) {
   return (
     <Dialog open={!!mill} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+      <DialogContent className="w-[calc(100%-2rem)] max-h-[90dvh] overflow-y-auto sm:w-full sm:max-w-4xl">
         <DialogHeader className="border-b border-slate-200 pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
