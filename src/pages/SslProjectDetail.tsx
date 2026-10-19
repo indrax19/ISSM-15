@@ -359,8 +359,9 @@ export default function SslProjectDetail() {
 
     setIsUploadingSignature(true);
     try {
-      const filePath = `user_signatures/${appUser.id}/signature`;
-      const { error } = await supabase.storage.from("company-logos").upload(filePath, file, { upsert: true, contentType: file.type });
+      const extension = file.name.split(".").pop() || "jpg";
+      const filePath = `signature_${Date.now()}.${extension}`;
+      const { error } = await supabase.storage.from("company-logos").upload(filePath, file);
       if (error) throw error;
 
       const signatureUrl = `${supabase.storage.from("company-logos").getPublicUrl(filePath).data.publicUrl}?v=${Date.now()}`;
