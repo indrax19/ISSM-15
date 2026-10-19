@@ -1285,7 +1285,7 @@ yPosition += detailLineHeight;
 
     // Center text
     doc.text(
-      certificateType === "sla" ? "Service Level Agreement" : "STGO - Video Analytics System",
+      certificateType === "sla" ? "Annual Maintenance Visit Acknowledgment (SLA)" : "STGO - Video Analytics System",
       pageWidth / 2,
       footerY,
       { align: "center" }
