@@ -362,10 +362,11 @@ export default function SslProjectDetail() {
       const { create } = sslDeploymentCertificateAPI;
 
       const selectedProfile = companyProfiles.find(p => p.id === selectedCompanyProfile);
+      const siteLocation = [selectedSiteForCert.address, selectedSiteForCert.city, selectedSiteForCert.district, selectedSiteForCert.state].filter(Boolean).join(", ");
       const certData: DeploymentCertificate = {
         site_id: selectedSiteForCert.id,
         company_name: project?.name || "",
-        site_address: selectedSiteForCert.address || "",
+        site_address: siteLocation,
         mill_name: selectedSiteForCert.millName || "",
         certificate_type: data.certificate_type as "digital-eye" | "uqaab" | "issm" | "sla",
         client_name: data.client_name,
@@ -391,9 +392,10 @@ export default function SslProjectDetail() {
         try {
           setIsDownloadingCert(true);
           const selectedProfile = companyProfiles.find(p => p.id === selectedCompanyProfile);
+          const siteLocation = [selectedSiteForCert?.address, selectedSiteForCert?.city, selectedSiteForCert?.district, selectedSiteForCert?.state].filter(Boolean).join(", ");
           await downloadDeploymentCertificatePDF(
             project?.name || "",
-            selectedSiteForCert?.address || "",
+            siteLocation,
             selectedSiteForCert?.millName || "",
             certificateFormData.client_name,
             certificateFormData.client_designation,

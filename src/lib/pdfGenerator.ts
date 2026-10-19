@@ -23,6 +23,8 @@ const formatCertificateDate = (dateString: string): string => {
   return `${day} ${month} ${year}`;
 };
 
+const certificateSignatureHeight = 18 / 2.83465;
+
 const renderScriptSignature = async (name: string) => {
   if (!name.trim()) return null;
 
@@ -43,7 +45,7 @@ const renderScriptSignature = async (name: string) => {
   context.textBaseline = "middle";
   context.fillText(name, 10, 45);
 
-  const height = 4.2;
+  const height = certificateSignatureHeight;
   const width = height * canvas.width / canvas.height;
   return { dataUrl: canvas.toDataURL("image/png"), width, height };
 };
@@ -1250,7 +1252,7 @@ yPosition += detailLineHeight;
   if (includeDigitalSignature && companyProfile?.signature_url) {
     await addLogoToPDF(doc, companyProfile.signature_url, margin + 25, yPosition - 4, {
       maxWidth: 65,
-      maxHeight: 4.2,
+      maxHeight: certificateSignatureHeight,
       maintainAspectRatio: true,
     });
   } else if (issuerSignature) {
