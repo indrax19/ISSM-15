@@ -938,7 +938,7 @@ export async function generateDeploymentCertificatePDF(
   profileId?: string,
   companyStampUrl?: string,
   companyLogoUrl?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "deployment-completion" = "digital-eye",
   includeDigitalSignature = false,
   issuerSignatureUrl?: string
 ): Promise<Blob> {
@@ -1036,6 +1036,8 @@ export async function generateDeploymentCertificatePDF(
   doc.setFont(undefined, "bold");
   const certTitle = certificateType === "sla"
     ? "Annual Maintenance Visit Acknowledgment (SLA)"
+    : certificateType === "deployment-completion"
+    ? "DEPLOYMENT COMPLETION CERTIFICATE"
     : certificateType === "uqaab"
     ? "UQAAB – DEPLOYMENT CERTIFICATE"
     : certificateType === "issm"
@@ -1125,8 +1127,11 @@ const systemName = certificateType === "uqaab" ? "Uqaab" : certificateType === "
 const systemFullName = certificateType === "uqaab" ? "Uqaab AI-Based Video Analytics System" : certificateType === "obsidian" ? "Uqaab AI-Based Video Analytics System" : "Digital Eye AI-Based Video Analytics System";
 
   const slaText = `This certificate confirms the Annual Maintenance Visit Acknowledgment (SLA) for ${millName || companyName || "the listed site"}, represented by ${clientName || "the client representative"}, effective from ${formattedDeploymentDate}.`;
+const deploymentCompletionText = `This certifies the successful deployment and completion of the ${systemFullName} at ${millName || companyName || "the listed site"}, effective from ${formattedDeploymentDate}.`;
 const certText = certificateType === "sla"
   ? slaText
+  : certificateType === "deployment-completion"
+  ? deploymentCompletionText
   : `This is to certify that the ${systemFullName} has been deployed at the undermentioned mill in accordance with the approved deployment scope of the relevant Sales Tax General Order and applicable regulatory requirements. The mentioned system, Electronic Monitoring of Production through Video Analytics, is operational.`;
 
 const boldText = certificateType === "sla" ? "" : systemFullName;
@@ -1492,7 +1497,7 @@ export async function downloadDeploymentCertificatePDF(
   companyStampUrl?: string,
   companyLogoUrl?: string,
   profileId?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "deployment-completion" = "digital-eye",
   includeDigitalSignature = false,
   issuerSignatureUrl?: string
 ) {
@@ -1515,7 +1520,7 @@ export async function downloadDeploymentCertificatePDF(
       includeDigitalSignature,
       issuerSignatureUrl
     );
-    const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : "DeploymentCertificate";
+    const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : certificateType === "deployment-completion" ? "Deployment_Completion_Certificate" : "DeploymentCertificate";
     const filenameSource = certificateType === "sla" ? millName : companyName;
     const filenamePart = (filenameSource || "Site").trim().replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "Site";
     await downloadHighQualityPDF(blob, `${filenamePrefix}_${filenamePart}.pdf`);
@@ -1539,7 +1544,7 @@ export async function printDeploymentCertificate(
   companyStampUrl?: string,
   companyLogoUrl?: string,
   profileId?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye"
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "deployment-completion" = "digital-eye"
 ) {
   try {
     const blob = await generateDeploymentCertificatePDF(

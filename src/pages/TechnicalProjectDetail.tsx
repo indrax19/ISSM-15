@@ -8,7 +8,6 @@ import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { BadgeCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -58,11 +57,31 @@ import StatusUpdateDialog from "@/components/StatusUpdateDialog";
 import StatusHistoryPanel from "@/components/StatusHistoryPanel";
 import { companyProfileAPI, deploymentCertificateAPI, DeploymentCertificate } from "@/integrations/firebase/firestore";
 import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
+import { uploadUserSignature } from "@/lib/userSignatureUpload";
 import { BulkImportSites } from "@/components/BulkImportSites";
 
 const getDisplayValue = (value: ReactNode) => {
   if (value === undefined || value === null || value === "") return "—";
   return value;
+};
+
+const getCertificateFormStorageKey = (siteId: string) => `technical_certificate_form_${siteId}`;
+
+const loadCertificateFormData = (siteId: string) => {
+  try {
+    const stored = localStorage.getItem(getCertificateFormStorageKey(siteId));
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveCertificateFormData = (siteId: string, data: any) => {
+  try {
+    localStorage.setItem(getCertificateFormStorageKey(siteId), JSON.stringify(data));
+  } catch {
+    return;
+  }
 };
 
 const DetailSection = memo(({
@@ -134,11 +153,13 @@ export default function TechnicalProjectDetail() {
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
   const [isSavingCert, setIsSavingCert] = useState(false);
-  const [includeDigitalSignature, setIncludeDigitalSignature] = useState(false);
+  const [userSignatureUrl, setUserSignatureUrl] = useState(appUser?.signatureUrl || "");
+  const [isUploadingSignature, setIsUploadingSignature] = useState(false);
 
   useEffect(() => {
-    if (!showCertificateDialog) setIncludeDigitalSignature(false);
-  }, [showCertificateDialog]);
+    const storedSignature = appUser?.id ? localStorage.getItem(`user_signature_${appUser.id}`) : null;
+    setUserSignatureUrl(appUser?.signatureUrl || storedSignature || "");
+  }, [appUser?.id, appUser?.signatureUrl]);
 
   const [project, setProject] = useState<any>(null);
   const [sites, setSites] = useState<SiteDetails[]>([]);
@@ -157,7 +178,7 @@ export default function TechnicalProjectDetail() {
   const getDefaultCertFormData = () => {
     const today = new Date().toISOString().split('T')[0];
     return {
-      certificate_type: "issm",
+      certificate_type: "deployment-completion",
       client_name: "",
       client_designation: "",
       client_date: today,
@@ -169,6 +190,22 @@ export default function TechnicalProjectDetail() {
   };
 
   const [certificateFormData, setCertificateFormData] = useState(getDefaultCertFormData());
+
+  const getCertFormDataForSite = (site: SiteDetails) => {
+    const saved = site.id ? loadCertificateFormData(site.id) : null;
+    return {
+      ...getDefaultCertFormData(),
+      ...saved,
+      client_name: saved?.client_name ?? site.pocName ?? "",
+      issm_name: saved?.issm_name ?? site.supervisorName ?? site.technicianName ?? "",
+    };
+  };
+
+  useEffect(() => {
+    if (selectedSiteForCert?.id && showCertificateDialog) {
+      saveCertificateFormData(selectedSiteForCert.id, certificateFormData);
+    }
+  }, [certificateFormData, selectedSiteForCert?.id, showCertificateDialog]);
 
   useEffect(() => {
     if (!id) return;
@@ -231,6 +268,23 @@ export default function TechnicalProjectDetail() {
     };
     loadProfiles();
   }, []);
+
+  const handleUserSignatureUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !appUser?.id) return;
+
+    setIsUploadingSignature(true);
+    try {
+      const signatureUrl = await uploadUserSignature(appUser.id, file);
+      setUserSignatureUrl(signatureUrl);
+      toast.success("Your signature has been saved");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save your signature");
+    } finally {
+      setIsUploadingSignature(false);
+    }
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (siteId: string) => {
@@ -543,7 +597,7 @@ export default function TechnicalProjectDetail() {
                           className="h-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
                           onClick={() => {
                             setSelectedSiteForCert(site);
-                            setCertificateFormData(getDefaultCertFormData());
+                            setCertificateFormData(getCertFormDataForSite(site));
                             setShowCertificateDialog(true);
                           }}
                           title="Add Deployment Certificate"
@@ -687,7 +741,7 @@ export default function TechnicalProjectDetail() {
                               className="h-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
                               onClick={() => {
                                 setSelectedSiteForCert(site);
-                                setCertificateFormData(getDefaultCertFormData());
+                                setCertificateFormData(getCertFormDataForSite(site));
                                 setShowCertificateDialog(true);
                               }}
                               title="Add Deployment Certificate"
@@ -1125,7 +1179,7 @@ export default function TechnicalProjectDetail() {
                   variant="outline"
                   onClick={() => {
                     setSelectedSiteForCert(selectedSite);
-                    setCertificateFormData(getDefaultCertFormData());
+                    setCertificateFormData(selectedSite ? getCertFormDataForSite(selectedSite) : getDefaultCertFormData());
                     setShowCertificateDialog(true);
                   }}
                   className="flex-1 gap-2 border-blue-300 hover:bg-blue-50 text-blue-600"
@@ -1312,13 +1366,10 @@ export default function TechnicalProjectDetail() {
       />
 
       {/* Create Certificate Dialog */}
-      <Dialog open={showCertificateDialog} onOpenChange={(open) => {
-        setShowCertificateDialog(open);
-        if (!open) setIncludeDigitalSignature(false);
-      }}>
+      <Dialog open={showCertificateDialog} onOpenChange={setShowCertificateDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
-            <DialogTitle className="text-xl font-bold text-gray-900">Create Deployment Certificate</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-gray-900">Create Deployment Completion Certificate</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1328,10 +1379,7 @@ export default function TechnicalProjectDetail() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="font-semibold text-gray-900">Company Profile</Label>
-                <Select value={selectedCompanyProfile} onValueChange={(value) => {
-                  setSelectedCompanyProfile(value);
-                  setIncludeDigitalSignature(false);
-                }}>
+                <Select value={selectedCompanyProfile} onValueChange={setSelectedCompanyProfile}>
                   <SelectTrigger className="border border-gray-300">
                     <SelectValue placeholder="Select company profile" />
                   </SelectTrigger>
@@ -1347,20 +1395,11 @@ export default function TechnicalProjectDetail() {
                     )}
                   </SelectContent>
                 </Select>
-                <div className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
-                  <Checkbox
-                    id="include-digital-signature"
-                    checked={includeDigitalSignature}
-                    onCheckedChange={(checked) => setIncludeDigitalSignature(checked === true)}
-                    disabled={!companyProfiles.find((profile) => profile.id === selectedCompanyProfile)?.signature_url}
-                  />
-                  <Label htmlFor="include-digital-signature" className="cursor-pointer text-sm font-normal">
-                    Include digital signature
-                  </Label>
+                <div className="space-y-2 rounded-md border border-gray-200 p-3">
+                  <Label htmlFor="technical-user-signature" className="font-semibold text-gray-900">Your Digital Signature</Label>
+                  <Input id="technical-user-signature" type="file" accept="image/png,image/jpeg,image/webp" onChange={handleUserSignatureUpload} disabled={isUploadingSignature} className="border border-gray-300" />
+                  {userSignatureUrl ? <img src={userSignatureUrl} alt="Your saved digital signature" className="h-12 max-w-48 rounded border border-gray-200 bg-white object-contain p-1" /> : <p className="text-xs text-gray-500">Upload a PNG, JPG, or WebP image (max 5MB) to use on the certificate.</p>}
                 </div>
-                {!companyProfiles.find((profile) => profile.id === selectedCompanyProfile)?.signature_url && (
-                  <p className="text-xs text-gray-500">Upload a signature for this company profile in Settings to enable.</p>
-                )}
               </div>
 
               <div className="space-y-2">
@@ -1370,6 +1409,7 @@ export default function TechnicalProjectDetail() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="deployment-completion">Deployment Completion</SelectItem>
                     <SelectItem value="issm">ISSM</SelectItem>
                     <SelectItem value="obsidian">Obsidian</SelectItem>
                   </SelectContent>
@@ -1425,19 +1465,19 @@ export default function TechnicalProjectDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="issm-name" className="font-semibold text-gray-900">
-                    {certificateFormData.certificate_type === "obsidian" ? "Obsidian Name" : certificateFormData.certificate_type === "issm" ? "ISSM Name" : "Uqaab Name"}
+                    {certificateFormData.certificate_type === "deployment-completion" ? "Deployment Engineer Name" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Name" : certificateFormData.certificate_type === "issm" ? "ISSM Name" : "Uqaab Name"}
                   </Label>
                   <Input
                     id="issm-name"
                     value={certificateFormData.issm_name}
                     onChange={(e) => setCertificateFormData({ ...certificateFormData, issm_name: e.target.value })}
                     className="border border-gray-300"
-                    placeholder={certificateFormData.certificate_type === "obsidian" ? "Enter Obsidian name" : certificateFormData.certificate_type === "issm" ? "Enter ISSM name" : "Enter Uqaab name"}
+                    placeholder={certificateFormData.certificate_type === "deployment-completion" ? "Enter deployment engineer name" : certificateFormData.certificate_type === "obsidian" ? "Enter Obsidian name" : certificateFormData.certificate_type === "issm" ? "Enter ISSM name" : "Enter Uqaab name"}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="issm-designation" className="font-semibold text-gray-900">
-                    {certificateFormData.certificate_type === "obsidian" ? "Obsidian Designation" : certificateFormData.certificate_type === "issm" ? "ISSM Designation" : "Uqaab Designation"}
+                    {certificateFormData.certificate_type === "deployment-completion" ? "Deployment Engineer Designation" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Designation" : certificateFormData.certificate_type === "issm" ? "ISSM Designation" : "Uqaab Designation"}
                   </Label>
                   <Input
                     id="issm-designation"
@@ -1451,7 +1491,7 @@ export default function TechnicalProjectDetail() {
 
               <div className="space-y-2">
                 <Label htmlFor="issm-date" className="font-semibold text-gray-900">
-                  {certificateFormData.certificate_type === "obsidian" ? "Obsidian Date" : certificateFormData.certificate_type === "issm" ? "ISSM Date" : "Uqaab Date"}
+                  {certificateFormData.certificate_type === "deployment-completion" ? "Deployment Engineer Date" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Date" : certificateFormData.certificate_type === "issm" ? "ISSM Date" : "Uqaab Date"}
                 </Label>
                 <Input
                   id="issm-date"
@@ -1469,11 +1509,10 @@ export default function TechnicalProjectDetail() {
               variant="outline"
               onClick={() => {
                 setShowCertificateDialog(false);
-                setCertificateFormData(getDefaultCertFormData());
                 setSelectedSiteForCert(null);
               }}
               className="border-gray-300 hover:bg-gray-50"
-              disabled={isDownloadingCert || isSavingCert}
+              disabled={isDownloadingCert || isSavingCert || isUploadingSignature}
             >
               Cancel
             </Button>
@@ -1481,13 +1520,14 @@ export default function TechnicalProjectDetail() {
               onClick={() => {
                 setIsSavingCert(true);
                 if (selectedSiteForCert?.id) {
+                  saveCertificateFormData(selectedSiteForCert.id, certificateFormData);
                   toast.success("Certificate form saved successfully");
                 }
                 setIsSavingCert(false);
               }}
               variant="outline"
               className="border-blue-300 hover:bg-blue-50 text-blue-600"
-              disabled={isDownloadingCert || isSavingCert}
+              disabled={isDownloadingCert || isSavingCert || isUploadingSignature}
             >
               {isSavingCert ? (
                 <>
@@ -1511,6 +1551,25 @@ export default function TechnicalProjectDetail() {
                     toast.error("Company profile not found");
                     return;
                   }
+                  if (!selectedSiteForCert?.id) throw new Error("No site selected");
+
+                  await deploymentCertificateAPI.create({
+                    site_id: selectedSiteForCert.id,
+                    company_name: selectedProfile.company_name,
+                    site_address: selectedSiteForCert.millLocation || "",
+                    mill_name: selectedSiteForCert.millName || "",
+                    certificate_type: certificateFormData.certificate_type as DeploymentCertificate["certificate_type"],
+                    client_name: certificateFormData.client_name,
+                    client_designation: certificateFormData.client_designation,
+                    client_date: certificateFormData.client_date,
+                    deployment_date: certificateFormData.deployment_date,
+                    issm_name: certificateFormData.issm_name,
+                    issm_designation: certificateFormData.issm_designation,
+                    issm_signature: userSignatureUrl || undefined,
+                    issm_date: certificateFormData.issm_date,
+                    companyProfileId: selectedCompanyProfile,
+                    companyProfileName: selectedProfile.company_name,
+                  });
 
                   await downloadDeploymentCertificatePDF(
                     selectedProfile?.company_name || "",
@@ -1526,10 +1585,11 @@ export default function TechnicalProjectDetail() {
                     selectedProfile?.logo_url,
                     selectedProfile?.logo_url,
                     selectedProfile?.id,
-                    certificateFormData.certificate_type,
-                    includeDigitalSignature
+                    certificateFormData.certificate_type as NonNullable<DeploymentCertificate["certificate_type"]>,
+                    false,
+                    userSignatureUrl || undefined
                   );
-                  toast.success("Certificate PDF downloaded!");
+                  toast.success("Deployment Completion certificate downloaded and saved!");
                   setShowCertificateDialog(false);
                 } catch (error: any) {
                   toast.error(error.message || "Failed to download certificate");
@@ -1538,7 +1598,7 @@ export default function TechnicalProjectDetail() {
                 }
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={isDownloadingCert || isSavingCert || !selectedCompanyProfile}
+              disabled={isDownloadingCert || isSavingCert || isUploadingSignature || !selectedCompanyProfile || !userSignatureUrl}
             >
               {isDownloadingCert ? (
                 <>
