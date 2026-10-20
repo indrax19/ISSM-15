@@ -19,7 +19,7 @@ import { textileSurveyReportAPI } from "@/integrations/firebase/siteSurveyReport
 import { defaultTextileData } from "@/components/SurveyTemplates/SurveyTemplateBase";
 import OutreachMillDetailsDialog from "@/components/OutreachMillDetailsDialog";
 
-const statuses = ["Outreach", "Working", "On Hold", "Follow Up", "Data Not Found", "APTMA", "Shutdown", "Obsidian", "Closed"] as const;
+const statuses = ["Outreach", "Working", "On Hold", "Follow Up", "Data Not Found", "Association", "Shutdown", "Other Vendor", "Closed"] as const;
 const categories = [
   "Textile",
   "Iron & Steel",
@@ -35,7 +35,7 @@ const normalizeKey = (value: string) => value.trim().toLowerCase().replace(/[^a-
 const getMillCategory = (mill: OutreachMill) => mill.category?.trim() || "Textile";
 const getMillStatus = (mill: OutreachMill) => mill.transferredAt ? "Transferred" : mill.status === "Active" || mill.status === "Pending" || !mill.status ? "Outreach" : mill.status === "Close" ? "Closed" : mill.status;
 const importValue = (row: Record<string, unknown>, names: string[]) => Object.entries(row).find(([key]) => names.includes(normalizeKey(key)))?.[1] == null ? "" : String(Object.entries(row).find(([key]) => names.includes(normalizeKey(key)))?.[1]).trim();
-const statusClass = (status: string) => ({ Outreach: "border-violet-200 bg-violet-50 text-violet-700", Working: "border-blue-200 bg-blue-50 text-blue-700", "On Hold": "border-amber-200 bg-amber-50 text-amber-700", "Follow Up": "border-emerald-200 bg-emerald-50 text-emerald-700", "Data Not Found": "border-orange-200 bg-orange-50 text-orange-700", APTMA: "border-cyan-200 bg-cyan-50 text-cyan-700", Shutdown: "border-slate-300 bg-slate-100 text-slate-700", Obsidian: "border-purple-200 bg-purple-50 text-purple-700", Closed: "border-red-200 bg-red-100 text-red-800" }[status] || "border-slate-200 bg-slate-50 text-slate-700");
+const statusClass = (status: string) => ({ Outreach: "border-violet-200 bg-violet-50 text-violet-700", Working: "border-blue-200 bg-blue-50 text-blue-700", "On Hold": "border-amber-200 bg-amber-50 text-amber-700", "Follow Up": "border-emerald-200 bg-emerald-50 text-emerald-700", "Data Not Found": "border-orange-200 bg-orange-50 text-orange-700", Association: "border-cyan-200 bg-cyan-50 text-cyan-700", Shutdown: "border-slate-300 bg-slate-100 text-slate-700", "Other Vendor": "border-purple-200 bg-purple-50 text-purple-700", Closed: "border-red-200 bg-red-100 text-red-800" }[status] || "border-slate-200 bg-slate-50 text-slate-700");
 const getLastUpdated = (mill: OutreachMill) => Date.parse(mill.updated_at || mill.created_at || "1970-01-01");
 
 export default function OutreachMill() {

@@ -76,6 +76,7 @@ export interface User {
   id: string;
   email: string;
   fullName: string;
+  signatureUrl?: string;
   role: "admin" | "user";
   isDisabled: boolean;
   permissions: string[]; // Array of page permissions (e.g., ['dashboard', 'inventory', 'delivery-challans'])

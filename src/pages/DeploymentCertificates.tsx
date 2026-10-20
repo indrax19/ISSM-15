@@ -155,7 +155,8 @@ export default function DeploymentCertificates() {
         undefined,
         selectedProfileId,
         selectedCertificate.certificate_type || "digital-eye",
-        includeDigitalSignature
+        includeDigitalSignature,
+        selectedCertificate.issm_signature
       );
 
       setShowProfileDialog(false);

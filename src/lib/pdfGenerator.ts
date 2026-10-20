@@ -23,6 +23,8 @@ const formatCertificateDate = (dateString: string): string => {
   return `${day} ${month} ${year}`;
 };
 
+const certificateSignatureHeight = 30 / 2.83465;
+
 const renderScriptSignature = async (name: string) => {
   if (!name.trim()) return null;
 
@@ -43,7 +45,7 @@ const renderScriptSignature = async (name: string) => {
   context.textBaseline = "middle";
   context.fillText(name, 10, 45);
 
-  const height = 4.2;
+  const height = certificateSignatureHeight;
   const width = height * canvas.width / canvas.height;
   return { dataUrl: canvas.toDataURL("image/png"), width, height };
 };
@@ -936,8 +938,9 @@ export async function generateDeploymentCertificatePDF(
   profileId?: string,
   companyStampUrl?: string,
   companyLogoUrl?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
-  includeDigitalSignature = false
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "deployment-completion" = "digital-eye",
+  includeDigitalSignature = false,
+  issuerSignatureUrl?: string
 ): Promise<Blob> {
   const doc = new jsPDF({
     orientation: "portrait",
@@ -1032,7 +1035,9 @@ export async function generateDeploymentCertificatePDF(
   doc.setFontSize(16);
   doc.setFont(undefined, "bold");
   const certTitle = certificateType === "sla"
-    ? "SLA – SERVICE LEVEL AGREEMENT CERTIFICATE"
+    ? "Annual Maintenance Visit Acknowledgment (SLA)"
+    : certificateType === "deployment-completion"
+    ? "DEPLOYMENT COMPLETION CERTIFICATE"
     : certificateType === "uqaab"
     ? "UQAAB – DEPLOYMENT CERTIFICATE"
     : certificateType === "issm"
@@ -1121,9 +1126,12 @@ doc.setFontSize(12);
 const systemName = certificateType === "uqaab" ? "Uqaab" : certificateType === "obsidian" ? "Uqaab" : "Digital Eye";
 const systemFullName = certificateType === "uqaab" ? "Uqaab AI-Based Video Analytics System" : certificateType === "obsidian" ? "Uqaab AI-Based Video Analytics System" : "Digital Eye AI-Based Video Analytics System";
 
-const slaText = `This certificate confirms the service-level agreement for ${millName || companyName || "the listed site"}, represented by ${clientName || "the client representative"}, effective from ${formattedDeploymentDate}.`;
+  const slaText = `This certificate confirms the Annual Maintenance Visit Acknowledgment (SLA) for ${millName || companyName || "the listed site"}, represented by ${clientName || "the client representative"}, effective from ${formattedDeploymentDate}.`;
+const deploymentCompletionText = `This certifies the successful deployment and completion of the ${systemFullName} at ${millName || companyName || "the listed site"}, effective from ${formattedDeploymentDate}.`;
 const certText = certificateType === "sla"
   ? slaText
+  : certificateType === "deployment-completion"
+  ? deploymentCompletionText
   : `This is to certify that the ${systemFullName} has been deployed at the undermentioned mill in accordance with the approved deployment scope of the relevant Sales Tax General Order and applicable regulatory requirements. The mentioned system, Electronic Monitoring of Production through Video Analytics, is operational.`;
 
 const boldText = certificateType === "sla" ? "" : systemFullName;
@@ -1220,7 +1228,7 @@ yPosition += detailLineHeight;
     yPosition = margin;
   }
 
-  const issuerSignature = await renderScriptSignature(issmName);
+  const issuerSignature = issuerSignatureUrl ? null : await renderScriptSignature(issmName);
 
   doc.setFont(undefined, "bold");
   doc.setFontSize(12);
@@ -1246,11 +1254,17 @@ yPosition += detailLineHeight;
   yPosition += detailLineHeight;
 
   doc.text("Signature:", margin, yPosition);
-  doc.line(margin + 25, yPosition + 1, margin + 90, yPosition + 1);
-  if (includeDigitalSignature && companyProfile?.signature_url) {
+  doc.line(margin + 25, yPosition + 1, margin + 100, yPosition + 1);
+  if (issuerSignatureUrl) {
+    await addLogoToPDF(doc, issuerSignatureUrl, margin + 25, yPosition - 4, {
+      maxWidth: 75,
+      maxHeight: certificateSignatureHeight,
+      maintainAspectRatio: true,
+    });
+  } else if (includeDigitalSignature && companyProfile?.signature_url) {
     await addLogoToPDF(doc, companyProfile.signature_url, margin + 25, yPosition - 4, {
-      maxWidth: 65,
-      maxHeight: 4.2,
+      maxWidth: 75,
+      maxHeight: certificateSignatureHeight,
       maintainAspectRatio: true,
     });
   } else if (issuerSignature) {
@@ -1285,7 +1299,7 @@ yPosition += detailLineHeight;
 
     // Center text
     doc.text(
-      certificateType === "sla" ? "Service Level Agreement" : "STGO - Video Analytics System",
+      certificateType === "sla" ? "Annual Maintenance Visit Acknowledgment (SLA)" : "STGO - Video Analytics System",
       pageWidth / 2,
       footerY,
       { align: "center" }
@@ -1483,8 +1497,9 @@ export async function downloadDeploymentCertificatePDF(
   companyStampUrl?: string,
   companyLogoUrl?: string,
   profileId?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
-  includeDigitalSignature = false
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "deployment-completion" = "digital-eye",
+  includeDigitalSignature = false,
+  issuerSignatureUrl?: string
 ) {
   try {
     const blob = await generateDeploymentCertificatePDF(
@@ -1502,9 +1517,10 @@ export async function downloadDeploymentCertificatePDF(
       companyStampUrl,
       companyLogoUrl,
       certificateType,
-      includeDigitalSignature
+      includeDigitalSignature,
+      issuerSignatureUrl
     );
-    const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : "DeploymentCertificate";
+    const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : certificateType === "deployment-completion" ? "Deployment_Completion_Certificate" : "DeploymentCertificate";
     const filenameSource = certificateType === "sla" ? millName : companyName;
     const filenamePart = (filenameSource || "Site").trim().replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "Site";
     await downloadHighQualityPDF(blob, `${filenamePrefix}_${filenamePart}.pdf`);
@@ -1528,7 +1544,7 @@ export async function printDeploymentCertificate(
   companyStampUrl?: string,
   companyLogoUrl?: string,
   profileId?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye"
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "deployment-completion" = "digital-eye"
 ) {
   try {
     const blob = await generateDeploymentCertificatePDF(
