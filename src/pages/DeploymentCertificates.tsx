@@ -236,6 +236,9 @@ export default function DeploymentCertificates() {
                     <p className="text-sm text-muted-foreground">
                       Location: {cert.site_address}
                     </p>
+                    <p className="text-sm text-muted-foreground">
+                      Certificate: {cert.certificate_type === "completion" ? "Completion Certificate" : cert.certificate_type?.toUpperCase() || "Deployment Certificate"}
+                    </p>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {new Date(cert.created_at || "").toLocaleDateString()}

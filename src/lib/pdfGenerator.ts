@@ -936,7 +936,7 @@ export async function generateDeploymentCertificatePDF(
   profileId?: string,
   companyStampUrl?: string,
   companyLogoUrl?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "completion" = "digital-eye",
   includeDigitalSignature = false
 ): Promise<Blob> {
   const doc = new jsPDF({
@@ -1031,7 +1031,9 @@ export async function generateDeploymentCertificatePDF(
   // ============================
   doc.setFontSize(16);
   doc.setFont(undefined, "bold");
-  const certTitle = certificateType === "sla"
+  const certTitle = certificateType === "completion"
+    ? "COMPLETION CERTIFICATE"
+    : certificateType === "sla"
     ? "SLA – SERVICE LEVEL AGREEMENT CERTIFICATE"
     : certificateType === "uqaab"
     ? "UQAAB – DEPLOYMENT CERTIFICATE"
@@ -1061,7 +1063,7 @@ export async function generateDeploymentCertificatePDF(
   // Textile Mill Details
   doc.setFont(undefined, "bold");
   doc.setFontSize(10);
-  doc.text(certificateType === "sla" ? "SLA Details" : "Deployment Details", margin, yPosition);
+  doc.text(certificateType === "sla" ? "SLA Details" : certificateType === "completion" ? "Completion Details" : "Deployment Details", margin, yPosition);
   yPosition += detailLineHeight;
 
   doc.setFont(undefined, "normal");
@@ -1072,7 +1074,7 @@ export async function generateDeploymentCertificatePDF(
     ["Mill Location:", siteAddress],
     ["Name:", clientName],
     ["Designation:", clientDesignation],
-    [certificateType === "sla" ? "SLA Start Date:" : "Deployment Date:", formattedDeploymentDate],
+    [certificateType === "sla" ? "SLA Start Date:" : certificateType === "completion" ? "Completion Date:" : "Deployment Date:", formattedDeploymentDate],
   ];
 
   const detailsWidth = (pageWidth - 2 * margin) / 2;
@@ -1122,11 +1124,14 @@ const systemName = certificateType === "uqaab" ? "Uqaab" : certificateType === "
 const systemFullName = certificateType === "uqaab" ? "Uqaab AI-Based Video Analytics System" : certificateType === "obsidian" ? "Uqaab AI-Based Video Analytics System" : "Digital Eye AI-Based Video Analytics System";
 
 const slaText = `This certificate confirms the service-level agreement for ${millName || companyName || "the listed site"}, represented by ${clientName || "the client representative"}, effective from ${formattedDeploymentDate}.`;
+const completionText = `This is to certify that the project at ${millName || companyName || "the listed site"} has been completed in accordance with the agreed scope. The completion is acknowledged by ${clientName || "the client representative"} on ${formattedDeploymentDate}.`;
 const certText = certificateType === "sla"
   ? slaText
+  : certificateType === "completion"
+  ? completionText
   : `This is to certify that the ${systemFullName} has been deployed at the undermentioned mill in accordance with the approved deployment scope of the relevant Sales Tax General Order and applicable regulatory requirements. The mentioned system, Electronic Monitoring of Production through Video Analytics, is operational.`;
 
-const boldText = certificateType === "sla" ? "" : systemFullName;
+const boldText = certificateType === "sla" || certificateType === "completion" ? "" : systemFullName;
 
 // Split the full text into lines
 const certLines = doc.splitTextToSize(certText, pageWidth - 2 * margin);
@@ -1224,7 +1229,7 @@ yPosition += detailLineHeight;
 
   doc.setFont(undefined, "bold");
   doc.setFontSize(12);
-  const sectionTitle = certificateType === "sla"
+  const sectionTitle = certificateType === "sla" || certificateType === "completion"
     ? companyProfile?.company_name || companyName
     : certificateType === "uqaab"
     ? "Uqaab"
@@ -1285,7 +1290,7 @@ yPosition += detailLineHeight;
 
     // Center text
     doc.text(
-      certificateType === "sla" ? "Service Level Agreement" : "STGO - Video Analytics System",
+      certificateType === "sla" ? "Service Level Agreement" : certificateType === "completion" ? "Project Completion Certificate" : "STGO - Video Analytics System",
       pageWidth / 2,
       footerY,
       { align: "center" }
@@ -1483,7 +1488,7 @@ export async function downloadDeploymentCertificatePDF(
   companyStampUrl?: string,
   companyLogoUrl?: string,
   profileId?: string,
-  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" = "digital-eye",
+  certificateType: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "completion" = "digital-eye",
   includeDigitalSignature = false
 ) {
   try {
@@ -1504,8 +1509,8 @@ export async function downloadDeploymentCertificatePDF(
       certificateType,
       includeDigitalSignature
     );
-    const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : "DeploymentCertificate";
-    const filenameSource = certificateType === "sla" ? millName : companyName;
+    const filenamePrefix = certificateType === "sla" ? "SLA_Certificate" : certificateType === "completion" ? "Completion_Certificate" : "DeploymentCertificate";
+    const filenameSource = certificateType === "sla" || certificateType === "completion" ? millName : companyName;
     const filenamePart = (filenameSource || "Site").trim().replace(/[^a-zA-Z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "Site";
     await downloadHighQualityPDF(blob, `${filenamePrefix}_${filenamePart}.pdf`);
   } catch (error) {

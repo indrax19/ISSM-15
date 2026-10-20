@@ -60,6 +60,33 @@ import { companyProfileAPI, deploymentCertificateAPI, DeploymentCertificate } fr
 import { downloadDeploymentCertificatePDF } from "@/lib/pdfGenerator";
 import { BulkImportSites } from "@/components/BulkImportSites";
 
+const getCertificateFormStorageKey = (siteId: string) => `technical_certificate_form_${siteId}`;
+
+const loadCertificateFormData = (siteId: string) => {
+  try {
+    const stored = localStorage.getItem(getCertificateFormStorageKey(siteId));
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveCertificateFormData = (siteId: string, data: unknown) => {
+  try {
+    localStorage.setItem(getCertificateFormStorageKey(siteId), JSON.stringify(data));
+  } catch {
+    return;
+  }
+};
+
+const clearCertificateFormData = (siteId: string) => {
+  try {
+    localStorage.removeItem(getCertificateFormStorageKey(siteId));
+  } catch {
+    return;
+  }
+};
+
 const getDisplayValue = (value: ReactNode) => {
   if (value === undefined || value === null || value === "") return "—";
   return value;
@@ -133,7 +160,6 @@ export default function TechnicalProjectDetail() {
   const [companyProfiles, setCompanyProfiles] = useState<any[]>([]);
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
   const [isDownloadingCert, setIsDownloadingCert] = useState(false);
-  const [isSavingCert, setIsSavingCert] = useState(false);
   const [includeDigitalSignature, setIncludeDigitalSignature] = useState(false);
 
   useEffect(() => {
@@ -169,6 +195,12 @@ export default function TechnicalProjectDetail() {
   };
 
   const [certificateFormData, setCertificateFormData] = useState(getDefaultCertFormData());
+
+  useEffect(() => {
+    if (selectedSiteForCert?.id && showCertificateDialog) {
+      saveCertificateFormData(selectedSiteForCert.id, certificateFormData);
+    }
+  }, [certificateFormData, selectedSiteForCert?.id, showCertificateDialog]);
 
   useEffect(() => {
     if (!id) return;
@@ -543,10 +575,13 @@ export default function TechnicalProjectDetail() {
                           className="h-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
                           onClick={() => {
                             setSelectedSiteForCert(site);
-                            setCertificateFormData(getDefaultCertFormData());
+                            setCertificateFormData({
+                              ...getDefaultCertFormData(),
+                              ...loadCertificateFormData(site.id!),
+                            });
                             setShowCertificateDialog(true);
                           }}
-                          title="Add Deployment Certificate"
+                          title="Create Certificate"
                         >
                           <BadgeCheck className="h-4 w-4" />
                         </Button>
@@ -687,10 +722,13 @@ export default function TechnicalProjectDetail() {
                               className="h-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
                               onClick={() => {
                                 setSelectedSiteForCert(site);
-                                setCertificateFormData(getDefaultCertFormData());
-                                setShowCertificateDialog(true);
-                              }}
-                              title="Add Deployment Certificate"
+                            setCertificateFormData({
+                              ...getDefaultCertFormData(),
+                              ...loadCertificateFormData(site.id!),
+                            });
+                            setShowCertificateDialog(true);
+                          }}
+                          title="Create Certificate"
                             >
                               <BadgeCheck className="h-4 w-4" />
                             </Button>
@@ -1318,7 +1356,7 @@ export default function TechnicalProjectDetail() {
       }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
-            <DialogTitle className="text-xl font-bold text-gray-900">Create Deployment Certificate</DialogTitle>
+            <DialogTitle className="text-xl font-bold text-gray-900">Create Certificate</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1372,6 +1410,7 @@ export default function TechnicalProjectDetail() {
                   <SelectContent>
                     <SelectItem value="issm">ISSM</SelectItem>
                     <SelectItem value="obsidian">Obsidian</SelectItem>
+                    <SelectItem value="completion">Completion Certificate</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1411,7 +1450,7 @@ export default function TechnicalProjectDetail() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="deployment-date" className="font-semibold text-gray-900">Deployment Date</Label>
+                  <Label htmlFor="deployment-date" className="font-semibold text-gray-900">{certificateFormData.certificate_type === "completion" ? "Completion Date" : "Deployment Date"}</Label>
                   <Input
                     id="deployment-date"
                     type="date"
@@ -1425,19 +1464,19 @@ export default function TechnicalProjectDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="issm-name" className="font-semibold text-gray-900">
-                    {certificateFormData.certificate_type === "obsidian" ? "Obsidian Name" : certificateFormData.certificate_type === "issm" ? "ISSM Name" : "Uqaab Name"}
+                    {certificateFormData.certificate_type === "completion" ? "Company Signatory Name" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Name" : certificateFormData.certificate_type === "issm" ? "ISSM Name" : "Uqaab Name"}
                   </Label>
                   <Input
                     id="issm-name"
                     value={certificateFormData.issm_name}
                     onChange={(e) => setCertificateFormData({ ...certificateFormData, issm_name: e.target.value })}
                     className="border border-gray-300"
-                    placeholder={certificateFormData.certificate_type === "obsidian" ? "Enter Obsidian name" : certificateFormData.certificate_type === "issm" ? "Enter ISSM name" : "Enter Uqaab name"}
+                    placeholder={certificateFormData.certificate_type === "completion" ? "Enter company signatory name" : certificateFormData.certificate_type === "obsidian" ? "Enter Obsidian name" : certificateFormData.certificate_type === "issm" ? "Enter ISSM name" : "Enter Uqaab name"}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="issm-designation" className="font-semibold text-gray-900">
-                    {certificateFormData.certificate_type === "obsidian" ? "Obsidian Designation" : certificateFormData.certificate_type === "issm" ? "ISSM Designation" : "Uqaab Designation"}
+                    {certificateFormData.certificate_type === "completion" ? "Company Signatory Designation" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Designation" : certificateFormData.certificate_type === "issm" ? "ISSM Designation" : "Uqaab Designation"}
                   </Label>
                   <Input
                     id="issm-designation"
@@ -1451,7 +1490,7 @@ export default function TechnicalProjectDetail() {
 
               <div className="space-y-2">
                 <Label htmlFor="issm-date" className="font-semibold text-gray-900">
-                  {certificateFormData.certificate_type === "obsidian" ? "Obsidian Date" : certificateFormData.certificate_type === "issm" ? "ISSM Date" : "Uqaab Date"}
+                  {certificateFormData.certificate_type === "completion" ? "Company Signatory Date" : certificateFormData.certificate_type === "obsidian" ? "Obsidian Date" : certificateFormData.certificate_type === "issm" ? "ISSM Date" : "Uqaab Date"}
                 </Label>
                 <Input
                   id="issm-date"
@@ -1473,30 +1512,22 @@ export default function TechnicalProjectDetail() {
                 setSelectedSiteForCert(null);
               }}
               className="border-gray-300 hover:bg-gray-50"
-              disabled={isDownloadingCert || isSavingCert}
+              disabled={isDownloadingCert}
             >
               Cancel
             </Button>
             <Button
               onClick={() => {
-                setIsSavingCert(true);
                 if (selectedSiteForCert?.id) {
+                  saveCertificateFormData(selectedSiteForCert.id, certificateFormData);
                   toast.success("Certificate form saved successfully");
                 }
-                setIsSavingCert(false);
               }}
               variant="outline"
               className="border-blue-300 hover:bg-blue-50 text-blue-600"
-              disabled={isDownloadingCert || isSavingCert}
+              disabled={isDownloadingCert}
             >
-              {isSavingCert ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                "Save Form"
-              )}
+              Save Form
             </Button>
             <Button
               onClick={async () => {
@@ -1512,6 +1543,23 @@ export default function TechnicalProjectDetail() {
                     return;
                   }
 
+                  const certificateType = certificateFormData.certificate_type as NonNullable<DeploymentCertificate["certificate_type"]>;
+                  await deploymentCertificateAPI.create({
+                    site_id: selectedSiteForCert.id!,
+                    company_name: selectedProfile.company_name || "",
+                    site_address: selectedSiteForCert.millLocation || "",
+                    mill_name: selectedSiteForCert.millName || "",
+                    certificate_type: certificateType,
+                    client_name: certificateFormData.client_name,
+                    client_designation: certificateFormData.client_designation,
+                    client_date: certificateFormData.client_date,
+                    deployment_date: certificateFormData.deployment_date,
+                    issm_name: certificateFormData.issm_name,
+                    issm_designation: certificateFormData.issm_designation,
+                    issm_date: certificateFormData.issm_date,
+                    companyProfileId: selectedProfile.id,
+                    companyProfileName: selectedProfile.company_name,
+                  });
                   await downloadDeploymentCertificatePDF(
                     selectedProfile?.company_name || "",
                     selectedSiteForCert?.millLocation || "",
@@ -1526,19 +1574,20 @@ export default function TechnicalProjectDetail() {
                     selectedProfile?.logo_url,
                     selectedProfile?.logo_url,
                     selectedProfile?.id,
-                    certificateFormData.certificate_type,
+                    certificateType,
                     includeDigitalSignature
                   );
-                  toast.success("Certificate PDF downloaded!");
+                  if (selectedSiteForCert?.id) clearCertificateFormData(selectedSiteForCert.id);
+                  toast.success("Certificate saved and PDF downloaded!");
                   setShowCertificateDialog(false);
                 } catch (error: any) {
-                  toast.error(error.message || "Failed to download certificate");
+                  toast.error(error.message || "Failed to save or download certificate");
                 } finally {
                   setIsDownloadingCert(false);
                 }
               }}
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={isDownloadingCert || isSavingCert || !selectedCompanyProfile}
+              disabled={isDownloadingCert || !selectedCompanyProfile}
             >
               {isDownloadingCert ? (
                 <>

@@ -151,7 +151,7 @@ export interface DeploymentCertificate {
   pdf_url?: string;
   companyProfileId?: string; // Reference to company_profile
   companyProfileName?: string;
-  certificate_type?: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla"; // Type of certificate
+  certificate_type?: "digital-eye" | "uqaab" | "issm" | "obsidian" | "sla" | "completion"; // Type of certificate
   created_at?: string;
   updated_at?: string;
 }
