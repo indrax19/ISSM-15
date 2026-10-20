@@ -26,10 +26,7 @@ import { format } from "date-fns";
 import { z } from "zod";
 import { FastBarcodeScanner, type ScannedItem } from "@/components/FastBarcodeScanner";
 
-const SEQUENTIAL_SERIAL_LENGTHS: Record<string, number> = {
-  WMrk2BkHzp1ADgyJRjxE: 6,
-  eQzyLVe776LiK9DXOArN: 7,
-};
+const BULK_SERIAL_LENGTH = 7;
 
 const issueSchema = z.object({
   recipient_name: z.string().trim().min(1, "Recipient name required").max(200),
@@ -223,33 +220,29 @@ export default function SubCategoryDetail() {
         const qty = Number(bulkQuantity);
         if (!qty || qty < 1) throw new Error("Enter a valid quantity");
 
-        const serialLength = id ? SEQUENTIAL_SERIAL_LENGTHS[id] : undefined;
-        let sequentialSerialNumbers: string[] | null = null;
-        if (serialLength) {
-          const existingItems = await inventoryItemsAPI.getBySubCategory(id!);
-          const highestSerial = existingItems.reduce((highest, item) => {
-            const serialNumber = item.serial_number || "";
-            if (serialNumber.length !== serialLength || !/^\d+$/.test(serialNumber)) return highest;
-            return Math.max(highest, Number(serialNumber));
-          }, 0);
-          let nextSerialNumber = highestSerial + 1;
-          const maxSerialNumber = 10 ** serialLength - 1;
-          const existingSerialNumbers = new Set((await inventoryItemsAPI.getAll()).map((item) => item.serial_number));
-          sequentialSerialNumbers = [];
-          while (sequentialSerialNumbers.length < qty) {
-            if (nextSerialNumber > maxSerialNumber) {
-              throw new Error(`There are not enough ${serialLength}-digit serial numbers remaining`);
-            }
-            const serialNumber = String(nextSerialNumber).padStart(serialLength, "0");
-            nextSerialNumber += 1;
-            if (existingSerialNumbers.has(serialNumber)) continue;
-            sequentialSerialNumbers.push(serialNumber);
-            existingSerialNumbers.add(serialNumber);
+        const existingItems = await inventoryItemsAPI.getAll();
+        const highestSerial = existingItems.reduce((highest, item) => {
+          const serialNumber = item.serial_number || "";
+          if (!/^\d{7}$/.test(serialNumber)) return highest;
+          return Math.max(highest, Number(serialNumber));
+        }, 0);
+        let nextSerialNumber = highestSerial + 1;
+        const maxSerialNumber = 10 ** BULK_SERIAL_LENGTH - 1;
+        const existingSerialNumbers = new Set(existingItems.map((item) => item.serial_number));
+        const sequentialSerialNumbers: string[] = [];
+        while (sequentialSerialNumbers.length < qty) {
+          if (nextSerialNumber > maxSerialNumber) {
+            throw new Error("There are not enough seven-digit serial numbers remaining");
           }
+          const serialNumber = String(nextSerialNumber).padStart(BULK_SERIAL_LENGTH, "0");
+          nextSerialNumber += 1;
+          if (existingSerialNumbers.has(serialNumber)) continue;
+          sequentialSerialNumbers.push(serialNumber);
+          existingSerialNumbers.add(serialNumber);
         }
 
         for (let i = 0; i < qty; i++) {
-          const serialNumber = sequentialSerialNumbers?.[i] || `${Date.now()}-${i + 1}`;
+          const serialNumber = sequentialSerialNumbers[i];
           const itemId = await inventoryItemsAPI.create({
             serial_number: serialNumber,
             name: `${subCategory?.name || "Item"} #${i + 1}`,
@@ -765,7 +758,7 @@ export default function SubCategoryDetail() {
                   className="text-sm"
                 />
                 <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-2 rounded">
-                  Items will be created without serial numbers
+                  Items will receive sequential serial numbers (0000001, 0000002, 0000003, ...)
                 </p>
               </div>
             )}
