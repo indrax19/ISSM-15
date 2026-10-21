@@ -9,6 +9,12 @@ export interface OutreachRemark {
   createdBy?: string;
 }
 
+export interface OutreachMillPoc {
+  name: string;
+  number: string;
+  email: string;
+}
+
 export interface OutreachMill {
   id?: string;
   spinningMill: string;
@@ -21,6 +27,7 @@ export interface OutreachMill {
   pocName?: string;
   pocNumber?: string;
   pocEmail?: string;
+  pocs?: OutreachMillPoc[];
   notes?: string;
   remarks: OutreachRemark[];
   status?: string;

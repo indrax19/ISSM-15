@@ -55,7 +55,7 @@ export default function OutreachMillDetailsDialog({ mill, onClose }: { mill: Out
             <DetailTable title="Mill information" rows={[["Mill Name", mill.spinningMill], ["Unit", mill.unit], ["Category", getMillCategory(mill)], ["City", mill.city], ["Address", mill.address]]} />
             <div className="grid gap-5 lg:grid-cols-2">
               <DetailTable title="Contact information" rows={[["Phone", mill.phone], ["Email", mill.email]]} />
-              <DetailTable title="Point of contact" rows={[["Name", mill.pocName], ["Number", mill.pocNumber], ["Email", mill.pocEmail]]} />
+              <DetailTable title="Point of contact" rows={(mill.pocs?.length ? mill.pocs : [{ name: mill.pocName || "", number: mill.pocNumber || "", email: mill.pocEmail || "" }]).flatMap((poc, index): DetailRow[] => [[`POC ${index + 1} Name`, poc.name], [`POC ${index + 1} Number`, poc.number], [`POC ${index + 1} Email`, poc.email]])} />
             </div>
             <DetailTable title="Assignment and status" rows={[["Assigned to", mill.assignedTo], ["Status", getMillStatus(mill)], ["Last updated", mill.updated_at ? new Date(mill.updated_at).toLocaleString() : "—"]]} />
             <DetailTable title="Notes" rows={[["Notes", mill.notes]]} />
