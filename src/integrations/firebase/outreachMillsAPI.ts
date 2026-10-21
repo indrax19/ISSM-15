@@ -23,7 +23,7 @@ export interface OutreachMill {
   pocEmail?: string;
   notes?: string;
   remarks: OutreachRemark[];
-  status?: "Outreach" | "On Hold" | "Follow Up" | "Data Not Found" | "APTMA" | "Shutdown" | "Obsidian" | "Other Vendor" | "Pending" | "Closed" | "Close" | "Active" | "Working" | "Transferred";
+  status?: string;
   assignedTo?: string;
   assignedToUserId?: string;
   transferredProjectId?: string;
