@@ -486,14 +486,16 @@ export default function TechnicalProjectDetail() {
         </Card>
       </div>
 
-      <Card className="border border-slate-200 shadow-sm">
-        <CardContent className="p-6 sm:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <Card className="overflow-hidden border border-slate-200 shadow-sm">
+        <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50/50">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-900">Search site records</p>
-              <p className="text-sm text-slate-500">Find data by mill name, location, supervisor, or AnyDesk ID.</p>
+              <CardTitle className="text-lg font-semibold text-slate-900">Site Data Overview</CardTitle>
+              <p className="mt-1 text-sm text-slate-500">
+                {filteredSites.length} site{filteredSites.length !== 1 ? "s" : ""} visible
+              </p>
             </div>
-            <div className="relative w-full lg:max-w-xl">
+            <div className="relative w-full md:max-w-xl">
               <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <Input
                 placeholder="Search by mill name, location, supervisor, or anydesk ID..."
@@ -502,25 +504,9 @@ export default function TechnicalProjectDetail() {
                   setSearchTerm(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="h-11 sm:h-12 rounded-xl border-slate-200 pl-12 pr-4 focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="h-11 rounded-xl border-slate-200 pl-12 pr-4 focus-visible:ring-2 focus-visible:ring-blue-500 sm:h-12"
               />
             </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border border-slate-200 shadow-sm">
-        <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50/50">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <CardTitle className="text-lg font-semibold text-slate-900">Site Data Overview</CardTitle>
-              <p className="mt-1 text-sm text-slate-500">
-                {filteredSites.length} site{filteredSites.length !== 1 ? "s" : ""} visible
-              </p>
-            </div>
-            <Badge className="w-fit bg-blue-100 text-blue-700 hover:bg-blue-100">
-              Live project records
-            </Badge>
           </div>
         </CardHeader>
         <CardContent className="p-0">
