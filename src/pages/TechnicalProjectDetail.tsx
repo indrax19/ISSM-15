@@ -425,7 +425,7 @@ export default function TechnicalProjectDetail() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border border-blue-100 bg-gradient-to-br from-blue-50 to-white shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
