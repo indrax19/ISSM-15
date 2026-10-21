@@ -394,13 +394,10 @@ export default function TechnicalProjectDetail() {
 
               <div>
                 <h1 className="text-3xl font-bold md:text-4xl">{project.name}</h1>
-                <p className="mt-2 max-w-2xl text-sm text-blue-50 md:text-base">
-                  {project.description || "Track all site configuration, credentials, contacts, and readiness from one place."}
-                </p>
               </div>
             </div>
 
-            <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:min-w-[280px] lg:flex-col">
+            <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:min-w-[280px]">
               {sites.length > 0 && (
                 <Button
                   onClick={() => exportSiteDataToExcel(sites)}
