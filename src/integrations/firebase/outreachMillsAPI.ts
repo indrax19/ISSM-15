@@ -31,6 +31,7 @@ export interface OutreachMill {
   notes?: string;
   remarks: OutreachRemark[];
   status?: string;
+  scheduledDate?: string;
   assignedTo?: string;
   assignedToUserId?: string;
   transferredProjectId?: string;
