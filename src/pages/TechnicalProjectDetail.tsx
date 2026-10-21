@@ -35,7 +35,6 @@ import {
   Upload,
   X,
   Search,
-  FolderOpen,
   Users,
   ShieldCheck,
   Monitor,
@@ -348,14 +347,6 @@ export default function TechnicalProjectDetail() {
     </Badge>
   );
 
-  const remoteReadySites = sites.filter(
-    (site) => site.anydeskId || site.anydeskId2 || site.rustdeskId || site.rustdeskId2 || site.remoteanydeskAccountName || site.tailscaleIp
-  ).length;
-  const documentedSites = sites.filter(
-    (site) => site.hardwareCompleted || site.completionCertificate || site.roiCreated
-  ).length;
-  const assignedContacts = sites.filter((site) => site.pocName || site.supervisorName).length;
-
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -424,64 +415,6 @@ export default function TechnicalProjectDetail() {
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border border-blue-100 bg-gradient-to-br from-blue-50 to-white shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Total Sites</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{sites.length}</p>
-              </div>
-              <div className="rounded-2xl bg-blue-100 p-3 text-blue-600">
-                <FolderOpen className="h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-emerald-100 bg-gradient-to-br from-emerald-50 to-white shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Contacts Added</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{assignedContacts}</p>
-              </div>
-              <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-600">
-                <Users className="h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-violet-100 bg-gradient-to-br from-violet-50 to-white shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Remote Ready</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{remoteReadySites}</p>
-              </div>
-              <div className="rounded-2xl bg-violet-100 p-3 text-violet-600">
-                <ShieldCheck className="h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border border-amber-100 bg-gradient-to-br from-amber-50 to-white shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-slate-500">Checklist Started</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{documentedSites}</p>
-              </div>
-              <div className="rounded-2xl bg-amber-100 p-3 text-amber-600">
-                <ClipboardCheck className="h-6 w-6" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       <Card className="overflow-hidden border border-slate-200 shadow-sm">
         <CardHeader className="border-b bg-gradient-to-r from-slate-50 to-blue-50/50">
