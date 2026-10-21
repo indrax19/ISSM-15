@@ -9,6 +9,12 @@ export interface OutreachRemark {
   createdBy?: string;
 }
 
+export interface OutreachMillPoc {
+  name: string;
+  number: string;
+  email: string;
+}
+
 export interface OutreachMill {
   id?: string;
   spinningMill: string;
@@ -21,9 +27,11 @@ export interface OutreachMill {
   pocName?: string;
   pocNumber?: string;
   pocEmail?: string;
+  pocs?: OutreachMillPoc[];
   notes?: string;
   remarks: OutreachRemark[];
-  status?: "Outreach" | "On Hold" | "Follow Up" | "Data Not Found" | "APTMA" | "Shutdown" | "Obsidian" | "Other Vendor" | "Pending" | "Closed" | "Close" | "Active" | "Working" | "Transferred";
+  status?: string;
+  scheduledDate?: string;
   assignedTo?: string;
   assignedToUserId?: string;
   transferredProjectId?: string;
