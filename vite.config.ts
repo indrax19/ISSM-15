@@ -8,6 +8,9 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "0.0.0.0",
     port: 8080,
+    proxy: {
+      "/api": process.env.VITE_AI_DEV_API_URL || "http://localhost:3001",
+    },
     hmr: {
       overlay: false,
     },

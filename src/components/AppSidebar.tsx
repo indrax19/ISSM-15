@@ -1,4 +1,4 @@
-import { LayoutDashboard, FolderOpen, ScanBarcode, FileCheck2, History, Package, Users, Truck, Settings, MapPin, Shield, CheckSquare, BookOpen, Receipt, AlertCircle, ClipboardList, Building2, FileText, ChevronDown, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, FolderOpen, ScanBarcode, FileCheck2, History, Package, Users, Truck, Settings, MapPin, Shield, CheckSquare, BookOpen, Receipt, AlertCircle, ClipboardList, Building2, FileText, ChevronDown, Sparkles, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -40,6 +40,11 @@ const dashboardItem: NavItem = {
 };
 
 const navGroups: NavGroup[] = [
+  {
+    title: "AI Assistant",
+    icon: Sparkles,
+    items: [{ title: "AI Assistant", url: "/ai-assistant", icon: Sparkles }],
+  },
   {
     title: "Operations",
     icon: Package,

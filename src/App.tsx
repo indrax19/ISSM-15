@@ -14,6 +14,7 @@ import NotFound from "@/pages/NotFound";
 
 // Lazy load all route components for code splitting
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const AIAssistant = lazy(() => import("@/pages/AIAssistant"));
 const Categories = lazy(() => import("@/pages/Categories"));
 const CategoryDetail = lazy(() => import("@/pages/CategoryDetail"));
 const SubCategoryDetail = lazy(() => import("@/pages/SubCategoryDetail"));
@@ -102,6 +103,7 @@ const App = () => (
               }
             >
               <Route path="/" element={<ProtectedRoute requiredPermission="dashboard"><Suspense fallback={<PageLoader />}><Dashboard /></Suspense></ProtectedRoute>} />
+              <Route path="/ai-assistant" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><AIAssistant /></Suspense></ProtectedRoute>} />
               <Route path="/categories" element={<ProtectedRoute requiredPermission="inventory"><Suspense fallback={<PageLoader />}><Categories /></Suspense></ProtectedRoute>} />
               <Route path="/categories/:id" element={<ProtectedRoute requiredPermission="inventory"><Suspense fallback={<PageLoader />}><CategoryDetail /></Suspense></ProtectedRoute>} />
               <Route path="/subcategories/:id" element={<ProtectedRoute requiredPermission="inventory"><Suspense fallback={<PageLoader />}><SubCategoryDetail /></Suspense></ProtectedRoute>} />
