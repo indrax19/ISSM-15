@@ -52,15 +52,18 @@ export interface Quotation {
 
 const QUOTATIONS_COLLECTION = "quotations";
 
-async function generateQuotationNumber(): Promise<string> {
+async function generateQuotationNumber(sectorName?: string, issueDate?: string): Promise<string> {
+  const sector = (sectorName || "General").replace(/\s+Sector$/i, "").trim() || "General";
+  const sectorKey = sector.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "general";
+  const year = issueDate?.slice(0, 4) || String(new Date().getFullYear());
   const nextNumber = await runTransaction(db, async (transaction) => {
-    const counterRef = doc(db, "sequences", "quotationCounter");
+    const counterRef = doc(db, "sequences", `quotationCounter-${sectorKey}-${year}`);
     const counter = await transaction.get(counterRef);
     const next = (counter.exists() ? counter.data().nextNumber || 0 : 0) + 1;
     transaction.set(counterRef, { nextNumber: next, updated_at: new Date().toISOString() });
     return next;
   });
-  return `QT-${String(nextNumber).padStart(5, "0")}`;
+  return `QT-${sector}-${year}-${String(nextNumber).padStart(4, "0")}`;
 }
 
 function mapQuotation(id: string, data: Record<string, unknown>): Quotation {
@@ -94,7 +97,7 @@ export const quotationAPI = {
   },
 
   async create(quotation: Quotation): Promise<Quotation> {
-    const quotationNo = quotation.quotationNo || await generateQuotationNumber();
+    const quotationNo = quotation.quotationNo || await generateQuotationNumber(quotation.sectorProjectName, quotation.issueDate);
     const now = new Date().toISOString();
     const data = removeUndefined({ ...quotation, quotationNo, status: "draft", quotationStatus: quotation.quotationStatus || "Draft", created_at: now, updated_at: now });
     const ref = await addDoc(collection(db, QUOTATIONS_COLLECTION), data);
