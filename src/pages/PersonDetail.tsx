@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Package, Pencil, Trash2, Send, MessageSquarePlus, Undo2 } from "lucide-react";
+import { ArrowLeft, Plus, Package, Pencil, Trash2, Send, MessageSquarePlus, Undo2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { z } from "zod";
 
@@ -30,6 +30,15 @@ const issueItemSchema = z.object({
 });
 
 const PERSON_SITE_STATUSES = ["Scheduled", "Completed", "Travelling", "Onsite – Work In Progress", "Onsite – Completed", "Returned to Base", "Standby / Idle"] as const;
+const PERSON_SITE_STATUS_ROW_CLASSES: Record<(typeof PERSON_SITE_STATUSES)[number], string> = {
+  Scheduled: "bg-blue-50 hover:bg-blue-100",
+  Completed: "bg-green-50 hover:bg-green-100",
+  Travelling: "bg-amber-50 hover:bg-amber-100",
+  "Onsite – Work In Progress": "bg-yellow-50 hover:bg-yellow-100",
+  "Onsite – Completed": "bg-emerald-50 hover:bg-emerald-100",
+  "Returned to Base": "bg-slate-100 hover:bg-slate-200",
+  "Standby / Idle": "bg-gray-100 hover:bg-gray-200",
+};
 
 const addSiteSchema = z.object({
   site_name: z.string().trim().min(1, "Site name required").max(100),
@@ -72,6 +81,7 @@ export default function PersonDetail() {
   const [siteName, setSiteName] = useState("");
   const [siteStatus, setSiteStatus] = useState<(typeof PERSON_SITE_STATUSES)[number] | "">("");
   const [remarksSite, setRemarksSite] = useState<any>(null);
+  const [statusHistorySite, setStatusHistorySite] = useState<any>(null);
   const [siteRemarkText, setSiteRemarkText] = useState("");
   const [pocName, setPocName] = useState("");
   const [pocContact, setPocContact] = useState("");
@@ -254,6 +264,7 @@ export default function PersonDetail() {
         location: location || undefined,
         scheduled_date: siteStatus === "Scheduled" ? scheduledDate || undefined : undefined,
       });
+      const currentSite = sites.find((site) => site.id === editSiteId);
       await personSitesAPI.update(editSiteId!, {
         site_name: parsed.site_name,
         status: parsed.status,
@@ -261,6 +272,18 @@ export default function PersonDetail() {
         ...(parsed.poc_contact ? { poc_contact: parsed.poc_contact } : {}),
         ...(parsed.location ? { location: parsed.location } : {}),
         scheduled_date: siteStatus === "Scheduled" ? parsed.scheduled_date || "" : "",
+        ...(currentSite && currentSite.status !== parsed.status ? {
+          status_history: [
+            ...(currentSite?.status_history || []),
+            {
+              id: crypto.randomUUID(),
+              fromStatus: currentSite?.status || "",
+              toStatus: parsed.status,
+              changedAt: new Date().toISOString(),
+              changedBy: appUser?.fullName || appUser?.email || "Unknown User",
+            },
+          ],
+        } : {}),
       });
     },
     onSuccess: () => {
@@ -293,8 +316,21 @@ export default function PersonDetail() {
   });
 
   const updateSiteStatusMutation = useMutation({
-    mutationFn: ({ siteId, status }: { siteId: string; status: (typeof PERSON_SITE_STATUSES)[number] }) =>
-      personSitesAPI.update(siteId, { status, ...(status === "Scheduled" ? {} : { scheduled_date: "" }) }),
+    mutationFn: async ({ siteId, status }: { siteId: string; status: (typeof PERSON_SITE_STATUSES)[number] }) => {
+      const currentSite = sites.find((site) => site.id === siteId);
+      const historyEntry = {
+        id: crypto.randomUUID(),
+        fromStatus: currentSite?.status || "",
+        toStatus: status,
+        changedAt: new Date().toISOString(),
+        changedBy: appUser?.fullName || appUser?.email || "Unknown User",
+      };
+      await personSitesAPI.update(siteId, {
+        status,
+        status_history: [...(currentSite?.status_history || []), historyEntry],
+        ...(status === "Scheduled" ? {} : { scheduled_date: "" }),
+      });
+    },
     onSuccess: () => toast.success("Site status updated"),
     onError: () => toast.error("Failed to update site status"),
   });
@@ -624,7 +660,7 @@ export default function PersonDetail() {
                   </TableHeader>
                   <TableBody>
                     {sites.map((site) => (
-                      <TableRow key={site.id}>
+                      <TableRow key={site.id} className={`${PERSON_SITE_STATUS_ROW_CLASSES[site.status as (typeof PERSON_SITE_STATUSES)[number]] || "bg-background hover:bg-muted/50"} transition-colors`}>
                         <TableCell className="font-medium">{site.site_name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{site.location || "—"}</TableCell>
                         <TableCell>
@@ -665,6 +701,16 @@ export default function PersonDetail() {
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right">
                           <div className="ml-auto flex w-max items-center justify-end gap-1 whitespace-nowrap">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                              onClick={() => setStatusHistorySite(site)}
+                              aria-label="View status history"
+                              title="View status history"
+                            >
+                              <Clock className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -940,6 +986,28 @@ export default function PersonDetail() {
             <Button onClick={() => addSiteRemarkMutation.mutate()} disabled={addSiteRemarkMutation.isPending || !siteRemarkText.trim()}>
               {addSiteRemarkMutation.isPending ? "Saving..." : "Save remark"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusHistorySite !== null} onOpenChange={(open) => !open && setStatusHistorySite(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Status history · {statusHistorySite?.site_name}</DialogTitle>
+          </DialogHeader>
+          {statusHistorySite?.status_history?.length ? (
+            <div className="space-y-3">
+              {[...statusHistorySite.status_history].reverse().map((entry: any) => (
+                <div key={entry.id} className="rounded-lg border p-3">
+                  <p className="font-medium">{entry.fromStatus || "Created"} → {entry.toStatus}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{format(new Date(entry.changedAt), "MMM d, yyyy h:mm a")}</p>
+                  {entry.changedBy && <p className="mt-1 text-xs text-muted-foreground">{entry.changedBy}</p>}
+                </div>
+              ))}
+            </div>
+          ) : <p className="py-8 text-center text-sm text-muted-foreground">No status changes recorded yet.</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusHistorySite(null)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

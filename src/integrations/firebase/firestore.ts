@@ -107,6 +107,14 @@ export interface PersonSiteRemark {
   createdBy?: string;
 }
 
+export interface PersonSiteStatusHistory {
+  id: string;
+  fromStatus: string;
+  toStatus: string;
+  changedAt: string;
+  changedBy?: string;
+}
+
 export interface PersonSite {
   id?: string;
   person_id: string;
@@ -117,6 +125,7 @@ export interface PersonSite {
   poc_contact?: string;
   location?: string;
   remarks?: PersonSiteRemark[];
+  status_history?: PersonSiteStatusHistory[];
   created_at?: string;
 }
 
