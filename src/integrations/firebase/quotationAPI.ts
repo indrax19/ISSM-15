@@ -54,7 +54,7 @@ const QUOTATIONS_COLLECTION = "quotations";
 
 async function generateQuotationNumber(sectorName?: string, issueDate?: string): Promise<string> {
   const sectorCode = sectorName?.trim()
-    ? sectorName.trim().split(/\s+/).map((word) => word[0]).join("").toUpperCase()
+    ? sectorName.trim().split(/\s+/).map((word, index) => index === 0 ? word.slice(0, 2) : word[0]).join("").toUpperCase()
     : "GEN";
   const year = issueDate?.slice(0, 4) || String(new Date().getFullYear());
   const nextNumber = await runTransaction(db, async (transaction) => {
