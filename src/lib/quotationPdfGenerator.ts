@@ -219,14 +219,14 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
     margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
     body: [
       ["Sub-total (PKR)", money(subtotal)],
-      ["FBR GST (PKR)", money(fbrGst)],
+      ...(fbrGst > 0 ? [["FBR GST (PKR)", money(fbrGst)]] : []),
       ["Grand Total (PKR)", money(total)],
     ],
     theme: "grid",
     styles: { font: "helvetica", fontSize: 8, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
     columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
     didParseCell: (data) => {
-      if (data.row.index === 2) data.cell.styles.fontStyle = "bold";
+      if (data.row.index === (fbrGst > 0 ? 2 : 1)) data.cell.styles.fontStyle = "bold";
     },
   });
   y = (pdf as any).lastAutoTable.finalY + 5;
