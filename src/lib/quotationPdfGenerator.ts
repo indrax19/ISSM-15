@@ -203,12 +203,26 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
     headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold", halign: "center" },
     columnStyles: { 0: { cellWidth: 9, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 14, halign: "center" }, 3: { cellWidth: 30, halign: "right" }, 4: { cellWidth: 32, halign: "right" } },
   });
+  y = (pdf as any).lastAutoTable.finalY + 3;
+  const subtotal = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const fbrGst = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice * (item.taxPercent || 0) / 100, 0);
+  const total = subtotal + fbrGst;
+  autoTable(pdf, {
+    startY: y,
+    margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
+    body: [
+      ["Sub-total (PKR)", money(subtotal)],
+      ["FBR GST (PKR)", money(fbrGst)],
+      ["Grand Total (PKR)", money(total)],
+    ],
+    theme: "grid",
+    styles: { font: "helvetica", fontSize: 8, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
+    columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
+    didParseCell: (data) => {
+      if (data.row.index === 2) data.cell.styles.fontStyle = "bold";
+    },
+  });
   y = (pdf as any).lastAutoTable.finalY + 5;
-  const total = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8);
-  pdf.text(`Grand Total (PKR)     ${money(total)}`, pageWidth - margin, y, { align: "right" });
-  y += 7;
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
   const amountLabel = "Amount in Words:";

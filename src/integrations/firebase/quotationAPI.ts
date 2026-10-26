@@ -19,6 +19,7 @@ import { removeUndefined } from "./utils";
 export interface QuotationItem {
   description: string;
   quantity: number;
+  taxPercent?: number;
   unitPrice: number;
 }
 

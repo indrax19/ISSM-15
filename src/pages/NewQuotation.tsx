@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Bold, Italic, List, ListOrdered, Heading2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Bold, Italic, List, ListOrdered, Heading2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -100,6 +100,8 @@ const defaultValidTill = () => {
   date.setDate(date.getDate() + 5);
   return date.toISOString().slice(0, 10);
 };
+const emptyQuotationItem = (): QuotationItem => ({ description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
+const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function NewQuotation() {
   const { id } = useParams<{ id: string }>();
@@ -118,10 +120,12 @@ export default function NewQuotation() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [quoteReference, setQuoteReference] = useState("");
   const [fbrReference, setFbrReference] = useState("FBR STGO NO. 27 OF 2026");
-  const [items, setItems] = useState<QuotationItem[]>([{ description: "", quantity: 1, unitPrice: 0 }]);
+  const [items, setItems] = useState<QuotationItem[]>([emptyQuotationItem()]);
   const [note, setNote] = useState(DEFAULT_QUOTATION_NOTE);
   const [terms, setTerms] = useState(DEFAULT_QUOTATION_TERMS);
-  const total = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0), [items]);
+  const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0), [items]);
+  const fbrGst = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unitPrice * (item.taxPercent || 0) / 100, 0), [items]);
+  const total = subtotal + fbrGst;
 
   useEffect(() => {
     parentProjectsAPI.getAllWithCounts().then(setProjects).catch(() => toast.error("Could not load project tracking projects"));
@@ -151,7 +155,7 @@ export default function NewQuotation() {
       setCustomerPhone(quotation.customerPhone || "");
       setQuoteReference(quotation.quoteReference || "");
       setFbrReference(quotation.fbrReference || "FBR STGO NO. 27 OF 2026");
-      setItems(quotation.items?.length ? quotation.items : [{ description: "", quantity: 1, unitPrice: 0 }]);
+      setItems(quotation.items?.length ? quotation.items.map((item) => ({ ...item, taxPercent: item.taxPercent ?? 0 })) : [emptyQuotationItem()]);
       setNote(quotation.note ?? DEFAULT_QUOTATION_NOTE);
       setTerms(quotation.terms ?? DEFAULT_QUOTATION_TERMS);
       setCompanyProfileId(quotation.companyProfileId || "");
@@ -163,6 +167,10 @@ export default function NewQuotation() {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index
       ? { ...item, [field]: field === "description" ? value : Math.max(0, Number(value) || 0) }
       : item));
+  };
+
+  const duplicateItem = (index: number) => {
+    setItems((current) => [...current.slice(0, index + 1), { ...current[index] }, ...current.slice(index + 1)]);
   };
 
   const saveQuotation = async (download = false) => {
@@ -245,7 +253,7 @@ export default function NewQuotation() {
             <CardTitle>Quoted Items</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">Add products or services and set quantity and unit price.</p>
           </div>
-          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => setItems((current) => [{ description: "", quantity: 1, unitPrice: 0 }, ...current])}>
+          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => setItems((current) => [...current, emptyQuotationItem()])}>
             <Plus className="mr-2 h-4 w-4" />Add item
           </Button>
         </CardHeader>
@@ -255,28 +263,35 @@ export default function NewQuotation() {
               <div key={index} className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</p>
-                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [{ description: "", quantity: 1, unitPrice: 0 }])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyQuotationItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
                 </div>
                 <div className="space-y-2"><Label htmlFor={`quotation-item-description-${index}`}>Description</Label><Input id={`quotation-item-description-${index}`} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label htmlFor={`quotation-item-quantity-${index}`}>Quantity</Label><Input id={`quotation-item-quantity-${index}`} type="number" min="1" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} /></div>
-                  <div className="space-y-2"><Label htmlFor={`quotation-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`quotation-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
+                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax %</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
+                  <div className="col-span-2 space-y-2"><Label htmlFor={`quotation-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`quotation-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
                 </div>
-                <div className="flex items-center justify-between border-t pt-3 text-sm"><span className="text-muted-foreground">Amount</span><span className="font-semibold tabular-nums">PKR {(item.quantity * item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+                <div className="flex items-center justify-between border-t pt-3 text-sm"><span className="text-muted-foreground">Amount</span><span className="font-semibold tabular-nums">PKR {formatPKR(item.quantity * item.unitPrice)}</span></div>
+                <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => duplicateItem(index)}><Copy className="mr-2 h-4 w-4" />Duplicate item</Button>
               </div>
             ))}
-            <div className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3 text-sm"><span className="font-semibold">Grand Total</span><span className="font-bold tabular-nums">PKR {total.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+            <div className="overflow-hidden rounded-xl border text-sm">
+              <div className="flex justify-between border-b px-4 py-2.5"><span>Sub-total (PKR)</span><span className="font-semibold tabular-nums">{formatPKR(subtotal)}</span></div>
+              <div className="flex justify-between border-b px-4 py-2.5"><span>FBR GST (PKR)</span><span className="tabular-nums">{formatPKR(fbrGst)}</span></div>
+              <div className="flex justify-between px-4 py-2.5 font-bold"><span>Grand Total (PKR)</span><span className="tabular-nums">{formatPKR(total)}</span></div>
+            </div>
           </div>
           <div className="hidden overflow-x-auto rounded-lg border xl:block">
-            <table className="w-full min-w-[860px] border-collapse text-sm">
+            <table className="w-full min-w-[1000px] border-collapse text-sm">
               <thead className="bg-muted/60">
                 <tr className="border-b text-left">
                   <th className="w-12 px-4 py-3 font-semibold text-muted-foreground">#</th>
                   <th className="px-4 py-3 font-semibold">Description</th>
                   <th className="w-28 px-4 py-3 font-semibold">Quantity</th>
+                  <th className="w-24 px-4 py-3 font-semibold">Tax %</th>
                   <th className="w-44 px-4 py-3 font-semibold">Unit Price (PKR)</th>
                   <th className="w-44 px-4 py-3 text-right font-semibold">Amount (PKR)</th>
-                  <th className="w-16 px-4 py-3 text-center font-semibold">Action</th>
+                  <th className="w-24 px-4 py-3 text-center font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -290,20 +305,36 @@ export default function NewQuotation() {
                       <Input className="w-24" type="number" min="1" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} />
                     </td>
                     <td className="px-4 py-3">
+                      <Input className="w-20" type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} aria-label={`Item ${index + 1} tax percent`} />
+                    </td>
+                    <td className="px-4 py-3">
                       <Input className="w-40" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
                     </td>
-                    <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{(item.quantity * item.unitPrice).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(item.quantity * item.unitPrice)}</td>
                     <td className="px-4 py-3 text-center">
-                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [{ description: "", quantity: 1, unitPrice: 0 }])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
+                      <div className="flex justify-center gap-1">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => duplicateItem(index)} aria-label={`Duplicate item ${index + 1}`} title="Duplicate item"><Copy className="h-4 w-4" /></Button>
+                        <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyQuotationItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot className="bg-muted/40">
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-right font-semibold">Grand Total</td>
-                  <td className="px-4 py-4 text-right text-base font-bold tabular-nums">PKR {total.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-4" />
+                  <td colSpan={5} className="px-4 py-2 text-right">Sub-total (PKR)</td>
+                  <td className="px-4 py-2 text-right font-semibold tabular-nums">{formatPKR(subtotal)}</td>
+                  <td />
+                </tr>
+                <tr>
+                  <td colSpan={5} className="px-4 py-2 text-right">FBR GST (PKR)</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{formatPKR(fbrGst)}</td>
+                  <td />
+                </tr>
+                <tr className="border-t font-bold">
+                  <td colSpan={5} className="px-4 py-3 text-right">Grand Total (PKR)</td>
+                  <td className="px-4 py-3 text-right text-base tabular-nums">{formatPKR(total)}</td>
+                  <td />
                 </tr>
               </tfoot>
             </table>
