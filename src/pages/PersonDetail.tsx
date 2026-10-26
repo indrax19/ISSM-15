@@ -215,7 +215,7 @@ export default function PersonDetail() {
         poc_name: pocName || undefined,
         poc_contact: pocContact || undefined,
         location: location || undefined,
-        scheduled_date: scheduledDate || undefined,
+        scheduled_date: siteStatus === "Scheduled" ? scheduledDate || undefined : undefined,
       });
       await personSitesAPI.create({
         person_id: id!,
@@ -252,7 +252,7 @@ export default function PersonDetail() {
         poc_name: pocName || undefined,
         poc_contact: pocContact || undefined,
         location: location || undefined,
-        scheduled_date: scheduledDate || undefined,
+        scheduled_date: siteStatus === "Scheduled" ? scheduledDate || undefined : undefined,
       });
       await personSitesAPI.update(editSiteId!, {
         site_name: parsed.site_name,
@@ -260,7 +260,7 @@ export default function PersonDetail() {
         ...(parsed.poc_name ? { poc_name: parsed.poc_name } : {}),
         ...(parsed.poc_contact ? { poc_contact: parsed.poc_contact } : {}),
         ...(parsed.location ? { location: parsed.location } : {}),
-        scheduled_date: parsed.scheduled_date || "",
+        scheduled_date: siteStatus === "Scheduled" ? parsed.scheduled_date || "" : "",
       });
     },
     onSuccess: () => {
@@ -294,9 +294,15 @@ export default function PersonDetail() {
 
   const updateSiteStatusMutation = useMutation({
     mutationFn: ({ siteId, status }: { siteId: string; status: (typeof PERSON_SITE_STATUSES)[number] }) =>
-      personSitesAPI.update(siteId, { status }),
+      personSitesAPI.update(siteId, { status, ...(status === "Scheduled" ? {} : { scheduled_date: "" }) }),
     onSuccess: () => toast.success("Site status updated"),
     onError: () => toast.error("Failed to update site status"),
+  });
+
+  const updateSiteScheduleMutation = useMutation({
+    mutationFn: ({ siteId, scheduled_date }: { siteId: string; scheduled_date: string }) =>
+      personSitesAPI.update(siteId, { scheduled_date }),
+    onError: () => toast.error("Failed to update schedule date"),
   });
 
   const addSiteRemarkMutation = useMutation({
@@ -637,8 +643,16 @@ export default function PersonDetail() {
                             {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                           </select>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {site.scheduled_date ? format(new Date(`${site.scheduled_date}T00:00:00`), "MMM d, yyyy") : "—"}
+                        <TableCell>
+                          {site.status === "Scheduled" ? (
+                            <Input
+                              type="date"
+                              aria-label={`Schedule date for ${site.site_name}`}
+                              value={site.scheduled_date || ""}
+                              onChange={(event) => updateSiteScheduleMutation.mutate({ siteId: site.id, scheduled_date: event.target.value })}
+                              className="min-w-36"
+                            />
+                          ) : "—"}
                         </TableCell>
                         <TableCell>
                           <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setSiteRemarkText(""); }}>
@@ -876,10 +890,6 @@ export default function PersonDetail() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Scheduled Date</Label>
-              <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
               <Label>Status *</Label>
               <select
                 value={siteStatus}
@@ -890,6 +900,12 @@ export default function PersonDetail() {
                 {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
+            {siteStatus === "Scheduled" && (
+              <div className="space-y-2">
+                <Label>Scheduled Date</Label>
+                <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddSiteOpen(false)}>
@@ -971,10 +987,6 @@ export default function PersonDetail() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Scheduled Date</Label>
-              <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-            </div>
-            <div className="space-y-2">
               <Label>Status *</Label>
               <select
                 value={siteStatus}
@@ -985,6 +997,12 @@ export default function PersonDetail() {
                 {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
+            {siteStatus === "Scheduled" && (
+              <div className="space-y-2">
+                <Label>Scheduled Date</Label>
+                <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditSiteOpen(false)}>
