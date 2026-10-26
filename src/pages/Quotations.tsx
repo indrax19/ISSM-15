@@ -9,7 +9,7 @@ import { downloadQuotationPDF, generateQuotationPDF } from "@/lib/quotationPdfGe
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import ChallanPagination from "@/components/ChallanPagination";
 import ChallanTableSkeleton from "@/components/ChallanTableSkeleton";
@@ -28,6 +28,7 @@ const quotationStatusStyles: Record<QuotationStatus, string> = {
 };
 const amount = (quotation: Quotation) => quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 const dateLabel = (value: string) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
+const sectorInitials = (name: string) => name.trim().split(/\s+/).map((word) => word[0]).join("").toUpperCase();
 
 export default function Quotations() {
   const navigate = useNavigate();
@@ -43,6 +44,7 @@ export default function Quotations() {
   const [refreshing, setRefreshing] = useState(false);
   const [retry, setRetry] = useState(0);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadChoiceQuotation, setDownloadChoiceQuotation] = useState<Quotation | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -90,13 +92,18 @@ export default function Quotations() {
     }
   }, []);
 
-  const handleDownload = async (quotation: Quotation) => {
+  const handleDownload = (quotation: Quotation) => setDownloadChoiceQuotation(quotation);
+
+  const downloadSelectedDocument = async (documentType: "Quote" | "Invoice") => {
+    if (!downloadChoiceQuotation) return;
+    const quotation = downloadChoiceQuotation;
+    setDownloadChoiceQuotation(null);
     setDownloadingId(quotation.id || null);
     try {
-      await downloadQuotationPDF(quotation);
-      toast.success("Quotation PDF downloaded");
+      await downloadQuotationPDF(quotation, documentType);
+      toast.success(`${documentType} PDF downloaded`);
     } catch (error: any) {
-      toast.error(error?.message || "Failed to download quotation PDF");
+      toast.error(error?.message || `Failed to download ${documentType.toLowerCase()} PDF`);
     } finally {
       setDownloadingId(null);
     }
@@ -154,6 +161,16 @@ export default function Quotations() {
 
   return (
     <>
+    <Dialog open={Boolean(downloadChoiceQuotation)} onOpenChange={(open) => !open && setDownloadChoiceQuotation(null)}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Download as</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">Choose the document type for this PDF.</p>
+        <DialogFooter>
+          <Button variant="outline" className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/10 hover:text-primary hover:shadow-sm" onClick={() => downloadSelectedDocument("Quote")} disabled={downloadingId !== null}>Quote</Button>
+          <Button className="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md" onClick={() => downloadSelectedDocument("Invoice")} disabled={downloadingId !== null}>Invoice</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={Boolean(previewUrl)} onOpenChange={(open) => {
       if (!open && previewUrl) {
         URL.revokeObjectURL(previewUrl);
@@ -169,15 +186,15 @@ export default function Quotations() {
       <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div><h1 className="text-2xl font-bold sm:text-3xl">Quotations</h1><p className="mt-1 text-sm text-muted-foreground">Create, review, and download customer quotations</p></div>
         <div className="flex w-full gap-2 sm:w-auto">
-          <Button onClick={handleRefresh} variant="outline" size="icon" disabled={refreshing} title="Refresh quotations"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /></Button>
-          <Button onClick={() => navigate("/quotations/new")} className="flex-1 gap-2 sm:flex-none"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
+          <Button onClick={handleRefresh} variant="outline" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/10 hover:text-primary hover:shadow-sm" disabled={refreshing} title="Refresh quotations"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /></Button>
+          <Button onClick={() => navigate("/quotations/new")} className="flex-1 gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:flex-none"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
         </div>
       </div>
 
       <Card><CardContent className="grid gap-4 pt-6 md:grid-cols-3">
         <div className="space-y-2"><label htmlFor="quotation-search" className="text-sm font-medium">Search</label><Input id="quotation-search" placeholder="Search quote number, customer, or reference..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-date" className="text-sm font-medium">Filter by Issue Date</label><Input id="quotation-date" type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} /></div>
-        <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
+        <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{sectorInitials(project.name)}</option>)}</select></div>
       </CardContent></Card>
 
       {fetchError && <ErrorAlert title="Error Loading Quotations" message={fetchError} onRetry={() => { setLoading(quotations.length === 0); setRetry((value) => value + 1); }} variant="destructive" />}
@@ -191,11 +208,11 @@ export default function Quotations() {
               <div className="space-y-2 border-t pt-2">
                 <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">Status</span><select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={quotation.quotationStatus || "Draft"} onChange={(event) => handleStatusChange(quotation, event.target.value as QuotationStatus)} aria-label={`Status for ${quotation.quotationNo}`}>{QUOTATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
                 <div className="grid w-fit grid-cols-3 gap-1">
-                <Button variant="ghost" size="icon" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => handleDuplicate(quotation)} title="Duplicate quotation"><Copy className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-sm" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Duplicate quotation"><Copy className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-700 hover:shadow-sm" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
               </div>
             </div>)}
@@ -206,11 +223,11 @@ export default function Quotations() {
               <TableCell className="font-mono font-semibold">{quotation.quotationNo}</TableCell><TableCell>{dateLabel(quotation.issueDate)}</TableCell><TableCell>{dateLabel(quotation.validTill)}</TableCell><TableCell>{quotation.customerName}</TableCell><TableCell className="text-right">{amount(quotation).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</TableCell><TableCell>{quotation.sectorProjectName || "—"}</TableCell>
               <TableCell><select className="h-9 min-w-28 rounded-md border border-input bg-background px-2 text-sm" value={quotation.quotationStatus || "Draft"} onChange={(event) => handleStatusChange(quotation, event.target.value as QuotationStatus)} aria-label={`Status for ${quotation.quotationNo}`}>{QUOTATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></TableCell>
               <TableCell><div className="grid w-fit grid-cols-3 gap-1">
-                <Button variant="ghost" size="icon" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => handleDuplicate(quotation)} title="Duplicate quotation"><Copy className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-sm" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Duplicate quotation"><Copy className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-700 hover:shadow-sm" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </div></TableCell>
             </TableRow>)}</TableBody>
           </Table></div>

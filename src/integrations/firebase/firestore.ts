@@ -107,15 +107,25 @@ export interface PersonSiteRemark {
   createdBy?: string;
 }
 
+export interface PersonSiteStatusHistory {
+  id: string;
+  fromStatus: string;
+  toStatus: string;
+  changedAt: string;
+  changedBy?: string;
+}
+
 export interface PersonSite {
   id?: string;
   person_id: string;
   site_name: string;
-  status: "Completed" | "Travelling" | "Onsite – Work In Progress" | "Onsite – Completed" | "Returned to Base" | "Standby / Idle";
+  status: "Scheduled" | "Completed" | "Travelling" | "Onsite – Work In Progress" | "Onsite – Completed" | "Returned to Base" | "Standby / Idle";
+  scheduled_date?: string;
   poc_name?: string;
   poc_contact?: string;
   location?: string;
   remarks?: PersonSiteRemark[];
+  status_history?: PersonSiteStatusHistory[];
   created_at?: string;
 }
 

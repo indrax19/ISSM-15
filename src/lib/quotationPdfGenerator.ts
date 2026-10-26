@@ -6,6 +6,7 @@ import { downloadHighQualityPDF } from "@/lib/pdfCompression";
 import { addLogoToPDF } from "@/lib/pdfLogoHelper";
 
 const money = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const itemTaxValue = (amount: number, taxPercent?: number) => Math.round((amount * (taxPercent || 0) / 100 + Number.EPSILON) * 100) / 100;
 
 function amountInWords(amount: number): string {
   const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
@@ -100,7 +101,9 @@ function quotationTermsToBlocks(value: string): QuotationTermBlock[] {
   return blocks;
 }
 
-export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> {
+type QuotationDocumentType = "Quote" | "Invoice";
+
+export async function generateQuotationPDF(quotation: Quotation, documentType: QuotationDocumentType = "Quote"): Promise<Blob> {
   const pdf = new jsPDF({ format: "a4", unit: "mm", compress: true });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -166,12 +169,12 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   };
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(14);
-  pdf.text("Quote", pageWidth / 2, y, { align: "center" });
+  pdf.text(documentType, pageWidth / 2, y, { align: "center" });
   y += 8;
 
   pdf.setFontSize(8);
   pdf.setFont("helvetica", "bold");
-  pdf.text("QUOTE TO:", margin, y);
+  pdf.text(`${documentType.toUpperCase()} TO:`, margin, y);
   drawRightField("Issue date", formatDate(quotation.issueDate), pageWidth - margin, y);
   y += 6;
   pdf.setFont("helvetica", "bold");
@@ -181,7 +184,7 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   const addressLines = quotation.customerAddress
     ? drawLeftField("Address", quotation.customerAddress, margin, y, pageWidth - margin * 2 - 89)
     : 1;
-  drawRightField("Quote Ref", quotation.quoteReference || quotation.quotationNo, pageWidth - margin, y);
+  drawRightField(`${documentType} Ref`, quotation.quoteReference || quotation.quotationNo, pageWidth - margin, y);
   y += Math.max(5, addressLines * 4);
   if (quotation.customerPhone) drawLeftField("Phone", quotation.customerPhone, margin, y, pageWidth - margin * 2 - 89);
   drawRightField("FBR Ref", quotation.fbrReference || "—", pageWidth - margin, y);
@@ -190,25 +193,44 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   autoTable(pdf, {
     startY: y,
     margin: { left: margin, right: margin, top: pageBodyTop },
-    head: [["#", "Description", "Qty", "Unit Price", "Total (PKR)"]],
-    body: quotation.items.map((item, index) => [
-      String(index + 1),
-      item.description,
-      String(item.quantity),
-      money(item.unitPrice),
-      money(item.quantity * item.unitPrice),
-    ]),
+    head: [["#", "Description", "Qty", "Unit Price", "Amount", "Total (PKR)"]],
+    body: quotation.items.map((item, index) => {
+      const amount = item.quantity * item.unitPrice;
+      const taxValue = itemTaxValue(amount, item.taxPercent);
+      return [
+        String(index + 1),
+        item.description,
+        String(item.quantity),
+        money(item.unitPrice),
+        money(amount),
+        money(amount + taxValue),
+      ];
+    }),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
     headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold", halign: "center" },
-    columnStyles: { 0: { cellWidth: 9, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 14, halign: "center" }, 3: { cellWidth: 30, halign: "right" }, 4: { cellWidth: 32, halign: "right" } },
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 12, halign: "center" }, 3: { cellWidth: 26, halign: "right" }, 4: { cellWidth: 26, halign: "right" }, 5: { cellWidth: 28, halign: "right" } },
+  });
+  y = (pdf as any).lastAutoTable.finalY + 3;
+  const subtotal = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const fbrGst = quotation.items.reduce((sum, item) => sum + itemTaxValue(item.quantity * item.unitPrice, item.taxPercent), 0);
+  const total = subtotal + fbrGst;
+  autoTable(pdf, {
+    startY: y,
+    margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
+    body: [
+      ["Sub-total (PKR)", money(subtotal)],
+      ...(fbrGst > 0 ? [["FBR GST (PKR)", money(fbrGst)]] : []),
+      ["Grand Total (PKR)", money(total)],
+    ],
+    theme: "grid",
+    styles: { font: "helvetica", fontSize: 8, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
+    columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
+    didParseCell: (data) => {
+      if (data.row.index === (fbrGst > 0 ? 2 : 1)) data.cell.styles.fontStyle = "bold";
+    },
   });
   y = (pdf as any).lastAutoTable.finalY + 5;
-  const total = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8);
-  pdf.text(`Grand Total (PKR)     ${money(total)}`, pageWidth - margin, y, { align: "right" });
-  y += 7;
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(8);
   const amountLabel = "Amount in Words:";
@@ -287,7 +309,8 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   return pdf.output("blob");
 }
 
-export async function downloadQuotationPDF(quotation: Quotation): Promise<void> {
-  const blob = await generateQuotationPDF(quotation);
-  await downloadHighQualityPDF(blob, `${quotation.quotationNo || "Quotation"}.pdf`);
+export async function downloadQuotationPDF(quotation: Quotation, documentType: QuotationDocumentType = "Quote"): Promise<void> {
+  const blob = await generateQuotationPDF(quotation, documentType);
+  const baseName = quotation.quotationNo || documentType;
+  await downloadHighQualityPDF(blob, `${documentType === "Invoice" ? "Invoice-" : ""}${baseName}.pdf`);
 }
