@@ -29,7 +29,7 @@ const issueItemSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
-const PERSON_SITE_STATUSES = ["Completed", "Travelling", "Onsite – Work In Progress", "Onsite – Completed", "Returned to Base", "Standby / Idle"] as const;
+const PERSON_SITE_STATUSES = ["Scheduled", "Completed", "Travelling", "Onsite – Work In Progress", "Onsite – Completed", "Returned to Base", "Standby / Idle"] as const;
 
 const addSiteSchema = z.object({
   site_name: z.string().trim().min(1, "Site name required").max(100),
@@ -39,6 +39,7 @@ const addSiteSchema = z.object({
   poc_name: z.string().trim().max(100).optional(),
   poc_contact: z.string().trim().max(20).optional(),
   location: z.string().trim().max(100).optional(),
+  scheduled_date: z.string().optional(),
 });
 
 export default function PersonDetail() {
@@ -75,6 +76,7 @@ export default function PersonDetail() {
   const [pocName, setPocName] = useState("");
   const [pocContact, setPocContact] = useState("");
   const [location, setLocation] = useState("");
+  const [scheduledDate, setScheduledDate] = useState("");
   const [person, setPerson] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -213,6 +215,7 @@ export default function PersonDetail() {
         poc_name: pocName || undefined,
         poc_contact: pocContact || undefined,
         location: location || undefined,
+        scheduled_date: scheduledDate || undefined,
       });
       await personSitesAPI.create({
         person_id: id!,
@@ -221,6 +224,7 @@ export default function PersonDetail() {
         ...(parsed.poc_name ? { poc_name: parsed.poc_name } : {}),
         ...(parsed.poc_contact ? { poc_contact: parsed.poc_contact } : {}),
         ...(parsed.location ? { location: parsed.location } : {}),
+        ...(parsed.scheduled_date ? { scheduled_date: parsed.scheduled_date } : {}),
       });
     },
     onSuccess: () => {
@@ -232,6 +236,7 @@ export default function PersonDetail() {
       setPocName("");
       setPocContact("");
       setLocation("");
+      setScheduledDate("");
     },
     onError: (err: any) => {
       if (err.issues) toast.error(err.issues[0].message);
@@ -247,6 +252,7 @@ export default function PersonDetail() {
         poc_name: pocName || undefined,
         poc_contact: pocContact || undefined,
         location: location || undefined,
+        scheduled_date: scheduledDate || undefined,
       });
       await personSitesAPI.update(editSiteId!, {
         site_name: parsed.site_name,
@@ -254,6 +260,7 @@ export default function PersonDetail() {
         ...(parsed.poc_name ? { poc_name: parsed.poc_name } : {}),
         ...(parsed.poc_contact ? { poc_contact: parsed.poc_contact } : {}),
         ...(parsed.location ? { location: parsed.location } : {}),
+        scheduled_date: parsed.scheduled_date || "",
       });
     },
     onSuccess: () => {
@@ -266,6 +273,7 @@ export default function PersonDetail() {
       setPocName("");
       setPocContact("");
       setLocation("");
+      setScheduledDate("");
     },
     onError: (err: any) => {
       if (err.issues) toast.error(err.issues[0].message);
@@ -392,6 +400,7 @@ export default function PersonDetail() {
     setPocName(site.poc_name || "");
     setPocContact(site.poc_contact || "");
     setLocation(site.location || "");
+    setScheduledDate(site.scheduled_date || "");
     setEditSiteOpen(true);
   };
 
@@ -601,6 +610,7 @@ export default function PersonDetail() {
                       <TableHead>Location</TableHead>
                       <TableHead>POC Name / Contact</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Scheduled Date</TableHead>
                       <TableHead>Remarks</TableHead>
                       <TableHead>Added</TableHead>
                       <TableHead className="w-20 text-right"><span className="sr-only">Actions</span></TableHead>
@@ -626,6 +636,9 @@ export default function PersonDetail() {
                           >
                             {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                           </select>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {site.scheduled_date ? format(new Date(`${site.scheduled_date}T00:00:00`), "MMM d, yyyy") : "—"}
                         </TableCell>
                         <TableCell>
                           <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setSiteRemarkText(""); }}>
@@ -863,6 +876,10 @@ export default function PersonDetail() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Scheduled Date</Label>
+              <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
               <Label>Status *</Label>
               <select
                 value={siteStatus}
@@ -870,12 +887,7 @@ export default function PersonDetail() {
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
               >
                 <option value="">Select status...</option>
-                <option value="Completed">Completed</option>
-                <option value="Travelling">Travelling</option>
-                <option value="Onsite – Work In Progress">Onsite – Work In Progress</option>
-                <option value="Onsite – Completed">Onsite – Completed</option>
-                <option value="Returned to Base">Returned to Base</option>
-                <option value="Standby / Idle">Standby / Idle</option>
+                {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
           </div>
@@ -959,6 +971,10 @@ export default function PersonDetail() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Scheduled Date</Label>
+              <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+            </div>
+            <div className="space-y-2">
               <Label>Status *</Label>
               <select
                 value={siteStatus}
@@ -966,12 +982,7 @@ export default function PersonDetail() {
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
               >
                 <option value="">Select status...</option>
-                <option value="Completed">Completed</option>
-                <option value="Travelling">Travelling</option>
-                <option value="Onsite – Work In Progress">Onsite – Work In Progress</option>
-                <option value="Onsite – Completed">Onsite – Completed</option>
-                <option value="Returned to Base">Returned to Base</option>
-                <option value="Standby / Idle">Standby / Idle</option>
+                {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
           </div>
