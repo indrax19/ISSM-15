@@ -225,7 +225,7 @@ export default function NewQuotation() {
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading quotation...</div>;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4 pb-6 sm:space-y-6 sm:pb-8">
+    <div className="w-full min-w-0 space-y-4 pb-6 sm:space-y-6 sm:pb-8">
       <div className="flex min-w-0 items-center gap-3">
         <Button variant="outline" size="icon" className="shrink-0" onClick={() => navigate("/quotations")} aria-label="Back to quotations"><ArrowLeft className="h-4 w-4" /></Button>
         <div className="min-w-0"><h1 className="text-xl font-bold sm:text-2xl">{id ? "Edit Quotation" : "New Quotation"}</h1><p className="text-sm text-muted-foreground">Create and manage customer quotations</p></div>
@@ -233,7 +233,7 @@ export default function NewQuotation() {
 
       <Card>
         <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Quotation Details</CardTitle></CardHeader>
-        <CardContent className="grid min-w-0 grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0 xl:grid-cols-5">
+        <CardContent className="grid min-w-0 grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0 lg:grid-cols-3 2xl:grid-cols-5">
           <div className="min-w-0 space-y-2"><Label>Quote Number</Label><Input className="min-w-0" value={quotationNo} placeholder="Auto-generated on save" readOnly /></div>
           <div className="min-w-0 space-y-2"><Label>Issue Date *</Label><Input className="min-w-0" type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required /></div>
           <div className="min-w-0 space-y-2"><Label>Valid Till *</Label><Input className="min-w-0" type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required /></div>
@@ -243,7 +243,7 @@ export default function NewQuotation() {
           <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
           <div className="min-w-0 space-y-2"><Label>Quote To / Customer *</Label><Input className="min-w-0" value={customerName} onChange={(event) => setCustomerName(event.target.value)} required /></div>
           <div className="min-w-0 space-y-2"><Label>Phone</Label><Input className="min-w-0" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
-          <div className="min-w-0 space-y-2 sm:col-span-2 xl:col-span-5"><Label>Address</Label><Input className="min-w-0" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
+          <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3 2xl:col-span-5"><Label>Address</Label><Input className="min-w-0" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
         </CardContent>
       </Card>
 
