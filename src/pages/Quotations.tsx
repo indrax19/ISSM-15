@@ -9,7 +9,7 @@ import { downloadQuotationPDF, generateQuotationPDF } from "@/lib/quotationPdfGe
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import ChallanPagination from "@/components/ChallanPagination";
 import ChallanTableSkeleton from "@/components/ChallanTableSkeleton";
@@ -44,6 +44,7 @@ export default function Quotations() {
   const [refreshing, setRefreshing] = useState(false);
   const [retry, setRetry] = useState(0);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadChoiceQuotation, setDownloadChoiceQuotation] = useState<Quotation | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -91,13 +92,18 @@ export default function Quotations() {
     }
   }, []);
 
-  const handleDownload = async (quotation: Quotation) => {
+  const handleDownload = (quotation: Quotation) => setDownloadChoiceQuotation(quotation);
+
+  const downloadSelectedDocument = async (documentType: "Quote" | "Invoice") => {
+    if (!downloadChoiceQuotation) return;
+    const quotation = downloadChoiceQuotation;
+    setDownloadChoiceQuotation(null);
     setDownloadingId(quotation.id || null);
     try {
-      await downloadQuotationPDF(quotation);
-      toast.success("Quotation PDF downloaded");
+      await downloadQuotationPDF(quotation, documentType);
+      toast.success(`${documentType} PDF downloaded`);
     } catch (error: any) {
-      toast.error(error?.message || "Failed to download quotation PDF");
+      toast.error(error?.message || `Failed to download ${documentType.toLowerCase()} PDF`);
     } finally {
       setDownloadingId(null);
     }
@@ -155,6 +161,16 @@ export default function Quotations() {
 
   return (
     <>
+    <Dialog open={Boolean(downloadChoiceQuotation)} onOpenChange={(open) => !open && setDownloadChoiceQuotation(null)}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Download as</DialogTitle></DialogHeader>
+        <p className="text-sm text-muted-foreground">Choose the document type for this PDF.</p>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => downloadSelectedDocument("Quote")} disabled={downloadingId !== null}>Quote</Button>
+          <Button onClick={() => downloadSelectedDocument("Invoice")} disabled={downloadingId !== null}>Invoice</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={Boolean(previewUrl)} onOpenChange={(open) => {
       if (!open && previewUrl) {
         URL.revokeObjectURL(previewUrl);
