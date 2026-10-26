@@ -6,6 +6,7 @@ import { downloadHighQualityPDF } from "@/lib/pdfCompression";
 import { addLogoToPDF } from "@/lib/pdfLogoHelper";
 
 const money = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const itemTaxValue = (amount: number, taxPercent?: number) => Math.round((amount * (taxPercent || 0) / 100 + Number.EPSILON) * 100) / 100;
 
 function amountInWords(amount: number): string {
   const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
@@ -190,22 +191,28 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   autoTable(pdf, {
     startY: y,
     margin: { left: margin, right: margin, top: pageBodyTop },
-    head: [["#", "Description", "Qty", "Unit Price", "Total (PKR)"]],
-    body: quotation.items.map((item, index) => [
-      String(index + 1),
-      item.description,
-      String(item.quantity),
-      money(item.unitPrice),
-      money(item.quantity * item.unitPrice),
-    ]),
+    head: [["#", "Description", "Qty", "Unit Price", "Amount", "Tax Value", "Total (PKR)"]],
+    body: quotation.items.map((item, index) => {
+      const amount = item.quantity * item.unitPrice;
+      const taxValue = itemTaxValue(amount, item.taxPercent);
+      return [
+        String(index + 1),
+        item.description,
+        String(item.quantity),
+        money(item.unitPrice),
+        money(amount),
+        item.taxPercent ? money(taxValue) : "",
+        money(amount + taxValue),
+      ];
+    }),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
     headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold", halign: "center" },
-    columnStyles: { 0: { cellWidth: 9, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 14, halign: "center" }, 3: { cellWidth: 30, halign: "right" }, 4: { cellWidth: 32, halign: "right" } },
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 12, halign: "center" }, 3: { cellWidth: 26, halign: "right" }, 4: { cellWidth: 26, halign: "right" }, 5: { cellWidth: 24, halign: "right" }, 6: { cellWidth: 28, halign: "right" } },
   });
   y = (pdf as any).lastAutoTable.finalY + 3;
   const subtotal = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const fbrGst = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice * (item.taxPercent || 0) / 100, 0);
+  const fbrGst = quotation.items.reduce((sum, item) => sum + itemTaxValue(item.quantity * item.unitPrice, item.taxPercent), 0);
   const total = subtotal + fbrGst;
   autoTable(pdf, {
     startY: y,

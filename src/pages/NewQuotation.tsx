@@ -102,6 +102,9 @@ const defaultValidTill = () => {
 };
 const emptyQuotationItem = (): QuotationItem => ({ description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
 const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const itemAmount = (item: QuotationItem) => item.quantity * item.unitPrice;
+const itemTaxAmount = (item: QuotationItem) => Math.round((itemAmount(item) * (item.taxPercent || 0) / 100 + Number.EPSILON) * 100) / 100;
+const itemTotal = (item: QuotationItem) => itemAmount(item) + itemTaxAmount(item);
 
 export default function NewQuotation() {
   const { id } = useParams<{ id: string }>();
@@ -123,8 +126,8 @@ export default function NewQuotation() {
   const [items, setItems] = useState<QuotationItem[]>([emptyQuotationItem()]);
   const [note, setNote] = useState(DEFAULT_QUOTATION_NOTE);
   const [terms, setTerms] = useState(DEFAULT_QUOTATION_TERMS);
-  const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0), [items]);
-  const fbrGst = useMemo(() => items.reduce((sum, item) => sum + item.quantity * item.unitPrice * (item.taxPercent || 0) / 100, 0), [items]);
+  const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
+  const fbrGst = useMemo(() => items.reduce((sum, item) => sum + itemTaxAmount(item), 0), [items]);
   const total = subtotal + fbrGst;
 
   useEffect(() => {
@@ -258,7 +261,7 @@ export default function NewQuotation() {
           </Button>
         </CardHeader>
         <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
-          <div className="space-y-3 xl:hidden">
+          <div className="space-y-3 2xl:hidden">
             {items.map((item, index) => (
               <div key={index} className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-3">
@@ -268,10 +271,14 @@ export default function NewQuotation() {
                 <div className="space-y-2"><Label htmlFor={`quotation-item-description-${index}`}>Description</Label><Input id={`quotation-item-description-${index}`} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label htmlFor={`quotation-item-quantity-${index}`}>Quantity</Label><Input id={`quotation-item-quantity-${index}`} type="number" min="1" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} /></div>
-                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax %</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax Code (%)</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
                   <div className="col-span-2 space-y-2"><Label htmlFor={`quotation-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`quotation-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
                 </div>
-                <div className="flex items-center justify-between border-t pt-3 text-sm"><span className="text-muted-foreground">Amount</span><span className="font-semibold tabular-nums">PKR {formatPKR(item.quantity * item.unitPrice)}</span></div>
+                <div className="space-y-2 border-t pt-3 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="tabular-nums">PKR {formatPKR(itemAmount(item))}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Tax Amount</span><span className="tabular-nums">PKR {formatPKR(itemTaxAmount(item))}</span></div>
+                  <div className="flex justify-between font-semibold"><span>Total</span><span className="tabular-nums">PKR {formatPKR(itemTotal(item))}</span></div>
+                </div>
                 <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => duplicateItem(index)}><Copy className="mr-2 h-4 w-4" />Duplicate item</Button>
               </div>
             ))}
@@ -281,16 +288,18 @@ export default function NewQuotation() {
               <div className="flex justify-between px-4 py-2.5 font-bold"><span>Grand Total (PKR)</span><span className="tabular-nums">{formatPKR(total)}</span></div>
             </div>
           </div>
-          <div className="hidden overflow-x-auto rounded-lg border xl:block">
-            <table className="w-full min-w-[1000px] border-collapse text-sm">
+          <div className="hidden overflow-x-auto rounded-lg border 2xl:block">
+            <table className="w-full min-w-[1180px] border-collapse text-sm">
               <thead className="bg-muted/60">
                 <tr className="border-b text-left">
                   <th className="w-12 px-4 py-3 font-semibold text-muted-foreground">#</th>
                   <th className="px-4 py-3 font-semibold">Description</th>
-                  <th className="w-28 px-4 py-3 font-semibold">Quantity</th>
-                  <th className="w-24 px-4 py-3 font-semibold">Tax %</th>
-                  <th className="w-44 px-4 py-3 font-semibold">Unit Price (PKR)</th>
-                  <th className="w-44 px-4 py-3 text-right font-semibold">Amount (PKR)</th>
+                  <th className="w-24 px-4 py-3 font-semibold">Qty</th>
+                  <th className="w-36 px-4 py-3 font-semibold">Unit Price</th>
+                  <th className="w-36 px-4 py-3 text-right font-semibold">Amount</th>
+                  <th className="w-28 px-4 py-3 font-semibold">Tax Code (%)</th>
+                  <th className="w-36 px-4 py-3 text-right font-semibold">Tax Amount</th>
+                  <th className="w-36 px-4 py-3 text-right font-semibold">Total (PKR)</th>
                   <th className="w-24 px-4 py-3 text-center font-semibold">Actions</th>
                 </tr>
               </thead>
@@ -305,12 +314,14 @@ export default function NewQuotation() {
                       <Input className="w-24" type="number" min="1" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} />
                     </td>
                     <td className="px-4 py-3">
-                      <Input className="w-20" type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} aria-label={`Item ${index + 1} tax percent`} />
+                      <Input className="w-32" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
                     </td>
+                    <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(itemAmount(item))}</td>
                     <td className="px-4 py-3">
-                      <Input className="w-40" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
+                      <Input className="w-24" type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} aria-label={`Item ${index + 1} tax code percent`} />
                     </td>
-                    <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(item.quantity * item.unitPrice)}</td>
+                    <td className="px-4 py-3 text-right align-middle tabular-nums">{item.taxPercent ? formatPKR(itemTaxAmount(item)) : "—"}</td>
+                    <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(itemTotal(item))}</td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex justify-center gap-1">
                         <Button type="button" variant="ghost" size="icon" onClick={() => duplicateItem(index)} aria-label={`Duplicate item ${index + 1}`} title="Duplicate item"><Copy className="h-4 w-4" /></Button>
@@ -322,17 +333,17 @@ export default function NewQuotation() {
               </tbody>
               <tfoot className="bg-muted/40">
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-right">Sub-total (PKR)</td>
+                  <td colSpan={7} className="px-4 py-2 text-right">Sub-total (PKR)</td>
                   <td className="px-4 py-2 text-right font-semibold tabular-nums">{formatPKR(subtotal)}</td>
                   <td />
                 </tr>
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-right">FBR GST (PKR)</td>
+                  <td colSpan={7} className="px-4 py-2 text-right">FBR GST (PKR)</td>
                   <td className="px-4 py-2 text-right tabular-nums">{formatPKR(fbrGst)}</td>
                   <td />
                 </tr>
                 <tr className="border-t font-bold">
-                  <td colSpan={5} className="px-4 py-3 text-right">Grand Total (PKR)</td>
+                  <td colSpan={7} className="px-4 py-3 text-right">Grand Total (PKR)</td>
                   <td className="px-4 py-3 text-right text-base tabular-nums">{formatPKR(total)}</td>
                   <td />
                 </tr>
