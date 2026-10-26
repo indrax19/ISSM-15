@@ -28,6 +28,7 @@ const quotationStatusStyles: Record<QuotationStatus, string> = {
 };
 const amount = (quotation: Quotation) => quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 const dateLabel = (value: string) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
+const sectorInitials = (name: string) => name.trim().split(/\s+/).map((word) => word[0]).join("").toUpperCase();
 
 export default function Quotations() {
   const navigate = useNavigate();
@@ -177,7 +178,7 @@ export default function Quotations() {
       <Card><CardContent className="grid gap-4 pt-6 md:grid-cols-3">
         <div className="space-y-2"><label htmlFor="quotation-search" className="text-sm font-medium">Search</label><Input id="quotation-search" placeholder="Search quote number, customer, or reference..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-date" className="text-sm font-medium">Filter by Issue Date</label><Input id="quotation-date" type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} /></div>
-        <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
+        <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{sectorInitials(project.name)}</option>)}</select></div>
       </CardContent></Card>
 
       {fetchError && <ErrorAlert title="Error Loading Quotations" message={fetchError} onRetry={() => { setLoading(quotations.length === 0); setRetry((value) => value + 1); }} variant="destructive" />}
