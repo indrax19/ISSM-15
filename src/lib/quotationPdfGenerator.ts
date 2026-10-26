@@ -191,7 +191,7 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   autoTable(pdf, {
     startY: y,
     margin: { left: margin, right: margin, top: pageBodyTop },
-    head: [["#", "Description", "Qty", "Unit Price", "Amount", "Tax Value", "Total (PKR)"]],
+    head: [["#", "Description", "Qty", "Unit Price", "Amount", "Total (PKR)"]],
     body: quotation.items.map((item, index) => {
       const amount = item.quantity * item.unitPrice;
       const taxValue = itemTaxValue(amount, item.taxPercent);
@@ -201,14 +201,13 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
         String(item.quantity),
         money(item.unitPrice),
         money(amount),
-        item.taxPercent ? money(taxValue) : "",
         money(amount + taxValue),
       ];
     }),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
     headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold", halign: "center" },
-    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 12, halign: "center" }, 3: { cellWidth: 26, halign: "right" }, 4: { cellWidth: 26, halign: "right" }, 5: { cellWidth: 24, halign: "right" }, 6: { cellWidth: 28, halign: "right" } },
+    columnStyles: { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 12, halign: "center" }, 3: { cellWidth: 26, halign: "right" }, 4: { cellWidth: 26, halign: "right" }, 5: { cellWidth: 28, halign: "right" } },
   });
   y = (pdf as any).lastAutoTable.finalY + 3;
   const subtotal = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
