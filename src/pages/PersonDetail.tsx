@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Package, Pencil, Trash2, Send, MessageSquarePlus, Undo2, Clock } from "lucide-react";
@@ -225,7 +226,7 @@ export default function PersonDetail() {
         poc_name: pocName || undefined,
         poc_contact: pocContact || undefined,
         location: location || undefined,
-        scheduled_date: siteStatus === "Scheduled" ? scheduledDate || undefined : undefined,
+        scheduled_date: scheduledDate || undefined,
       });
       await personSitesAPI.create({
         person_id: id!,
@@ -262,7 +263,7 @@ export default function PersonDetail() {
         poc_name: pocName || undefined,
         poc_contact: pocContact || undefined,
         location: location || undefined,
-        scheduled_date: siteStatus === "Scheduled" ? scheduledDate || undefined : undefined,
+        scheduled_date: scheduledDate || undefined,
       });
       const currentSite = sites.find((site) => site.id === editSiteId);
       await personSitesAPI.update(editSiteId!, {
@@ -271,7 +272,7 @@ export default function PersonDetail() {
         ...(parsed.poc_name ? { poc_name: parsed.poc_name } : {}),
         ...(parsed.poc_contact ? { poc_contact: parsed.poc_contact } : {}),
         ...(parsed.location ? { location: parsed.location } : {}),
-        scheduled_date: siteStatus === "Scheduled" ? parsed.scheduled_date || "" : "",
+        scheduled_date: parsed.scheduled_date || "",
         ...(currentSite && currentSite.status !== parsed.status ? {
           status_history: [
             ...(currentSite?.status_history || []),
@@ -328,7 +329,6 @@ export default function PersonDetail() {
       await personSitesAPI.update(siteId, {
         status,
         status_history: [...(currentSite?.status_history || []), historyEntry],
-        ...(status === "Scheduled" ? {} : { scheduled_date: "" }),
       });
     },
     onSuccess: () => toast.success("Site status updated"),
@@ -339,6 +339,12 @@ export default function PersonDetail() {
     mutationFn: ({ siteId, scheduled_date }: { siteId: string; scheduled_date: string }) =>
       personSitesAPI.update(siteId, { scheduled_date }),
     onError: () => toast.error("Failed to update schedule date"),
+  });
+
+  const updateSiteCompletionMutation = useMutation({
+    mutationFn: ({ siteId, completed }: { siteId: string; completed: boolean }) =>
+      personSitesAPI.update(siteId, { completed }),
+    onError: () => toast.error("Failed to update completion"),
   });
 
   const addSiteRemarkMutation = useMutation({
@@ -468,22 +474,22 @@ export default function PersonDetail() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="min-w-0 space-y-4 pb-4 sm:space-y-6 sm:pb-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/personal-inventory")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">{person?.name ?? "Person"}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="break-words text-xl font-bold text-foreground sm:text-2xl">{person?.name ?? "Person"}</h1>
           <p className="text-muted-foreground text-sm">Manage inventory items</p>
         </div>
-        <Button onClick={() => setAddOpen(true)} className="gap-2">
+        <Button onClick={() => setAddOpen(true)} className="w-full gap-2 sm:w-auto">
           <Plus className="h-4 w-4" /> Add Item
         </Button>
       </div>
 
-      <Tabs defaultValue="inventory" className="space-y-4">
-        <TabsList>
+      <Tabs defaultValue="inventory" className="min-w-0 space-y-4">
+        <TabsList className="grid h-auto w-full grid-cols-3 sm:inline-flex sm:w-auto">
           <TabsTrigger value="inventory">Inventory Items</TabsTrigger>
           <TabsTrigger value="issued">Issued Items</TabsTrigger>
           <TabsTrigger value="sites">Assign Sites</TabsTrigger>
@@ -637,7 +643,7 @@ export default function PersonDetail() {
 
         <TabsContent value="sites" className="space-y-4">
           <div className="flex justify-end">
-            <Button onClick={() => setAddSiteOpen(true)} className="gap-2">
+            <Button onClick={() => setAddSiteOpen(true)} className="w-full gap-2 sm:w-auto">
               <Plus className="h-4 w-4" /> Add Site
             </Button>
           </div>
@@ -645,42 +651,42 @@ export default function PersonDetail() {
           <Card>
             <CardContent className="p-0">
               {sites && sites.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Site Name</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>POC Name / Contact</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Scheduled Date</TableHead>
-                      <TableHead>Remarks</TableHead>
-                      <TableHead>Added</TableHead>
-                      <TableHead className="w-20 text-right"><span className="sr-only">Actions</span></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sites.map((site) => (
-                      <TableRow key={site.id} className={`${PERSON_SITE_STATUS_ROW_CLASSES[site.status as (typeof PERSON_SITE_STATUSES)[number]] || "bg-background hover:bg-muted/50"} transition-colors`}>
-                        <TableCell className="font-medium">{site.site_name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{site.location || "—"}</TableCell>
-                        <TableCell>
-                          <div className="font-medium">{site.poc_name || "—"}</div>
-                          <div className="text-sm text-muted-foreground">{site.poc_contact || "—"}</div>
-                        </TableCell>
-                        <TableCell className="w-[1in] min-w-[1in] max-w-[1in] px-1">
-                          <select
-                            aria-label={`Status for ${site.site_name}`}
-                            title={site.status}
-                            value={site.status}
-                            onChange={(event) => updateSiteStatusMutation.mutate({ siteId: site.id, status: event.target.value as (typeof PERSON_SITE_STATUSES)[number] })}
-                            disabled={updateSiteStatusMutation.isPending}
-                            className="h-9 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-1 text-xs"
-                          >
-                            {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-                          </select>
-                        </TableCell>
-                        <TableCell>
-                          {site.status === "Scheduled" ? (
+                <div className="w-full overflow-x-auto">
+                  <Table className="min-w-[1050px]">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Site Name</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>POC Name / Contact</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Scheduled Date</TableHead>
+                        <TableHead>Remarks</TableHead>
+                        <TableHead>Completed</TableHead>
+                        <TableHead className="w-20 text-right"><span className="sr-only">Actions</span></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sites.map((site) => (
+                        <TableRow key={site.id} className={`${PERSON_SITE_STATUS_ROW_CLASSES[site.status as (typeof PERSON_SITE_STATUSES)[number]] || "bg-background hover:bg-muted/50"} transition-colors`}>
+                          <TableCell className="font-medium">{site.site_name}</TableCell>
+                          <TableCell className="max-w-56 whitespace-normal break-words text-sm text-muted-foreground">{site.location || "—"}</TableCell>
+                          <TableCell>
+                            <div className="font-medium">{site.poc_name || "—"}</div>
+                            <div className="text-sm text-muted-foreground">{site.poc_contact || "—"}</div>
+                          </TableCell>
+                          <TableCell className="min-w-36 px-1">
+                            <select
+                              aria-label={`Status for ${site.site_name}`}
+                              title={site.status}
+                              value={site.status}
+                              onChange={(event) => updateSiteStatusMutation.mutate({ siteId: site.id, status: event.target.value as (typeof PERSON_SITE_STATUSES)[number] })}
+                              disabled={updateSiteStatusMutation.isPending}
+                              className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs"
+                            >
+                              {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                            </select>
+                          </TableCell>
+                          <TableCell>
                             <Input
                               type="date"
                               aria-label={`Schedule date for ${site.site_name}`}
@@ -688,55 +694,60 @@ export default function PersonDetail() {
                               onChange={(event) => updateSiteScheduleMutation.mutate({ siteId: site.id, scheduled_date: event.target.value })}
                               className="min-w-36"
                             />
-                          ) : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setSiteRemarkText(""); }}>
-                            <MessageSquarePlus className="h-3.5 w-3.5" />
-                            {site.remarks?.length || 0}
-                          </Button>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {format(new Date(site.created_at || ""), "MMM d, yyyy")}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-right">
-                          <div className="ml-auto flex w-max items-center justify-end gap-1 whitespace-nowrap">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-600 hover:bg-white/70 hover:text-slate-900"
-                              onClick={() => setStatusHistorySite(site)}
-                              aria-label="View status history"
-                              title="View status history"
-                            >
-                              <Clock className="h-4 w-4" />
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setSiteRemarkText(""); }}>
+                              <MessageSquarePlus className="h-3.5 w-3.5" />
+                              {site.remarks?.length || 0}
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                              onClick={() => openEditSite(site)}
-                              aria-label="Edit site"
-                              title="Edit site"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                              onClick={() => handleDeleteSite(site.id!)}
-                              aria-label="Delete site"
-                              title="Delete site"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Checkbox
+                              aria-label={`Completed for ${site.site_name}`}
+                              checked={Boolean(site.completed)}
+                              onCheckedChange={(checked) => updateSiteCompletionMutation.mutate({ siteId: site.id, completed: checked === true })}
+                              disabled={updateSiteCompletionMutation.isPending}
+                            />
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-right">
+                            <div className="ml-auto flex w-max items-center justify-end gap-1 whitespace-nowrap">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-600 hover:bg-white/70 hover:text-slate-900"
+                                onClick={() => setStatusHistorySite(site)}
+                                aria-label="View status history"
+                                title="View status history"
+                              >
+                                <Clock className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                                onClick={() => openEditSite(site)}
+                                aria-label="Edit site"
+                                title="Edit site"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                onClick={() => handleDeleteSite(site.id!)}
+                                aria-label="Delete site"
+                                title="Delete site"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <div className="flex flex-col items-center py-12">
                   <Package className="h-10 w-10 text-muted-foreground/40 mb-3" />
@@ -946,12 +957,10 @@ export default function PersonDetail() {
                 {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
-            {siteStatus === "Scheduled" && (
-              <div className="space-y-2">
-                <Label>Scheduled Date</Label>
-                <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Scheduled Date</Label>
+              <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddSiteOpen(false)}>
@@ -1065,12 +1074,10 @@ export default function PersonDetail() {
                 {PERSON_SITE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
             </div>
-            {siteStatus === "Scheduled" && (
-              <div className="space-y-2">
-                <Label>Scheduled Date</Label>
-                <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label>Scheduled Date</Label>
+              <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditSiteOpen(false)}>

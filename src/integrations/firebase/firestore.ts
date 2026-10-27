@@ -121,6 +121,7 @@ export interface PersonSite {
   site_name: string;
   status: "Scheduled" | "Completed" | "Travelling" | "Onsite – Work In Progress" | "Onsite – Completed" | "Returned to Base" | "Standby / Idle";
   scheduled_date?: string;
+  completed?: boolean;
   poc_name?: string;
   poc_contact?: string;
   location?: string;
