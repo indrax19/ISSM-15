@@ -102,7 +102,7 @@ const defaultValidTill = () => {
 };
 const emptyQuotationItem = (): QuotationItem => ({ description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
 const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const itemAmount = (item: QuotationItem) => item.quantity * item.unitPrice;
+const itemAmount = (item: QuotationItem) => Number.isFinite(item.quantity) ? item.quantity * item.unitPrice : 0;
 const itemTaxAmount = (item: QuotationItem) => Math.round((itemAmount(item) * (item.taxPercent || 0) / 100 + Number.EPSILON) * 100) / 100;
 const itemTotal = (item: QuotationItem) => itemAmount(item) + itemTaxAmount(item);
 
@@ -111,6 +111,7 @@ export default function NewQuotation() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
   const [projects, setProjects] = useState<ParentProject[]>([]);
   const [companyProfileId, setCompanyProfileId] = useState("");
@@ -168,7 +169,7 @@ export default function NewQuotation() {
 
   const updateItem = (index: number, field: keyof QuotationItem, value: string) => {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index
-      ? { ...item, [field]: field === "description" ? value : Math.max(0, Number(value) || 0) }
+      ? { ...item, [field]: field === "description" ? value : value === "" ? Number.NaN : Math.max(0, Number(value)) }
       : item));
   };
 
@@ -177,7 +178,8 @@ export default function NewQuotation() {
   };
 
   const saveQuotation = async (download = false) => {
-    if (!customerName.trim() || !issueDate || !validTill || items.some((item) => !item.description.trim() || item.quantity <= 0)) {
+    setSaveAttempted(true);
+    if (!customerName.trim() || !issueDate || !validTill || items.some((item) => !item.description.trim() || !Number.isFinite(item.quantity))) {
       toast.error("Complete the customer, dates, and every line item before saving");
       return;
     }
@@ -238,13 +240,13 @@ export default function NewQuotation() {
         <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Quotation Details</CardTitle></CardHeader>
         <CardContent className="grid min-w-0 grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0 lg:grid-cols-3 2xl:grid-cols-5">
           <div className="min-w-0 space-y-2"><Label>Quote Number</Label><Input className="min-w-0" value={quotationNo} placeholder="Auto-generated on save" readOnly /></div>
-          <div className="min-w-0 space-y-2"><Label>Issue Date *</Label><Input className="min-w-0" type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required /></div>
-          <div className="min-w-0 space-y-2"><Label>Valid Till *</Label><Input className="min-w-0" type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required /></div>
+          <div className="min-w-0 space-y-2"><Label>Issue Date *</Label><Input className={`min-w-0 ${saveAttempted && !issueDate ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required aria-invalid={saveAttempted && !issueDate} /></div>
+          <div className="min-w-0 space-y-2"><Label>Valid Till *</Label><Input className={`min-w-0 ${saveAttempted && !validTill ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required aria-invalid={saveAttempted && !validTill} /></div>
           <div className="min-w-0 space-y-2"><Label>Quote Reference</Label><Input className="min-w-0" value={quoteReference} onChange={(event) => setQuoteReference(event.target.value)} placeholder="e.g. Q-2026-001" /></div>
           <div className="min-w-0 space-y-2"><Label>Sector</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
           <div className="min-w-0 space-y-2"><Label>FBR Reference</Label><Input className="min-w-0" value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR STGO NO. 27 OF 2026" /></div>
           <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
-          <div className="min-w-0 space-y-2"><Label>Quote To / Customer *</Label><Input className="min-w-0" value={customerName} onChange={(event) => setCustomerName(event.target.value)} required /></div>
+          <div className="min-w-0 space-y-2"><Label>Quote To / Customer *</Label><Input className={`min-w-0 ${saveAttempted && !customerName.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} required aria-invalid={saveAttempted && !customerName.trim()} /></div>
           <div className="min-w-0 space-y-2"><Label>Phone</Label><Input className="min-w-0" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
           <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3 2xl:col-span-5"><Label>Address</Label><Input className="min-w-0" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
         </CardContent>
@@ -268,9 +270,9 @@ export default function NewQuotation() {
                   <p className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</p>
                   <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyQuotationItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
                 </div>
-                <div className="space-y-2"><Label htmlFor={`quotation-item-description-${index}`}>Description</Label><Input id={`quotation-item-description-${index}`} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" /></div>
+                <div className="space-y-2"><Label htmlFor={`quotation-item-description-${index}`}>Description</Label><Textarea id={`quotation-item-description-${index}`} className={`min-h-20 resize-y ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-invalid={saveAttempted && !item.description.trim()} /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label htmlFor={`quotation-item-quantity-${index}`}>Quantity</Label><Input id={`quotation-item-quantity-${index}`} type="number" min="1" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor={`quotation-item-quantity-${index}`}>Quantity</Label><Input id={`quotation-item-quantity-${index}`} className={saveAttempted && !Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} /></div>
                   <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax Code (%)</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
                   <div className="col-span-2 space-y-2"><Label htmlFor={`quotation-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`quotation-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
                 </div>
@@ -308,10 +310,10 @@ export default function NewQuotation() {
                   <tr key={index} className="border-b last:border-0 transition-colors hover:bg-muted/20">
                     <td className="px-4 py-3 align-middle text-muted-foreground">{String(index + 1).padStart(2, "0")}</td>
                     <td className="px-4 py-3">
-                      <Input className="min-w-[240px] border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background" value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} />
+                      <Textarea className={`min-h-20 min-w-[240px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
                     </td>
                     <td className="px-4 py-3">
-                      <Input className="w-24" type="number" min="1" value={item.quantity || ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} />
+                      <Input className={`w-24 ${saveAttempted && !Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""}`} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} />
                     </td>
                     <td className="px-4 py-3">
                       <Input className="w-32" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
