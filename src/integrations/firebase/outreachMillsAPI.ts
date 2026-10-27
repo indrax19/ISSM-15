@@ -54,7 +54,10 @@ export const outreachMillsAPI = {
   },
 
   async update(id: string, mill: Partial<OutreachMill>) {
-    await updateDoc(doc(db, "outreach_mills", id), removeUndefined({ ...mill, updated_at: new Date().toISOString() }));
+    const updates = { ...mill };
+    delete updates.sequence;
+    delete updates.created_at;
+    await updateDoc(doc(db, "outreach_mills", id), removeUndefined({ ...updates, updated_at: new Date().toISOString() }));
   },
 
   async delete(id: string) {
