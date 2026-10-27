@@ -53,9 +53,7 @@ export interface Quotation {
 const QUOTATIONS_COLLECTION = "quotations";
 
 async function generateQuotationNumber(sectorName?: string, issueDate?: string): Promise<string> {
-  const sectorCode = sectorName?.trim()
-    ? sectorName.trim().split(/\s+/).map((word, index) => index === 0 ? word.slice(0, 2) : word[0]).join("").toUpperCase()
-    : "GEN";
+  const sectorCode = sectorName?.trim().slice(0, 2).toUpperCase() || "GE";
   const year = issueDate?.slice(0, 4) || String(new Date().getFullYear());
   const nextNumber = await runTransaction(db, async (transaction) => {
     const counterRef = doc(db, "sequences", "quotationCounter");
@@ -64,7 +62,7 @@ async function generateQuotationNumber(sectorName?: string, issueDate?: string):
     transaction.set(counterRef, { nextNumber: next, updated_at: new Date().toISOString() });
     return next;
   });
-  return `QT-${sectorCode}-${year}-${String(nextNumber).padStart(4, "0")}`;
+  return `QT-${sectorCode}-${year}-${String(nextNumber).padStart(3, "0")}`;
 }
 
 function mapQuotation(id: string, data: Record<string, unknown>): Quotation {

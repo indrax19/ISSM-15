@@ -28,7 +28,6 @@ const quotationStatusStyles: Record<QuotationStatus, string> = {
 };
 const amount = (quotation: Quotation) => quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 const dateLabel = (value: string) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
-const sectorInitials = (name: string) => name.trim().split(/\s+/).map((word) => word[0]).join("").toUpperCase();
 
 export default function Quotations() {
   const navigate = useNavigate();
@@ -45,6 +44,9 @@ export default function Quotations() {
   const [retry, setRetry] = useState(0);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadChoiceQuotation, setDownloadChoiceQuotation] = useState<Quotation | null>(null);
+  const [duplicateQuotation, setDuplicateQuotation] = useState<Quotation | null>(null);
+  const [duplicateSectorProjectId, setDuplicateSectorProjectId] = useState("");
+  const [duplicating, setDuplicating] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -132,16 +134,38 @@ export default function Quotations() {
     }
   };
 
-  const handleDuplicate = async (quotation: Quotation) => {
-    const duplicate = { ...quotation, quotationNo: "", quotationStatus: "Draft" as QuotationStatus, items: quotation.items.map((item) => ({ ...item })) };
+  const handleDuplicate = (quotation: Quotation) => {
+    setDuplicateQuotation(quotation);
+    setDuplicateSectorProjectId("");
+  };
+
+  const confirmDuplicate = async () => {
+    if (!duplicateQuotation || !duplicateSectorProjectId) {
+      toast.error("Select a sector for the cloned quotation");
+      return;
+    }
+    const selectedProject = projects.find((project) => project.id === duplicateSectorProjectId);
+    if (!selectedProject) return;
+    const duplicate = {
+      ...duplicateQuotation,
+      quotationNo: "",
+      quotationStatus: "Draft" as QuotationStatus,
+      sectorProjectId: duplicateSectorProjectId,
+      sectorProjectName: selectedProject.name,
+      items: duplicateQuotation.items.map((item) => ({ ...item })),
+    };
     delete duplicate.id;
     delete duplicate.created_at;
     delete duplicate.updated_at;
+    setDuplicating(true);
     try {
       await quotationAPI.create(duplicate);
-      toast.success("Quotation duplicated");
+      setDuplicateQuotation(null);
+      toast.success("Quotation cloned");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to duplicate quotation");
+      toast.error(error?.message || "Failed to clone quotation");
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -161,6 +185,22 @@ export default function Quotations() {
 
   return (
     <>
+    <Dialog open={Boolean(duplicateQuotation)} onOpenChange={(open) => !open && setDuplicateQuotation(null)}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Clone quotation</DialogTitle></DialogHeader>
+        <div className="space-y-2">
+          <label htmlFor="duplicate-quotation-sector" className="text-sm font-medium">Select sector</label>
+          <select id="duplicate-quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={duplicateSectorProjectId} onChange={(event) => setDuplicateSectorProjectId(event.target.value)}>
+            <option value="">Choose a sector</option>
+            {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+          </select>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDuplicateQuotation(null)} disabled={duplicating}>Cancel</Button>
+          <Button onClick={confirmDuplicate} disabled={duplicating || !duplicateSectorProjectId}>{duplicating ? "Cloning..." : "Clone quotation"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <Dialog open={Boolean(downloadChoiceQuotation)} onOpenChange={(open) => !open && setDownloadChoiceQuotation(null)}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle>Download as</DialogTitle></DialogHeader>
@@ -194,7 +234,7 @@ export default function Quotations() {
       <Card><CardContent className="grid gap-4 pt-6 md:grid-cols-3">
         <div className="space-y-2"><label htmlFor="quotation-search" className="text-sm font-medium">Search</label><Input id="quotation-search" placeholder="Search quote number, customer, or reference..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-date" className="text-sm font-medium">Filter by Issue Date</label><Input id="quotation-date" type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} /></div>
-        <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{sectorInitials(project.name)}</option>)}</select></div>
+        <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
       </CardContent></Card>
 
       {fetchError && <ErrorAlert title="Error Loading Quotations" message={fetchError} onRetry={() => { setLoading(quotations.length === 0); setRetry((value) => value + 1); }} variant="destructive" />}
@@ -211,7 +251,7 @@ export default function Quotations() {
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-sm" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Duplicate quotation"><Copy className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Clone quotation"><Copy className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-700 hover:shadow-sm" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
               </div>
@@ -226,7 +266,7 @@ export default function Quotations() {
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-sm" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Duplicate quotation"><Copy className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Clone quotation"><Copy className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-700 hover:shadow-sm" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </div></TableCell>
             </TableRow>)}</TableBody>
