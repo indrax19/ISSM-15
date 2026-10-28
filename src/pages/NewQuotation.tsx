@@ -284,7 +284,7 @@ export default function NewQuotation() {
                 <div className="space-y-2"><Label htmlFor={`quotation-item-description-${index}`}>Description</Label><Textarea id={`quotation-item-description-${index}`} className={`min-h-20 resize-y ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-invalid={saveAttempted && !item.description.trim()} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label htmlFor={`quotation-item-quantity-${index}`}>Quantity</Label><Input id={`quotation-item-quantity-${index}`} className={saveAttempted && !Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} /></div>
-                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax Code (%)</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
                   <div className="col-span-2 space-y-2"><Label htmlFor={`quotation-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`quotation-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
                 </div>
                 <div className="space-y-2 border-t pt-3 text-sm">
@@ -310,7 +310,7 @@ export default function NewQuotation() {
                   <th className="w-16 px-4 py-3 font-semibold">Qty</th>
                   <th className="w-28 px-4 py-3 font-semibold">Unit Price</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Amount</th>
-                  <th className="w-24 px-4 py-3 font-semibold">Tax Code (%)</th>
+                  <th className="w-24 px-4 py-3 font-semibold">Tax</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Tax Amount</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Total (PKR)</th>
                   <th className="w-24 px-4 py-3 text-center font-semibold">Actions</th>
