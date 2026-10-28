@@ -9,6 +9,7 @@ import { DEFAULT_QUOTATION_NOTE } from "@/lib/quotationDefaults";
 const money = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const itemAmount = (item: Quotation["items"][number]) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
 const itemTaxRate = (item: Quotation["items"][number]) => Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+const sectionLabel = (itemType: "Hardware" | "Software") => itemType === "Software" ? "Services" : itemType;
 const itemTaxValue = (amount: number, taxPercent: number) => Math.round((amount * taxPercent / 100 + Number.EPSILON) * 100) / 100;
 
 function amountInWords(amount: number): string {
@@ -238,7 +239,7 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
       }
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(9);
-      pdf.text(itemType, margin, y + 2);
+      pdf.text(sectionLabel(itemType), pageWidth / 2, y + 2, { align: "center" });
       y += 4;
       drawItemsTable(sectionItems, rowOffset);
       rowOffset += sectionItems.length;
@@ -257,9 +258,9 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
         startY: y,
         margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
         body: [
-          [`${itemType} Sub-total (PKR)`, money(sectionSubtotal)],
+          [`${sectionLabel(itemType)} Sub-total (PKR)`, money(sectionSubtotal)],
           ...sectionTaxes.map(({ taxPercent, amount }) => [`GST ${taxPercent}% (PKR)`, money(amount)]),
-          [`${itemType} Total (PKR)`, money(sectionTotal)],
+          [`${sectionLabel(itemType)} Total (PKR)`, money(sectionTotal)],
         ],
         theme: "grid",
         styles: { font: "helvetica", fontSize: 7, cellPadding: 1.5, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
