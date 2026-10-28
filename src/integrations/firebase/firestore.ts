@@ -132,6 +132,7 @@ export interface PersonSite {
 export interface CompanyProfile {
   id?: string;
   company_name: string;
+  address?: string;
   phone: string;
   email: string;
   website?: string;

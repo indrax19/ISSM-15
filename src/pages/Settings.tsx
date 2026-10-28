@@ -32,6 +32,7 @@ const Settings = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [companyName, setCompanyName] = useState("");
+  const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
@@ -72,6 +73,7 @@ const Settings = () => {
 
   const resetForm = () => {
     setCompanyName("");
+    setAddress("");
     setPhone("");
     setEmail("");
     setWebsite("");
@@ -88,6 +90,7 @@ const Settings = () => {
   const handleEdit = (profile: CompanyProfile) => {
     setEditingId(profile.id || null);
     setCompanyName(profile.company_name || "");
+    setAddress(profile.address || "");
     setPhone(profile.phone || "");
     setEmail(profile.email || "");
     setWebsite(profile.website || "");
@@ -249,6 +252,7 @@ const Settings = () => {
     try {
       const profileData: Partial<CompanyProfile> = {
         company_name: companyName.trim(),
+        address: address.trim() || undefined,
         logo_url: logoUrl || undefined,
         signature_url: signatureUrl || undefined,
         phone: phone.trim(),
@@ -484,6 +488,18 @@ const Settings = () => {
                 placeholder="Your company name"
                 value={companyName}
                 onChange={(e) => setCompanyName(e.target.value)}
+                disabled={isBusy}
+              />
+            </div>
+
+            {/* Address */}
+            <div className="space-y-2">
+              <Label htmlFor="address">Address (optional)</Label>
+              <Input
+                id="address"
+                placeholder="Company address"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
                 disabled={isBusy}
               />
             </div>
