@@ -279,7 +279,7 @@ export default function Quotations() {
         </div>
       </CardContent></Card>
 
-      <Card><CardContent className="grid gap-4 pt-6 md:grid-cols-3">
+      <Card><CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-3">
         <div className="space-y-2"><label htmlFor="quotation-search" className="text-sm font-medium">Search</label><Input id="quotation-search" placeholder="Search quote number, customer, or reference..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-date" className="text-sm font-medium">Filter by Issue Date</label><Input id="quotation-date" type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
