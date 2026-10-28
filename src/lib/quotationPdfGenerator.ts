@@ -137,6 +137,7 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
       pdf.text(value, pageWidth - margin - pdf.getTextWidth(value), companyInfoY);
       companyInfoY += 4;
     };
+    companyDetail("Address", company?.address);
     companyDetail("Phone", company?.phone);
     companyDetail("Email", company?.email);
     companyDetail("Website", company?.website);
