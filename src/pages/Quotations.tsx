@@ -251,20 +251,17 @@ export default function Quotations() {
       </DialogContent>
     </Dialog>
     <div className="space-y-6 pb-6">
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div><h1 className="text-2xl font-bold sm:text-3xl">Quotations</h1><p className="mt-1 text-sm text-muted-foreground">Create, review, and download customer quotations</p></div>
-        <div className="flex w-full gap-2 sm:w-auto">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0"><h1 className="text-2xl font-bold sm:text-3xl">Quotations</h1><p className="mt-1 text-sm text-muted-foreground">Create, review, and download customer quotations</p></div>
+        <div className="flex shrink-0 gap-2">
           <Button onClick={handleRefresh} variant="outline" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/10 hover:text-primary hover:shadow-sm" disabled={refreshing} title="Refresh quotations"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /></Button>
-          <Button onClick={() => navigate("/quotations/new")} className="flex-1 gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:flex-none"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
+          <Button onClick={() => navigate("/quotations/new")} className="gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
         </div>
       </div>
 
-      <Card><CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <p className="text-sm font-semibold">Next Quotation Sequence</p>
-          <p className="text-xs text-muted-foreground">This number will be assigned to the next auto-generated quotation.</p>
-        </div>
-        <div className="flex w-full gap-2 sm:w-auto">
+      <Card><CardContent className="flex items-center justify-between gap-3 pt-5">
+        <p className="whitespace-nowrap text-sm font-semibold">Next Quotation Sequence</p>
+        <div className="flex w-auto shrink-0 gap-2">
           <Input
             aria-label="Next quotation sequence"
             className="sm:w-36"
