@@ -289,7 +289,7 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
         if (data.row.index === sectionRows.length - 1) data.cell.styles.fontStyle = "bold";
       },
     });
-    y = (pdf as any).lastAutoTable.finalY + 2;
+    y = (pdf as any).lastAutoTable.finalY + 6;
     drawAmountInWords(sectionTotal);
     y += 2;
   }

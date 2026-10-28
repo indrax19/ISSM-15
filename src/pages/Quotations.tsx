@@ -147,6 +147,7 @@ export default function Quotations() {
         fbrReference: quotation.fbrReference,
         items: quotation.items.map((item) => ({ ...item })),
         note: quotation.note,
+        showNoteInPdf: false,
         terms: quotation.terms,
         companyProfileId: quotation.companyProfileId,
         companyProfileName: quotation.companyProfileName,
