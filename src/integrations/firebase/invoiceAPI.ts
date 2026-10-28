@@ -12,7 +12,6 @@ import {
   runTransaction,
   Unsubscribe,
   updateDoc,
-  where,
 } from "firebase/firestore";
 import { db } from "./config";
 import { removeUndefined } from "./utils";
@@ -130,16 +129,6 @@ export const invoiceAPI = {
   async getById(id: string): Promise<Invoice | null> {
     const snapshot = await getDoc(doc(db, INVOICES_COLLECTION, id));
     return snapshot.exists() ? mapInvoice(snapshot.id, snapshot.data()) : null;
-  },
-
-  async getByQuotationId(quotationId: string): Promise<Invoice | null> {
-    const snapshot = await getDocs(query(
-      collection(db, INVOICES_COLLECTION),
-      where("sourceQuotationId", "==", quotationId),
-      limit(1),
-    ));
-    const invoice = snapshot.docs[0];
-    return invoice ? mapInvoice(invoice.id, invoice.data()) : null;
   },
 
   async getNextSequence(): Promise<number> {

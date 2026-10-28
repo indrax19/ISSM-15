@@ -136,12 +136,6 @@ export default function Quotations() {
     if (!quotation.id) return;
     setTransferringId(quotation.id);
     try {
-      const existingInvoice = await invoiceAPI.getByQuotationId(quotation.id);
-      if (existingInvoice?.id) {
-        toast.success("This quotation has already been transferred to an invoice");
-        navigate(`/invoices/${existingInvoice.id}`);
-        return;
-      }
       const invoice: Invoice = {
         invoiceNo: "",
         issueDate: quotation.issueDate,
