@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import type { CompanyPaymentDetails } from "@/integrations/firebase/invoiceAPI";
 import type { Quotation } from "@/integrations/firebase/quotationAPI";
 import { companyProfileAPI } from "@/integrations/firebase/firestore";
 import { downloadHighQualityPDF } from "@/lib/pdfCompression";
@@ -105,7 +106,7 @@ function quotationTermsToBlocks(value: string): QuotationTermBlock[] {
   return blocks;
 }
 
-export async function generateQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote"): Promise<Blob> {
+export async function generateQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote", paymentDetails?: CompanyPaymentDetails): Promise<Blob> {
   const pdf = new jsPDF({ format: "a4", unit: "mm", compress: true });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -313,7 +314,24 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
     y += 12 + noteLines.length * 4;
   }
 
-  if (quotation.terms.trim() || documentType === "Quote") {
+  if (documentType === "Invoice" && paymentDetails) {
+    const detailLines = (rows: [string, string][]) => rows.filter(([, value]) => value.trim()).map(([label, value]) => `${label}: ${value}`).join("\n");
+    autoTable(pdf, {
+      startY: y,
+      margin: { left: margin, right: margin, top: pageBodyTop },
+      head: [["COMPANY DETAILS", "BANK / PAYMENT DETAILS"]],
+      body: [[
+        detailLines([["Company Name", paymentDetails.companyName], ["Address", paymentDetails.address], ["NTN #", paymentDetails.ntn], ["Website", paymentDetails.website]]),
+        detailLines([["Bank", paymentDetails.bankName], ["Account Title", paymentDetails.accountTitle], ["Account No.", paymentDetails.accountNo], ["IBAN", paymentDetails.iban], ["Branch", paymentDetails.branch]]),
+      ]],
+      theme: "grid",
+      styles: { font: "helvetica", fontSize: 7, cellPadding: 2.5, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15, valign: "top" },
+      headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold" },
+    });
+    y = (pdf as any).lastAutoTable.finalY + 6;
+  }
+
+  if (documentType === "Quote") {
     ensureSpace(12);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8);
@@ -362,8 +380,8 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
   return pdf.output("blob");
 }
 
-export async function downloadQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote"): Promise<void> {
-  const blob = await generateQuotationPDF(quotation, documentType);
+export async function downloadQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote", paymentDetails?: CompanyPaymentDetails): Promise<void> {
+  const blob = await generateQuotationPDF(quotation, documentType, paymentDetails);
   const prefix = documentType === "Invoice" ? "Invoice-" : "";
   await downloadHighQualityPDF(blob, `${prefix}${quotation.quotationNo || documentType}.pdf`);
 }
