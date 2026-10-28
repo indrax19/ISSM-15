@@ -306,11 +306,11 @@ export default function NewQuotation() {
               <thead className="bg-muted/60">
                 <tr className="border-b text-left">
                   <th className="w-12 px-4 py-3 font-semibold text-muted-foreground">#</th>
-                  <th className="px-4 py-3 font-semibold">Description</th>
-                  <th className="w-24 px-4 py-3 font-semibold">Qty</th>
-                  <th className="w-36 px-4 py-3 font-semibold">Unit Price</th>
+                  <th className="w-[32%] px-4 py-3 font-semibold">Description</th>
+                  <th className="w-16 px-4 py-3 font-semibold">Qty</th>
+                  <th className="w-28 px-4 py-3 font-semibold">Unit Price</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Amount</th>
-                  <th className="w-28 px-4 py-3 font-semibold">Tax Code (%)</th>
+                  <th className="w-24 px-4 py-3 font-semibold">Tax Code (%)</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Tax Amount</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Total (PKR)</th>
                   <th className="w-24 px-4 py-3 text-center font-semibold">Actions</th>
@@ -321,17 +321,17 @@ export default function NewQuotation() {
                   <tr key={index} className="border-b last:border-0 transition-colors hover:bg-muted/20">
                     <td className="px-4 py-3 align-middle text-muted-foreground">{String(index + 1).padStart(2, "0")}</td>
                     <td className="px-4 py-3">
-                      <Textarea className={`min-h-20 min-w-[240px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
+                      <Textarea className={`min-h-20 min-w-[320px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
                     </td>
                     <td className="px-4 py-3">
-                      <Input className={`w-24 ${!Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""}`} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} />
+                      <Input className={`w-16 ${!Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""}`} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} />
                     </td>
                     <td className="px-4 py-3">
-                      <Input className="w-32" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
+                      <Input className="w-24" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
                     </td>
                     <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(itemAmount(item))}</td>
                     <td className="px-4 py-3">
-                      <Input className="w-24" type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} aria-label={`Item ${index + 1} tax code percent`} />
+                      <Input className="w-20" type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} aria-label={`Item ${index + 1} tax code percent`} />
                     </td>
                     <td className="px-4 py-3 text-right align-middle tabular-nums">{item.taxPercent ? formatPKR(itemTaxAmount(item)) : "—"}</td>
                     <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(itemTotal(item))}</td>
