@@ -48,9 +48,19 @@ export default function Quotations() {
   const [duplicateSectorProjectId, setDuplicateSectorProjectId] = useState("");
   const [duplicating, setDuplicating] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [nextSequence, setNextSequence] = useState("");
+  const [sequenceLoading, setSequenceLoading] = useState(true);
+  const [sequenceSaving, setSequenceSaving] = useState(false);
 
   useEffect(() => {
     parentProjectsAPI.getAllWithCounts().then(setProjects);
+  }, []);
+
+  useEffect(() => {
+    quotationAPI.getNextSequence()
+      .then((sequence) => setNextSequence(String(sequence)))
+      .catch((error: any) => toast.error(error?.message || "Could not load quotation sequence"))
+      .finally(() => setSequenceLoading(false));
   }, []);
 
   useEffect(() => {
@@ -80,6 +90,24 @@ export default function Quotations() {
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   useEffect(() => setCurrentPage(1), [searchTerm, filterDate, filterSector]);
+
+  const handleSequenceUpdate = async () => {
+    const sequence = Number(nextSequence);
+    if (!Number.isSafeInteger(sequence) || sequence < 1) {
+      toast.error("Enter a positive whole number for the next quotation sequence");
+      return;
+    }
+    setSequenceSaving(true);
+    try {
+      await quotationAPI.setNextSequence(sequence);
+      setNextSequence(String(sequence));
+      toast.success("Next quotation sequence updated");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update quotation sequence");
+    } finally {
+      setSequenceSaving(false);
+    }
+  };
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -230,6 +258,26 @@ export default function Quotations() {
           <Button onClick={() => navigate("/quotations/new")} className="flex-1 gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:flex-none"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
         </div>
       </div>
+
+      <Card><CardContent className="flex flex-col gap-3 pt-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-sm font-semibold">Next Quotation Sequence</p>
+          <p className="text-xs text-muted-foreground">This number will be assigned to the next auto-generated quotation.</p>
+        </div>
+        <div className="flex w-full gap-2 sm:w-auto">
+          <Input
+            aria-label="Next quotation sequence"
+            className="sm:w-36"
+            type="number"
+            min="1"
+            step="1"
+            value={nextSequence}
+            onChange={(event) => setNextSequence(event.target.value)}
+            disabled={sequenceLoading || sequenceSaving || !isAdmin}
+          />
+          {isAdmin && <Button type="button" onClick={handleSequenceUpdate} disabled={sequenceLoading || sequenceSaving}>{sequenceSaving ? "Saving..." : "Update sequence"}</Button>}
+        </div>
+      </CardContent></Card>
 
       <Card><CardContent className="grid gap-4 pt-6 md:grid-cols-3">
         <div className="space-y-2"><label htmlFor="quotation-search" className="text-sm font-medium">Search</label><Input id="quotation-search" placeholder="Search quote number, customer, or reference..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} /></div>

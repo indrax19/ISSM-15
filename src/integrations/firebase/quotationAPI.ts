@@ -90,6 +90,22 @@ export const quotationAPI = {
     return snapshot.docs.map((quotation) => mapQuotation(quotation.id, quotation.data()));
   },
 
+  async getNextSequence(): Promise<number> {
+    const snapshot = await getDoc(doc(db, "sequences", "quotationCounter"));
+    return (snapshot.exists() ? snapshot.data().nextNumber || 0 : 0) + 1;
+  },
+
+  async setNextSequence(nextSequence: number): Promise<void> {
+    if (!Number.isSafeInteger(nextSequence) || nextSequence < 1) {
+      throw new Error("Quotation sequence must be a positive whole number");
+    }
+    await runTransaction(db, async (transaction) => {
+      const counterRef = doc(db, "sequences", "quotationCounter");
+      await transaction.get(counterRef);
+      transaction.set(counterRef, { nextNumber: nextSequence - 1, updated_at: new Date().toISOString() });
+    });
+  },
+
   async getAll(): Promise<Quotation[]> {
     const snapshot = await getDocs(query(collection(db, QUOTATIONS_COLLECTION), orderBy("created_at", "desc")));
     return snapshot.docs.map((quotation) => mapQuotation(quotation.id, quotation.data()));
