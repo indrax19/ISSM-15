@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, Download, Eye, FileText, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Download, Eye, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { quotationAPI, QUOTATION_STATUSES, Quotation, QuotationStatus } from "@/integrations/firebase/quotationAPI";
@@ -40,7 +40,6 @@ export default function Quotations() {
   const [filterSector, setFilterSector] = useState("");
   const [projects, setProjects] = useState<ParentProject[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [refreshing, setRefreshing] = useState(false);
   const [retry, setRetry] = useState(0);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadChoiceQuotation, setDownloadChoiceQuotation] = useState<Quotation | null>(null);
@@ -108,19 +107,6 @@ export default function Quotations() {
       setSequenceSaving(false);
     }
   };
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      setQuotations(await quotationAPI.getLatest());
-      setFetchError(null);
-      toast.success("Quotations refreshed");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to refresh quotations");
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
 
   const handleDownload = (quotation: Quotation) => setDownloadChoiceQuotation(quotation);
 
@@ -251,20 +237,14 @@ export default function Quotations() {
       </DialogContent>
     </Dialog>
     <div className="space-y-6 pb-6">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0"><h1 className="text-2xl font-bold sm:text-3xl">Quotations</h1><p className="mt-1 text-sm text-muted-foreground">Create, review, and download customer quotations</p></div>
-        <div className="flex shrink-0 gap-2">
-          <Button onClick={handleRefresh} variant="outline" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/10 hover:text-primary hover:shadow-sm" disabled={refreshing} title="Refresh quotations"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /></Button>
-          <Button onClick={() => navigate("/quotations/new")} className="gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
-        </div>
-      </div>
-
-      <Card><CardContent className="flex items-center justify-between gap-3 pt-5">
-        <p className="whitespace-nowrap text-sm font-semibold">Next Quotation Sequence</p>
-        <div className="flex w-auto shrink-0 gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <label htmlFor="quotation-next-sequence" className="whitespace-nowrap text-sm font-semibold">Next Quotation Sequence</label>
           <Input
+            id="quotation-next-sequence"
             aria-label="Next quotation sequence"
-            className="sm:w-36"
+            className="w-20"
             type="number"
             min="1"
             step="1"
@@ -273,8 +253,9 @@ export default function Quotations() {
             disabled={sequenceLoading || sequenceSaving || !isAdmin}
           />
           {isAdmin && <Button type="button" onClick={handleSequenceUpdate} disabled={sequenceLoading || sequenceSaving}>{sequenceSaving ? "Saving..." : "Update sequence"}</Button>}
+          <Button onClick={() => navigate("/quotations/new")} className="gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
         </div>
-      </CardContent></Card>
+      </div>
 
       <Card><CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-3">
         <div className="space-y-2"><label htmlFor="quotation-search" className="text-sm font-medium">Search</label><Input id="quotation-search" placeholder="Search quote number, customer, or reference..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} /></div>
