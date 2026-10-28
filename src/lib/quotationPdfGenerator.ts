@@ -192,28 +192,30 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
   drawRightField("FBR Ref", quotation.fbrReference || "—", pageWidth - margin, y);
   y += 6;
 
-  const drawItemsTable = (items: Quotation["items"], startIndex = 0) => {
+  const drawItemsTable = (items: Quotation["items"], startIndex = 0, showTax = true) => {
+    const rows = items.map((item, index) => {
+      const amount = itemAmount(item);
+      const taxValue = itemTaxValue(amount, itemTaxRate(item));
+      const cells = [
+        String(startIndex + index + 1),
+        item.description,
+        String(item.quantity),
+        money(Number.isFinite(item.unitPrice) ? item.unitPrice : 0),
+        money(amount),
+        money(taxValue),
+        money(amount + taxValue),
+      ];
+      return showTax ? cells : [cells[0], cells[1], cells[2], cells[3], cells[6]];
+    });
     autoTable(pdf, {
       startY: y,
       margin: { left: margin, right: margin, top: pageBodyTop },
-      head: [["#", "Description", "Qty", "Unit Price", "Amount", "Tax Amount", "Total (PKR)"]],
-      body: items.map((item, index) => {
-        const amount = itemAmount(item);
-        const taxValue = itemTaxValue(amount, itemTaxRate(item));
-        return [
-          String(startIndex + index + 1),
-          item.description,
-          String(item.quantity),
-          money(Number.isFinite(item.unitPrice) ? item.unitPrice : 0),
-          money(amount),
-          money(taxValue),
-          money(amount + taxValue),
-        ];
-      }),
+      head: [showTax ? ["#", "Description", "Qty", "Unit Price", "Amount", "Tax Amount", "Total (PKR)"] : ["#", "Description", "Qty", "Unit Price", "Total (PKR)"]],
+      body: rows,
       theme: "grid",
       styles: { font: "helvetica", fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
       headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold", halign: "center" },
-      columnStyles: {
+      columnStyles: showTax ? {
         0: { cellWidth: 8, halign: "center" },
         1: { cellWidth: "auto" },
         2: { cellWidth: 10, halign: "center" },
@@ -221,9 +223,27 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
         4: { cellWidth: 23, halign: "right" },
         5: { cellWidth: 22, halign: "right" },
         6: { cellWidth: 25, halign: "right" },
+      } : {
+        0: { cellWidth: 8, halign: "center" },
+        1: { cellWidth: "auto" },
+        2: { cellWidth: 10, halign: "center" },
+        3: { cellWidth: 22, halign: "right" },
+        4: { cellWidth: 25, halign: "right" },
       },
     });
     y = (pdf as any).lastAutoTable.finalY + 3;
+  };
+
+  const drawAmountInWords = (amount: number) => {
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
+    const amountLabel = "Amount in Words:";
+    pdf.text(amountLabel, margin, y);
+    const amountLabelWidth = pdf.getTextWidth(`${amountLabel} `);
+    pdf.setFont("helvetica", "normal");
+    const amountWords = pdf.splitTextToSize(amountInWords(amount), pageWidth - margin * 2 - amountLabelWidth);
+    pdf.text(amountWords, margin + amountLabelWidth, y);
+    y += Math.max(7, amountWords.length * 4);
   };
 
   if (documentType === "Invoice") {
@@ -241,7 +261,7 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
       pdf.setFontSize(9);
       pdf.text(sectionLabel(itemType), pageWidth / 2, y + 2, { align: "center" });
       y += 4;
-      drawItemsTable(sectionItems, rowOffset);
+      drawItemsTable(sectionItems, rowOffset, sectionItems.some((item) => itemTaxRate(item) > 0));
       rowOffset += sectionItems.length;
 
       const sectionSubtotal = sectionItems.reduce((sum, item) => sum + itemAmount(item), 0);
@@ -254,60 +274,58 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
       const sectionTaxes = Array.from(sectionTaxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
         .sort((first, second) => first.taxPercent - second.taxPercent);
       const sectionTotal = sectionSubtotal + sectionTaxes.reduce((sum, tax) => sum + tax.amount, 0);
+      const label = sectionLabel(itemType);
+      const sectionRows = [
+        ["Sub-Total (PKR)", money(sectionSubtotal)],
+        ...sectionTaxes.map(({ taxPercent, amount }) => [`${label} GST ${taxPercent}% (PKR)`, money(amount)]),
+        ["Total (PKR)", money(sectionTotal)],
+      ];
       autoTable(pdf, {
         startY: y,
         margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
-        body: [
-          [`${sectionLabel(itemType)} Sub-total (PKR)`, money(sectionSubtotal)],
-          ...sectionTaxes.map(({ taxPercent, amount }) => [`GST ${taxPercent}% (PKR)`, money(amount)]),
-          [`${sectionLabel(itemType)} Total (PKR)`, money(sectionTotal)],
-        ],
+        body: sectionRows,
         theme: "grid",
         styles: { font: "helvetica", fontSize: 7, cellPadding: 1.5, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
         columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
         didParseCell: (data) => {
-          if (data.row.index === sectionTaxes.length + 1) data.cell.styles.fontStyle = "bold";
+          if (data.row.index === sectionRows.length - 1) data.cell.styles.fontStyle = "bold";
         },
       });
-      y = (pdf as any).lastAutoTable.finalY + 4;
+      y = (pdf as any).lastAutoTable.finalY + 2;
+      drawAmountInWords(sectionTotal);
+      y += 2;
     }
   }
-  const subtotal = quotation.items.reduce((sum, item) => sum + itemAmount(item), 0);
-  const taxByRate = new Map<number, number>();
-  quotation.items.forEach((item) => {
-    const taxPercent = itemTaxRate(item);
-    if (taxPercent <= 0) return;
-    taxByRate.set(taxPercent, (taxByRate.get(taxPercent) || 0) + itemTaxValue(itemAmount(item), taxPercent));
-  });
-  const taxBreakdown = Array.from(taxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
-    .sort((first, second) => first.taxPercent - second.taxPercent);
-  const totalTax = taxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
-  const total = subtotal + totalTax;
-  autoTable(pdf, {
-    startY: y,
-    margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
-    body: [
-      ["Sub-total (PKR)", money(subtotal)],
-      ...taxBreakdown.map(({ taxPercent, amount }) => [`GST ${taxPercent}% (PKR)`, money(amount)]),
-      ["Grand Total (PKR)", money(total)],
-    ],
-    theme: "grid",
-    styles: { font: "helvetica", fontSize: 8, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
-    columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
-    didParseCell: (data) => {
-      if (data.row.index === taxBreakdown.length + 1) data.cell.styles.fontStyle = "bold";
-    },
-  });
-  y = (pdf as any).lastAutoTable.finalY + 5;
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8);
-  const amountLabel = "Amount in Words:";
-  pdf.text(amountLabel, margin, y);
-  const amountLabelWidth = pdf.getTextWidth(`${amountLabel} `);
-  pdf.setFont("helvetica", "normal");
-  const amountWords = pdf.splitTextToSize(amountInWords(total), pageWidth - margin * 2 - amountLabelWidth);
-  pdf.text(amountWords, margin + amountLabelWidth, y);
-  y += Math.max(7, amountWords.length * 4);
+  if (documentType === "Invoice") {
+    const subtotal = quotation.items.reduce((sum, item) => sum + itemAmount(item), 0);
+    const taxByRate = new Map<number, number>();
+    quotation.items.forEach((item) => {
+      const taxPercent = itemTaxRate(item);
+      if (taxPercent <= 0) return;
+      taxByRate.set(taxPercent, (taxByRate.get(taxPercent) || 0) + itemTaxValue(itemAmount(item), taxPercent));
+    });
+    const taxBreakdown = Array.from(taxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
+      .sort((first, second) => first.taxPercent - second.taxPercent);
+    const totalTax = taxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
+    const total = subtotal + totalTax;
+    autoTable(pdf, {
+      startY: y,
+      margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
+      body: [
+        ["Sub-total (PKR)", money(subtotal)],
+        ...taxBreakdown.map(({ taxPercent, amount }) => [`GST ${taxPercent}% (PKR)`, money(amount)]),
+        ["Grand Total (PKR)", money(total)],
+      ],
+      theme: "grid",
+      styles: { font: "helvetica", fontSize: 8, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
+      columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
+      didParseCell: (data) => {
+        if (data.row.index === taxBreakdown.length + 1) data.cell.styles.fontStyle = "bold";
+      },
+    });
+    y = (pdf as any).lastAutoTable.finalY + 5;
+    drawAmountInWords(total);
+  }
 
   const ensureSpace = (needed: number) => {
     if (y + needed > pageHeight - 14) {
