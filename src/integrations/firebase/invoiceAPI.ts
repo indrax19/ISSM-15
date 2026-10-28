@@ -23,6 +23,7 @@ export interface InvoiceEquipment {
   details?: string;
   quantity: number;
   unitPrice: number;
+  taxPercent?: number;
   barcodes?: string[];
   category_id?: string;
   subcategory_id?: string;
@@ -50,6 +51,15 @@ export interface Invoice {
   invoiceType?: InvoiceType;
   invoiceNo: string;
   date: string;
+  validTill?: string;
+  customerName?: string;
+  customerAddress?: string;
+  customerPhone?: string;
+  quoteReference?: string;
+  fbrReference?: string;
+  note?: string;
+  terms?: string;
+  items?: InvoiceEquipment[];
   poNumber?: string;
   millName: string;
   location: string;
@@ -57,10 +67,13 @@ export interface Invoice {
   equipment: InvoiceEquipment[];
   invoiceAmount: number;
   balancePaid: number;
-  invoiceStatus?: "draft" | "completed" | "paid";
+  invoiceStatus?: "draft" | "completed" | "paid" | "send" | "pending" | "approved" | "rejected" | "expired" | "cancelled";
   poStatus?: "pending" | "completed" | "cancelled";
   invoiceCategory?: "Hardware" | "Software" | "Deployment";
   invoiceTo?: string;
+  sectorProjectId?: string;
+  sectorProjectName?: string;
+  quotationStatus?: "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
   companyProfileId?: string;
   companyProfileName?: string;
   status?: "draft" | "completed";

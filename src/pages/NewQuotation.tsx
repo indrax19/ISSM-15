@@ -297,7 +297,7 @@ export default function NewQuotation() {
             ))}
             <div className="overflow-hidden rounded-xl border text-sm">
               <div className="flex justify-between border-b px-4 py-2.5"><span>Sub-total (PKR)</span><span className="font-semibold tabular-nums">{formatPKR(subtotal)}</span></div>
-              {fbrGst > 0 && <div className="flex justify-between border-b px-4 py-2.5"><span>FBR GST (PKR)</span><span className="tabular-nums">{formatPKR(fbrGst)}</span></div>}
+              {fbrGst > 0 && <div className="flex justify-between border-b px-4 py-2.5"><span>GST 18% (PKR)</span><span className="tabular-nums">{formatPKR(fbrGst)}</span></div>}
               <div className="flex justify-between px-4 py-2.5 font-bold"><span>Grand Total (PKR)</span><span className="tabular-nums">{formatPKR(total)}</span></div>
             </div>
           </div>
@@ -352,7 +352,7 @@ export default function NewQuotation() {
                 </tr>
                 {fbrGst > 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-2 text-right">FBR GST (PKR)</td>
+                    <td colSpan={7} className="px-4 py-2 text-right">GST 18% (PKR)</td>
                     <td className="px-4 py-2 text-right tabular-nums">{formatPKR(fbrGst)}</td>
                     <td />
                   </tr>
