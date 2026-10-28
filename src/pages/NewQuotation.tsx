@@ -250,7 +250,7 @@ export default function NewQuotation() {
       <Card>
         <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Quotation Details</CardTitle></CardHeader>
         <CardContent className="grid min-w-0 grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0 lg:grid-cols-3 2xl:grid-cols-5">
-          <div className="min-w-0 space-y-2"><Label>Quote Number</Label><Input className="min-w-0" value={quotationNo} placeholder="Auto-generated on save" readOnly /></div>
+          <div className="min-w-0 space-y-2"><Label>Quote Number</Label><Input className="min-w-0" value={quotationNo} onChange={(event) => setQuotationNo(event.target.value)} placeholder="Auto-generated on save" /></div>
           <div className="min-w-0 space-y-2"><Label>Issue Date *</Label><Input className={`min-w-0 ${saveAttempted && !issueDate ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required aria-invalid={saveAttempted && !issueDate} /></div>
           <div className="min-w-0 space-y-2"><Label>Valid Till *</Label><Input className={`min-w-0 ${saveAttempted && !validTill ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required aria-invalid={saveAttempted && !validTill} /></div>
           <div className="min-w-0 space-y-2"><Label>Quote Reference</Label><Input className="min-w-0" value={quoteReference} onChange={(event) => setQuoteReference(event.target.value)} placeholder="e.g. Q-2026-001" /></div>
