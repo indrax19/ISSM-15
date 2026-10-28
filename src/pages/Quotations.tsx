@@ -26,6 +26,9 @@ const quotationStatusStyles: Record<QuotationStatus, string> = {
   Reject: "bg-red-50 hover:bg-red-100",
   Expired: "bg-orange-50 hover:bg-orange-100",
   Cancelled: "bg-gray-100 text-gray-500 hover:bg-gray-200",
+  Process: "bg-violet-50 hover:bg-violet-100",
+  Revised: "bg-sky-50 hover:bg-sky-100",
+  PO: "bg-teal-50 hover:bg-teal-100",
 };
 const amount = (quotation: Quotation) => quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 const dateLabel = (value: string) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
@@ -309,7 +312,7 @@ export default function Quotations() {
             <TableHeader><TableRow><TableHead>Quote No</TableHead><TableHead>Issue Date</TableHead><TableHead>Valid Till</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Total (PKR)</TableHead><TableHead>Sector</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
             <TableBody>{paginated.map((quotation) => <TableRow key={quotation.id} className={quotationStatusStyles[quotation.quotationStatus || "Draft"]}>
               <TableCell className="font-mono font-semibold">{quotation.quotationNo}</TableCell><TableCell>{dateLabel(quotation.issueDate)}</TableCell><TableCell>{dateLabel(quotation.validTill)}</TableCell><TableCell>{quotation.customerName}</TableCell><TableCell className="text-right">{amount(quotation).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</TableCell><TableCell>{quotation.sectorProjectName || "—"}</TableCell>
-              <TableCell><select className="h-9 min-w-28 rounded-md border border-input bg-background px-2 text-sm" value={quotation.quotationStatus || "Draft"} onChange={(event) => handleStatusChange(quotation, event.target.value as QuotationStatus)} aria-label={`Status for ${quotation.quotationNo}`}>{QUOTATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></TableCell>
+              <TableCell><select className="h-9 min-w-24 rounded-md border border-input bg-background px-2 text-sm" value={quotation.quotationStatus || "Draft"} onChange={(event) => handleStatusChange(quotation, event.target.value as QuotationStatus)} aria-label={`Status for ${quotation.quotationNo}`}>{QUOTATION_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></TableCell>
               <TableCell><div className="grid w-fit grid-cols-3 gap-1">
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
