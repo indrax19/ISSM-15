@@ -42,7 +42,6 @@ export default function Quotations() {
   const [currentPage, setCurrentPage] = useState(1);
   const [retry, setRetry] = useState(0);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [downloadChoiceQuotation, setDownloadChoiceQuotation] = useState<Quotation | null>(null);
   const [duplicateQuotation, setDuplicateQuotation] = useState<Quotation | null>(null);
   const [duplicateSectorProjectId, setDuplicateSectorProjectId] = useState("");
   const [duplicating, setDuplicating] = useState(false);
@@ -108,18 +107,13 @@ export default function Quotations() {
     }
   };
 
-  const handleDownload = (quotation: Quotation) => setDownloadChoiceQuotation(quotation);
-
-  const downloadSelectedDocument = async (documentType: "Quote" | "Invoice") => {
-    if (!downloadChoiceQuotation) return;
-    const quotation = downloadChoiceQuotation;
-    setDownloadChoiceQuotation(null);
+  const handleDownload = async (quotation: Quotation) => {
     setDownloadingId(quotation.id || null);
     try {
-      await downloadQuotationPDF(quotation, documentType);
-      toast.success(`${documentType} PDF downloaded`);
+      await downloadQuotationPDF(quotation);
+      toast.success("Quotation PDF downloaded");
     } catch (error: any) {
-      toast.error(error?.message || `Failed to download ${documentType.toLowerCase()} PDF`);
+      toast.error(error?.message || "Failed to download quotation PDF");
     } finally {
       setDownloadingId(null);
     }
@@ -212,16 +206,6 @@ export default function Quotations() {
         <DialogFooter>
           <Button variant="outline" onClick={() => setDuplicateQuotation(null)} disabled={duplicating}>Cancel</Button>
           <Button onClick={confirmDuplicate} disabled={duplicating || !duplicateSectorProjectId}>{duplicating ? "Cloning..." : "Clone quotation"}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    <Dialog open={Boolean(downloadChoiceQuotation)} onOpenChange={(open) => !open && setDownloadChoiceQuotation(null)}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Download as</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">Choose the document type for this PDF.</p>
-        <DialogFooter>
-          <Button variant="outline" className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/10 hover:text-primary hover:shadow-sm" onClick={() => downloadSelectedDocument("Quote")} disabled={downloadingId !== null}>Quote</Button>
-          <Button className="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md" onClick={() => downloadSelectedDocument("Invoice")} disabled={downloadingId !== null}>Invoice</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

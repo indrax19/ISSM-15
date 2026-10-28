@@ -35,7 +35,6 @@ export const AVAILABLE_PERMISSIONS = [
   { id: "transactions", label: "Transactions", description: "View transaction history" },
   { id: "delivery-challans", label: "Delivery Challans", description: "Create and manage delivery challans" },
   { id: "quotations", label: "Quotations", description: "Create and manage quotations" },
-  { id: "invoices", label: "Invoices", description: "Create and manage invoices" },
   { id: "sites", label: "Technical Details", description: "Manage site details and locations" },
   { id: "project-tracking", label: "Project Tracking", description: "Track and manage projects" },
   { id: "sla", label: "SLA", description: "Manage and track SLA projects and sub projects" },
@@ -52,7 +51,7 @@ export const AVAILABLE_PERMISSIONS = [
 
 export const AVAILABLE_PERMISSION_GROUPS = [
   { title: "Dashboard", permissionIds: ["dashboard"] },
-  { title: "Operations", permissionIds: ["inventory", "scan", "personal-inventory", "delivery-challans", "quotations", "invoices"] },
+  { title: "Operations", permissionIds: ["inventory", "scan", "personal-inventory", "delivery-challans", "quotations"] },
   { title: "Projects & Services", permissionIds: ["project-tracking", "sla", "sites"] },
   { title: "Customers", permissionIds: ["customer-data", "outreach-mill", "survey-reports", "reports"] },
   { title: "Support", permissionIds: ["complaints", "issue-reporting", "knowledge-base-upload", "knowledge-base-delete"] },
