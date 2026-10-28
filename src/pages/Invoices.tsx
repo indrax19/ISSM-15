@@ -36,6 +36,7 @@ const invoiceStatus = (invoice: Invoice): InvoiceWorkflowStatus => {
 const lineAmount = (invoice: Invoice) => invoice.equipment.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 const lineTax = (invoice: Invoice) => invoice.equipment.reduce((sum, item) => sum + item.quantity * item.unitPrice * (item.taxPercent || 0) / 100, 0);
 const totalAmount = (invoice: Invoice) => lineAmount(invoice) + lineTax(invoice);
+const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dateLabel = (value?: string) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
 
 export default function Invoices() {
