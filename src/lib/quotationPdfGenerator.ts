@@ -315,20 +315,52 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
   }
 
   if (documentType === "Invoice" && paymentDetails) {
-    const detailLines = (rows: [string, string][]) => rows.filter(([, value]) => value.trim()).map(([label, value]) => `${label}: ${value}`).join("\n");
-    autoTable(pdf, {
-      startY: y,
-      margin: { left: margin, right: margin, top: pageBodyTop },
-      head: [["COMPANY DETAILS", "BANK / PAYMENT DETAILS"]],
-      body: [[
-        detailLines([["Company Name", paymentDetails.companyName], ["Address", paymentDetails.address], ["NTN #", paymentDetails.ntn], ["Website", paymentDetails.website]]),
-        detailLines([["Bank", paymentDetails.bankName], ["Account Title", paymentDetails.accountTitle], ["Account No.", paymentDetails.accountNo], ["IBAN", paymentDetails.iban], ["Branch", paymentDetails.branch]]),
-      ]],
-      theme: "grid",
-      styles: { font: "helvetica", fontSize: 7, cellPadding: 2.5, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15, valign: "top" },
-      headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold" },
-    });
-    y = (pdf as any).lastAutoTable.finalY + 6;
+    const columnWidth = (pageWidth - margin * 2) / 2;
+    const lineHeight = 3.8;
+    const headerHeight = 6;
+    const companyRows: [string, string][] = [["Company Name", paymentDetails.companyName], ["Address", paymentDetails.address], ["NTN #", paymentDetails.ntn], ["Website", paymentDetails.website]];
+    const bankRows: [string, string][] = [["Bank", paymentDetails.bankName], ["Account Title", paymentDetails.accountTitle], ["Account No.", paymentDetails.accountNo], ["IBAN", paymentDetails.iban], ["Branch", paymentDetails.branch]];
+    const drawDetailColumn = (rows: [string, string][], x: number, top: number, draw: boolean) => {
+      let cursor = top;
+      pdf.setFontSize(7);
+      for (const [label, value] of rows) {
+        if (!value.trim()) continue;
+        const labelText = `${label}: `;
+        pdf.setFont("helvetica", "bold");
+        const labelWidth = pdf.getTextWidth(labelText);
+        pdf.setFont("helvetica", "normal");
+        const valueLines = pdf.splitTextToSize(value.trim(), columnWidth - 4 - labelWidth);
+        if (draw) {
+          pdf.setFont("helvetica", "bold");
+          pdf.text(labelText, x, cursor);
+          pdf.setFont("helvetica", "normal");
+          valueLines.forEach((line, index) => pdf.text(line, x + labelWidth, cursor + index * lineHeight));
+        }
+        cursor += valueLines.length * lineHeight + 1;
+      }
+      return cursor;
+    };
+    const bodyHeight = Math.max(
+      drawDetailColumn(companyRows, margin + 2, 0, false),
+      drawDetailColumn(bankRows, margin + columnWidth + 2, 0, false),
+    ) + 5;
+    ensureSpace(headerHeight + bodyHeight + 6);
+    pdf.setFillColor(245, 245, 245);
+    pdf.setDrawColor(185, 185, 185);
+    pdf.setLineWidth(0.15);
+    pdf.rect(margin, y, pageWidth - margin * 2, headerHeight, "FD");
+    pdf.rect(margin, y, pageWidth - margin * 2, headerHeight + bodyHeight, "S");
+    pdf.line(margin + columnWidth, y, margin + columnWidth, y + headerHeight + bodyHeight);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(7);
+    pdf.setTextColor(25);
+    pdf.text("COMPANY DETAILS", margin + columnWidth / 2, y + 4, { align: "center" });
+    pdf.text("BANK / PAYMENT DETAILS", margin + columnWidth * 1.5, y + 4, { align: "center" });
+    pdf.setTextColor(30);
+    const bodyTop = y + headerHeight + 3.5;
+    drawDetailColumn(companyRows, margin + 2, bodyTop, true);
+    drawDetailColumn(bankRows, margin + columnWidth + 2, bodyTop, true);
+    y += headerHeight + bodyHeight + 6;
   }
 
   if (documentType === "Quote") {
