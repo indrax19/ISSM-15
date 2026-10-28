@@ -40,9 +40,18 @@ function normalizeInvoiceType(invoiceType?: string): InvoiceType {
 }
 
 function mapInvoice(docId: string, data: Record<string, any>): Invoice {
+  const equipment = Array.isArray(data.equipment)
+    ? data.equipment.filter((item: unknown) => item && typeof item === "object").map((item: Record<string, any>) => ({
+        ...item,
+        name: typeof item.name === "string" ? item.name : "",
+        quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 0,
+        unitPrice: Number.isFinite(Number(item.unitPrice)) ? Number(item.unitPrice) : 0,
+      }))
+    : [];
   return {
     id: docId,
     ...data,
+    equipment,
     invoiceType: normalizeInvoiceType(data.invoiceType),
   } as Invoice;
 }
