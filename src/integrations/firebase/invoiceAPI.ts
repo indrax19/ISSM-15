@@ -25,6 +25,18 @@ export interface InvoiceItem {
   unitPrice: number;
 }
 
+export interface CompanyPaymentDetails {
+  companyName: string;
+  address: string;
+  ntn: string;
+  website: string;
+  bankName: string;
+  accountTitle: string;
+  accountNo: string;
+  iban: string;
+  branch: string;
+}
+
 export type InvoiceStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
 export const INVOICE_STATUSES: InvoiceStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled"];
 
@@ -41,6 +53,7 @@ export interface Invoice {
   items: InvoiceItem[];
   note: string;
   terms: string;
+  companyPaymentDetails?: CompanyPaymentDetails;
   companyProfileId?: string;
   companyProfileName?: string;
   sectorProjectId?: string;

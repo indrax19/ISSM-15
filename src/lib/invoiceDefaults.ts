@@ -1,3 +1,17 @@
+import type { CompanyPaymentDetails } from "@/integrations/firebase/invoiceAPI";
+
+export const DEFAULT_COMPANY_PAYMENT_DETAILS: CompanyPaymentDetails = {
+  companyName: "ISSM Labelling Solutions Pvt. Ltd.",
+  address: "First Floor, Daftarkhwan North, Plot No. 94, Street 7, Sector I10/3, Islamabad.",
+  ntn: "A033994",
+  website: "www.issm.ai",
+  bankName: "Bank AL Habib Limited (BAHL)",
+  accountTitle: "ISSM Labelling Solutions Pvt. Ltd.",
+  accountNo: "0086-0981-013092-01-4",
+  iban: "PK08BAHL0086098101309201",
+  branch: "I-10 Markaz Branch, Plot #9, I-10 Markaz, Islamabad (Branch Code 0086-000)",
+};
+
 export const DEFAULT_INVOICE_NOTE = "All other material that is not included in the above invoice will be provided by the client i.e., conduit, duct, piping, splicing, etc. Fiber, industrial grade, etc., and other additional and required equipment will be charged separately.";
 
 export const DEFAULT_INVOICE_TERMS = `Taxes & Duties:

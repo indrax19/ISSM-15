@@ -1,98 +1,29 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Bold, Italic, List, ListOrdered, Heading2, Copy } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { invoiceAPI, Invoice, InvoiceItem } from "@/integrations/firebase/invoiceAPI";
+import { CompanyPaymentDetails, invoiceAPI, Invoice, InvoiceItem } from "@/integrations/firebase/invoiceAPI";
 import { CompanyProfile, companyProfileAPI } from "@/integrations/firebase/firestore";
 import { parentProjectsAPI, ParentProject } from "@/integrations/firebase/parentProjectsAPI";
 import { downloadInvoicePDF } from "@/lib/invoicePdfGenerator";
-import { DEFAULT_INVOICE_NOTE, DEFAULT_INVOICE_TERMS } from "@/lib/invoiceDefaults";
+import { DEFAULT_COMPANY_PAYMENT_DETAILS, DEFAULT_INVOICE_NOTE, DEFAULT_INVOICE_TERMS } from "@/lib/invoiceDefaults";
 
-function termsTextToHtml(text: string) {
-  // Keep existing saved plain-text terms readable when opening an older invoice.
-  if (/<(h[1-6]|p|ul|ol|li|strong|em|div)\b/i.test(text)) return text;
-  return text.split(/\r?\n/).map((line) => {
-    const trimmed = line.trim();
-    if (!trimmed) return "<p><br /></p>";
-    if (trimmed.endsWith(":") && !trimmed.startsWith("-")) {
-      return `<h3>${trimmed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h3>`;
-    }
-    if (trimmed.startsWith("- ")) {
-      const content = trimmed.slice(2).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-      return `<ul><li>${content}</li></ul>`;
-    }
-    return `<p>${trimmed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
-  }).join("");
-}
-
-function TermsRichEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const lastEmitted = useRef("");
-  const runCommand = (command: string, argument?: string) => {
-    editorRef.current?.focus();
-    document.execCommand(command, false, argument);
-    if (editorRef.current) {
-      const html = editorRef.current.innerHTML;
-      lastEmitted.current = html;
-      onChange(html);
-    }
-  };
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || value === lastEmitted.current) return;
-    editor.innerHTML = termsTextToHtml(value);
-  }, [value]);
-
-  const toolbarButton = (label: string, title: string, command: string, icon: React.ReactNode, argument?: string) => (
-    <Button
-      key={command}
-      type="button"
-      variant="outline"
-      size="sm"
-      title={title}
-      aria-label={title}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => runCommand(command, argument)}
-    >
-      {icon}<span className="ml-1 hidden sm:inline">{label}</span>
-    </Button>
-  );
-
-  return (
-    <div className="overflow-hidden rounded-md border">
-      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 p-2">
-        {toolbarButton("Bold", "Bold", "bold", <Bold className="h-4 w-4" />)}
-        {toolbarButton("Italic", "Italic", "italic", <Italic className="h-4 w-4" />)}
-        {toolbarButton("Heading", "Section heading", "formatBlock", <Heading2 className="h-4 w-4" />, "h3")}
-        {toolbarButton("Bullets", "Bulleted list", "insertUnorderedList", <List className="h-4 w-4" />)}
-        {toolbarButton("Numbering", "Numbered list", "insertOrderedList", <ListOrdered className="h-4 w-4" />)}
-      </div>
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-label="General Terms and Conditions editor"
-        aria-multiline="true"
-        onInput={(event) => {
-          const html = event.currentTarget.innerHTML;
-          lastEmitted.current = html;
-          onChange(html);
-        }}
-        className="min-h-[280px] space-y-2 p-3 text-sm outline-none sm:min-h-[320px] sm:p-4 [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:min-h-5 [&_ul]:my-2 [&_ol]:my-2"
-      />
-      <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-        Select text and use Bold, Italic, Heading, Bullets, or Numbering to format the terms.
-      </p>
-    </div>
-  );
-}
+const COMPANY_PAYMENT_FIELDS: { key: keyof CompanyPaymentDetails; label: string }[] = [
+  { key: "companyName", label: "Company Name" },
+  { key: "address", label: "Address" },
+  { key: "ntn", label: "NTN #" },
+  { key: "website", label: "Website" },
+  { key: "bankName", label: "Bank" },
+  { key: "accountTitle", label: "Account Title" },
+  { key: "accountNo", label: "Account No." },
+  { key: "iban", label: "IBAN" },
+  { key: "branch", label: "Branch" },
+];
 
 const today = () => new Date().toISOString().slice(0, 10);
 const defaultValidTill = () => {
@@ -131,6 +62,7 @@ export default function NewInvoice() {
   const [items, setItems] = useState<InvoiceItem[]>([emptyInvoiceItem()]);
   const [note, setNote] = useState(DEFAULT_INVOICE_NOTE);
   const [terms, setTerms] = useState(DEFAULT_INVOICE_TERMS);
+  const [companyPaymentDetails, setCompanyPaymentDetails] = useState<CompanyPaymentDetails>(DEFAULT_COMPANY_PAYMENT_DETAILS);
   const displayItems = useMemo(() => ((["Hardware", "Software"] as const).flatMap((itemType) => items.flatMap((item, index) => (item.itemType || "Hardware") === itemType ? [{ item, index }] : []))), [items]);
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
   const taxBreakdown = useMemo(() => {
@@ -188,6 +120,7 @@ export default function NewInvoice() {
       setItems(invoice.items?.length ? invoice.items.map((item) => ({ ...item, itemType: item.itemType || "Hardware", taxPercent: item.taxPercent ?? 0 })) : [emptyInvoiceItem()]);
       setNote(invoice.note ?? DEFAULT_INVOICE_NOTE);
       setTerms(invoice.terms ?? DEFAULT_INVOICE_TERMS);
+      setCompanyPaymentDetails(invoice.companyPaymentDetails ?? DEFAULT_COMPANY_PAYMENT_DETAILS);
       setCompanyProfileId(invoice.companyProfileId || "");
       setSectorProjectId(invoice.sectorProjectId || "");
     }).catch(() => toast.error("Failed to load invoice")).finally(() => setLoading(false));
@@ -228,6 +161,7 @@ export default function NewInvoice() {
         items: displayItems.map(({ item }) => ({ ...item, itemType: item.itemType || "Hardware" })),
         note,
         terms,
+        companyPaymentDetails,
         companyProfileId: companyProfileId || undefined,
         companyProfileName: profile?.company_name,
         sectorProjectId: sectorProjectId || undefined,
@@ -411,7 +345,21 @@ export default function NewInvoice() {
       </Card>
 
       <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Note</CardTitle></CardHeader><CardContent className="p-4 pt-0 sm:p-6 sm:pt-0"><Textarea className="w-full resize-y" value={note} onChange={(event) => setNote(event.target.value)} rows={4} /></CardContent></Card>
-      <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">General Terms &amp; Conditions</CardTitle></CardHeader><CardContent className="p-4 pt-0 sm:p-6 sm:pt-0"><TermsRichEditor value={terms} onChange={setTerms} /></CardContent></Card>
+      <Card>
+        <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Company and Payment Details</CardTitle></CardHeader>
+        <CardContent className="grid gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0">
+          {COMPANY_PAYMENT_FIELDS.map(({ key, label }) => (
+            <div key={key} className={key === "address" || key === "branch" ? "space-y-2 sm:col-span-2" : "space-y-2"}>
+              <Label htmlFor={`company-${key}`}>{label}</Label>
+              <Input
+                id={`company-${key}`}
+                value={companyPaymentDetails[key]}
+                onChange={(event) => setCompanyPaymentDetails((current) => ({ ...current, [key]: event.target.value }))}
+              />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={() => navigate("/invoices")}>Cancel</Button>
