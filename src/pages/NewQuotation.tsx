@@ -102,8 +102,11 @@ const defaultValidTill = () => {
 };
 const emptyQuotationItem = (): QuotationItem => ({ description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
 const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const itemAmount = (item: QuotationItem) => Number.isFinite(item.quantity) ? item.quantity * item.unitPrice : 0;
-const itemTaxAmount = (item: QuotationItem) => Math.round((itemAmount(item) * (item.taxPercent || 0) / 100 + Number.EPSILON) * 100) / 100;
+const itemAmount = (item: QuotationItem) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
+const itemTaxAmount = (item: QuotationItem) => {
+  const taxPercent = Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+  return Math.round((itemAmount(item) * taxPercent / 100 + Number.EPSILON) * 100) / 100;
+};
 const itemTotal = (item: QuotationItem) => itemAmount(item) + itemTaxAmount(item);
 
 export default function NewQuotation() {
@@ -128,8 +131,18 @@ export default function NewQuotation() {
   const [note, setNote] = useState(DEFAULT_QUOTATION_NOTE);
   const [terms, setTerms] = useState(DEFAULT_QUOTATION_TERMS);
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
-  const fbrGst = useMemo(() => items.reduce((sum, item) => sum + itemTaxAmount(item), 0), [items]);
-  const total = subtotal + fbrGst;
+  const taxBreakdown = useMemo(() => {
+    const taxByRate = new Map<number, number>();
+    items.forEach((item) => {
+      const taxPercent = Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+      if (taxPercent <= 0) return;
+      taxByRate.set(taxPercent, (taxByRate.get(taxPercent) || 0) + itemTaxAmount(item));
+    });
+    return Array.from(taxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
+      .sort((first, second) => first.taxPercent - second.taxPercent);
+  }, [items]);
+  const totalTax = taxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
+  const total = subtotal + totalTax;
   const missingFields = [
     !issueDate && "Issue Date",
     !validTill && "Valid Till",
@@ -137,6 +150,8 @@ export default function NewQuotation() {
     ...items.flatMap((item, index) => [
       !item.description.trim() && `Item ${index + 1} Description`,
       !Number.isFinite(item.quantity) && `Item ${index + 1} Quantity`,
+      !Number.isFinite(item.unitPrice) && `Item ${index + 1} Unit Price`,
+      !Number.isFinite(item.taxPercent ?? 0) && `Item ${index + 1} Tax`,
     ]),
   ].filter((field): field is string => Boolean(field));
 
@@ -284,7 +299,7 @@ export default function NewQuotation() {
                 <div className="space-y-2"><Label htmlFor={`quotation-item-description-${index}`}>Description</Label><Textarea id={`quotation-item-description-${index}`} className={`min-h-20 resize-y ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-invalid={saveAttempted && !item.description.trim()} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label htmlFor={`quotation-item-quantity-${index}`}>Quantity</Label><Input id={`quotation-item-quantity-${index}`} className={saveAttempted && !Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} /></div>
-                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax (%)</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
                   <div className="col-span-2 space-y-2"><Label htmlFor={`quotation-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`quotation-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
                 </div>
                 <div className="space-y-2 border-t pt-3 text-sm">
@@ -297,7 +312,7 @@ export default function NewQuotation() {
             ))}
             <div className="overflow-hidden rounded-xl border text-sm">
               <div className="flex justify-between border-b px-4 py-2.5"><span>Sub-total (PKR)</span><span className="font-semibold tabular-nums">{formatPKR(subtotal)}</span></div>
-              {fbrGst > 0 && <div className="flex justify-between border-b px-4 py-2.5"><span>GST 18% (PKR)</span><span className="tabular-nums">{formatPKR(fbrGst)}</span></div>}
+              {taxBreakdown.map(({ taxPercent, amount }) => <div key={taxPercent} className="flex justify-between border-b px-4 py-2.5"><span>GST {taxPercent}% (PKR)</span><span className="tabular-nums">{formatPKR(amount)}</span></div>)}
               <div className="flex justify-between px-4 py-2.5 font-bold"><span>Grand Total (PKR)</span><span className="tabular-nums">{formatPKR(total)}</span></div>
             </div>
           </div>
@@ -310,7 +325,7 @@ export default function NewQuotation() {
                   <th className="w-16 px-4 py-3 font-semibold">Qty</th>
                   <th className="w-28 px-4 py-3 font-semibold">Unit Price</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Amount</th>
-                  <th className="w-24 px-4 py-3 font-semibold">Tax</th>
+                  <th className="w-24 px-4 py-3 font-semibold">Tax (%)</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Tax Amount</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Total (PKR)</th>
                   <th className="w-24 px-4 py-3 text-center font-semibold">Actions</th>
@@ -350,13 +365,13 @@ export default function NewQuotation() {
                   <td className="px-4 py-2 text-right font-semibold tabular-nums">{formatPKR(subtotal)}</td>
                   <td />
                 </tr>
-                {fbrGst > 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-2 text-right">GST 18% (PKR)</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{formatPKR(fbrGst)}</td>
+                {taxBreakdown.map(({ taxPercent, amount }) => (
+                  <tr key={taxPercent}>
+                    <td colSpan={7} className="px-4 py-2 text-right">GST {taxPercent}% (PKR)</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{formatPKR(amount)}</td>
                     <td />
                   </tr>
-                )}
+                ))}
                 <tr className="border-t font-bold">
                   <td colSpan={7} className="px-4 py-3 text-right">Grand Total (PKR)</td>
                   <td className="px-4 py-3 text-right text-base tabular-nums">{formatPKR(total)}</td>
