@@ -131,10 +131,12 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
     pdf.setFontSize(8);
     const companyDetail = (label: string, value?: string) => {
       if (!value) return;
-      pdf.setFont("helvetica", "bold");
-      pdf.text(`${label}:`, pageWidth - margin - pdf.getTextWidth(`${label}: ${value}`), companyInfoY);
       pdf.setFont("helvetica", "normal");
-      pdf.text(value, pageWidth - margin - pdf.getTextWidth(value), companyInfoY);
+      const valueWidth = pdf.getTextWidth(value);
+      const gapWidth = pdf.getTextWidth(" ");
+      pdf.text(value, pageWidth - margin, companyInfoY, { align: "right" });
+      pdf.setFont("helvetica", "bold");
+      pdf.text(`${label}:`, pageWidth - margin - valueWidth - gapWidth, companyInfoY, { align: "right" });
       companyInfoY += 4;
     };
     companyDetail("Address", company?.address);
