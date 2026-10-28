@@ -17,6 +17,7 @@ import { db } from "./config";
 import { removeUndefined } from "./utils";
 
 export interface QuotationItem {
+  itemType?: "Hardware" | "Software";
   description: string;
   quantity: number;
   taxPercent?: number;
