@@ -103,7 +103,7 @@ function quotationTermsToBlocks(value: string): QuotationTermBlock[] {
   return blocks;
 }
 
-export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> {
+export async function generateQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote"): Promise<Blob> {
   const pdf = new jsPDF({ format: "a4", unit: "mm", compress: true });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -169,12 +169,12 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   };
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(14);
-  pdf.text("Quote", pageWidth / 2, y, { align: "center" });
+  pdf.text(documentType, pageWidth / 2, y, { align: "center" });
   y += 8;
 
   pdf.setFontSize(8);
   pdf.setFont("helvetica", "bold");
-  pdf.text("QUOTE TO:", margin, y);
+  pdf.text(`${documentType.toUpperCase()} TO:`, margin, y);
   drawRightField("Issue date", formatDate(quotation.issueDate), pageWidth - margin, y);
   y += 6;
   pdf.setFont("helvetica", "bold");
@@ -184,7 +184,7 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   const addressLines = quotation.customerAddress
     ? drawLeftField("Address", quotation.customerAddress, margin, y, pageWidth - margin * 2 - 89)
     : 1;
-  drawRightField("Quote Ref", quotation.quoteReference || quotation.quotationNo, pageWidth - margin, y);
+  drawRightField(`${documentType} Ref`, quotation.quoteReference || quotation.quotationNo, pageWidth - margin, y);
   y += Math.max(5, addressLines * 4);
   if (quotation.customerPhone) drawLeftField("Phone", quotation.customerPhone, margin, y, pageWidth - margin * 2 - 89);
   drawRightField("FBR Ref", quotation.fbrReference || "—", pageWidth - margin, y);
@@ -327,7 +327,8 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   return pdf.output("blob");
 }
 
-export async function downloadQuotationPDF(quotation: Quotation): Promise<void> {
-  const blob = await generateQuotationPDF(quotation);
-  await downloadHighQualityPDF(blob, `${quotation.quotationNo || "Quote"}.pdf`);
+export async function downloadQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote"): Promise<void> {
+  const blob = await generateQuotationPDF(quotation, documentType);
+  const prefix = documentType === "Invoice" ? "Invoice-" : "";
+  await downloadHighQualityPDF(blob, `${prefix}${quotation.quotationNo || documentType}.pdf`);
 }

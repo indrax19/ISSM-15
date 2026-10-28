@@ -26,6 +26,8 @@ const DeliveryChallans = lazy(() => import("@/pages/DeliveryChallans"));
 const NewDeliveryChallans = lazy(() => import("@/pages/NewDeliveryChallans"));
 const Quotations = lazy(() => import("@/pages/Quotations"));
 const NewQuotation = lazy(() => import("@/pages/NewQuotation"));
+const Invoices = lazy(() => import("@/pages/Invoices"));
+const NewInvoice = lazy(() => import("@/pages/NewInvoice"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const ManageUsers = lazy(() => import("@/pages/ManageUsers"));
@@ -113,6 +115,9 @@ const App = () => (
               <Route path="/quotations" element={<ProtectedRoute requiredPermission="quotations"><Suspense fallback={<PageLoader />}><Quotations /></Suspense></ProtectedRoute>} />
               <Route path="/quotations/new" element={<ProtectedRoute requiredPermission="quotations"><Suspense fallback={<PageLoader />}><NewQuotation /></Suspense></ProtectedRoute>} />
               <Route path="/quotations/:id" element={<ProtectedRoute requiredPermission="quotations"><Suspense fallback={<PageLoader />}><NewQuotation /></Suspense></ProtectedRoute>} />
+              <Route path="/invoices" element={<ProtectedRoute requiredPermission="invoices"><Suspense fallback={<PageLoader />}><Invoices /></Suspense></ProtectedRoute>} />
+              <Route path="/invoices/new" element={<ProtectedRoute requiredPermission="invoices"><Suspense fallback={<PageLoader />}><NewInvoice /></Suspense></ProtectedRoute>} />
+              <Route path="/invoices/:id" element={<ProtectedRoute requiredPermission="invoices"><Suspense fallback={<PageLoader />}><NewInvoice /></Suspense></ProtectedRoute>} />
               <Route path="/sites" element={<ProtectedRoute requiredPermission="sites"><Suspense fallback={<PageLoader />}><Sites /></Suspense></ProtectedRoute>} />
               <Route path="/sites/new" element={<ProtectedRoute requiredPermission="sites"><Suspense fallback={<PageLoader />}><SiteDetailsForm /></Suspense></ProtectedRoute>} />
               <Route path="/sites/:id" element={<ProtectedRoute requiredPermission="sites"><Suspense fallback={<PageLoader />}><SiteDetailsForm /></Suspense></ProtectedRoute>} />

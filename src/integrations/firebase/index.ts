@@ -5,6 +5,7 @@ export { projectTrackingAPI, type ProjectTracking } from "./projectTrackingAPI";
 export { parentProjectsAPI, type ParentProject } from "./parentProjectsAPI";
 export { sslProjectsAPI, type SslProject } from "./sslProjectsAPI";
 export { sslSubProjectsAPI, type SslSubProject } from "./sslSubProjectsAPI";
+export { invoiceAPI, type Invoice, type InvoiceItem, type InvoiceStatus } from "./invoiceAPI";
 export { issuesAPI, type Issue } from "./issuesAPI";
 export { issueUpdatesAPI, type IssueUpdate } from "./issueUpdatesAPI";
 export { notificationsAPI, type Notification } from "./notificationsAPI";

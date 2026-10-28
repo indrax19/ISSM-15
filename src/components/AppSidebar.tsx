@@ -1,4 +1,4 @@
-import { LayoutDashboard, FolderOpen, ScanBarcode, FileCheck2, History, Package, Users, Truck, Settings, MapPin, Shield, CheckSquare, BookOpen, AlertCircle, ClipboardList, Building2, FileText, ChevronDown, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, FolderOpen, ScanBarcode, FileCheck2, History, Package, Users, Truck, Settings, MapPin, Shield, CheckSquare, BookOpen, AlertCircle, ClipboardList, Building2, FileText, Receipt, ChevronDown, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import { Link, useLocation } from "react-router-dom";
@@ -49,6 +49,7 @@ const navGroups: NavGroup[] = [
       { title: "Personal Inventory", url: "/personal-inventory", icon: Users, permission: "personal-inventory" },
       { title: "Delivery Challans", url: "/delivery-challans", icon: Truck, permission: "delivery-challans" },
       { title: "Quotations", url: "/quotations", icon: FileText, permission: "quotations" },
+      { title: "Invoices", url: "/invoices", icon: Receipt, permission: "invoices" },
     ],
   },
   {
