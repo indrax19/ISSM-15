@@ -101,6 +101,7 @@ const defaultValidTill = () => {
   date.setDate(date.getDate() + 5);
   return date.toISOString().slice(0, 10);
 };
+const itemTypeLabels: Record<"Hardware" | "Software", string> = { Hardware: "Hardware", Software: "Services" };
 const emptyQuotationItem = (itemType: "Hardware" | "Software" = "Hardware"): QuotationItem => ({ itemType, description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
 const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const itemAmount = (item: QuotationItem) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
@@ -109,16 +110,6 @@ const itemTaxAmount = (item: QuotationItem) => {
   return Math.round((itemAmount(item) * taxPercent / 100 + Number.EPSILON) * 100) / 100;
 };
 const itemTotal = (item: QuotationItem) => itemAmount(item) + itemTaxAmount(item);
-const taxBreakdownForItems = (items: QuotationItem[]) => {
-  const taxByRate = new Map<number, number>();
-  items.forEach((item) => {
-    const taxPercent = Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
-    if (taxPercent <= 0) return;
-    taxByRate.set(taxPercent, (taxByRate.get(taxPercent) || 0) + itemTaxAmount(item));
-  });
-  return Array.from(taxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
-    .sort((first, second) => first.taxPercent - second.taxPercent);
-};
 
 export default function NewQuotation() {
   const { id } = useParams<{ id: string }>();
@@ -146,10 +137,6 @@ export default function NewQuotation() {
     entries: items.flatMap((item, index) => (item.itemType || "Hardware") === itemType ? [{ item, index }] : []),
   })), [items]);
   const displayItems = itemGroups.flatMap(({ entries }) => entries);
-  const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
-  const taxBreakdown = useMemo(() => taxBreakdownForItems(items), [items]);
-  const totalTax = taxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
-  const total = subtotal + totalTax;
   const missingFields = [
     !issueDate && "Issue Date",
     !validTill && "Valid Till",
@@ -300,7 +287,7 @@ export default function NewQuotation() {
               <Plus className="mr-2 h-4 w-4" />Add Hardware
             </Button>
             <Button variant="default" size="sm" onClick={() => setItems((current) => [...current, emptyQuotationItem("Software")])}>
-              <Plus className="mr-2 h-4 w-4" />Add Software
+              <Plus className="mr-2 h-4 w-4" />Add Services
             </Button>
           </div>
         </CardHeader>
@@ -308,14 +295,14 @@ export default function NewQuotation() {
           <div className="space-y-3 2xl:hidden">
             {displayItems.map(({ item, index }, displayIndex) => (
               <Fragment key={index}>
-              {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <h3 className="pt-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">{item.itemType || "Hardware"} Items</h3>}
+              {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <h3 className="pt-2 text-center text-sm font-bold uppercase tracking-wide text-muted-foreground">{itemTypeLabels[item.itemType || "Hardware"]} Items</h3>}
               <div className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</span>
                     <select className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={item.itemType || "Hardware"} onChange={(event) => updateItemType(index, event.target.value as "Hardware" | "Software")} aria-label={`Item ${index + 1} type`}>
                       <option value="Hardware">Hardware</option>
-                      <option value="Software">Software</option>
+                      <option value="Software">Services</option>
                     </select>
                   </div>
                   <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyQuotationItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
@@ -335,11 +322,6 @@ export default function NewQuotation() {
               </div>
               </Fragment>
             ))}
-            <div className="overflow-hidden rounded-xl border text-sm">
-              <div className="flex justify-between border-b px-4 py-2.5"><span>Sub-total (PKR)</span><span className="font-semibold tabular-nums">{formatPKR(subtotal)}</span></div>
-              {taxBreakdown.map(({ taxPercent, amount }) => <div key={taxPercent} className="flex justify-between border-b px-4 py-2.5"><span>GST {taxPercent}% (PKR)</span><span className="tabular-nums">{formatPKR(amount)}</span></div>)}
-              <div className="flex justify-between px-4 py-2.5 font-bold"><span>Grand Total (PKR)</span><span className="tabular-nums">{formatPKR(total)}</span></div>
-            </div>
           </div>
           <div className="hidden overflow-x-auto rounded-lg border 2xl:block">
             <table className="w-full min-w-[1180px] border-collapse text-sm">
@@ -359,13 +341,13 @@ export default function NewQuotation() {
               <tbody>
                 {displayItems.map(({ item, index }, displayIndex) => (
                   <Fragment key={index}>
-                  {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <tr className="border-b bg-muted/60"><td colSpan={9} className="px-4 py-2 font-semibold uppercase tracking-wide">{item.itemType || "Hardware"} Items</td></tr>}
+                  {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <tr className="border-b bg-muted/60"><td colSpan={9} className="px-4 py-2 text-center font-semibold uppercase tracking-wide">{itemTypeLabels[item.itemType || "Hardware"]} Items</td></tr>}
                   <tr className="border-b last:border-0 transition-colors hover:bg-muted/20">
                     <td className="px-4 py-3 align-middle text-muted-foreground">{String(index + 1).padStart(2, "0")}</td>
                     <td className="px-4 py-3">
                       <select className="mb-1 h-8 rounded-md border border-input bg-background px-2 text-xs" value={item.itemType || "Hardware"} onChange={(event) => updateItemType(index, event.target.value as "Hardware" | "Software")} aria-label={`Item ${index + 1} type`}>
                         <option value="Hardware">Hardware</option>
-                        <option value="Software">Software</option>
+                        <option value="Software">Services</option>
                       </select>
                       <Textarea className={`min-h-20 min-w-[320px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
                     </td>
@@ -391,25 +373,6 @@ export default function NewQuotation() {
                   </Fragment>
                 ))}
               </tbody>
-              <tfoot className="bg-muted/40">
-                <tr>
-                  <td colSpan={7} className="px-4 py-2 text-right">Sub-total (PKR)</td>
-                  <td className="px-4 py-2 text-right font-semibold tabular-nums">{formatPKR(subtotal)}</td>
-                  <td />
-                </tr>
-                {taxBreakdown.map(({ taxPercent, amount }) => (
-                  <tr key={taxPercent}>
-                    <td colSpan={7} className="px-4 py-2 text-right">GST {taxPercent}% (PKR)</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{formatPKR(amount)}</td>
-                    <td />
-                  </tr>
-                ))}
-                <tr className="border-t font-bold">
-                  <td colSpan={7} className="px-4 py-3 text-right">Grand Total (PKR)</td>
-                  <td className="px-4 py-3 text-right text-base tabular-nums">{formatPKR(total)}</td>
-                  <td />
-                </tr>
-              </tfoot>
             </table>
           </div>
         </CardContent>
