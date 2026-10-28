@@ -193,7 +193,7 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   autoTable(pdf, {
     startY: y,
     margin: { left: margin, right: margin, top: pageBodyTop },
-    head: [["#", "Description", "Qty", "Unit Price", "Amount", "Tax (%)", "Tax Amount", "Total (PKR)"]],
+    head: [["#", "Description", "Qty", "Unit Price", "Amount", "Tax Amount", "Total (PKR)"]],
     body: quotation.items.map((item, index) => {
       const amount = itemAmount(item);
       const taxPercent = itemTaxRate(item);
@@ -204,7 +204,6 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
         String(item.quantity),
         money(Number.isFinite(item.unitPrice) ? item.unitPrice : 0),
         money(amount),
-        `${taxPercent}%`,
         money(taxValue),
         money(amount + taxValue),
       ];
@@ -218,9 +217,8 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
       2: { cellWidth: 10, halign: "center" },
       3: { cellWidth: 22, halign: "right" },
       4: { cellWidth: 23, halign: "right" },
-      5: { cellWidth: 13, halign: "right" },
-      6: { cellWidth: 22, halign: "right" },
-      7: { cellWidth: 25, halign: "right" },
+      5: { cellWidth: 22, halign: "right" },
+      6: { cellWidth: 25, halign: "right" },
     },
   });
   y = (pdf as any).lastAutoTable.finalY + 3;
