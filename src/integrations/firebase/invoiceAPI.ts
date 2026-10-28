@@ -31,6 +31,7 @@ export interface InvoiceEquipment {
 }
 
 export type InvoiceType = "sales" | "purchase";
+export type InvoiceWorkflowStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
 
 const DEFAULT_INVOICE_TYPE: InvoiceType = "sales";
 
@@ -59,7 +60,6 @@ export interface Invoice {
   fbrReference?: string;
   note?: string;
   terms?: string;
-  items?: InvoiceEquipment[];
   poNumber?: string;
   millName: string;
   location: string;
@@ -67,13 +67,13 @@ export interface Invoice {
   equipment: InvoiceEquipment[];
   invoiceAmount: number;
   balancePaid: number;
-  invoiceStatus?: "draft" | "completed" | "paid" | "send" | "pending" | "approved" | "rejected" | "expired" | "cancelled";
+  invoiceStatus?: "draft" | "completed" | "paid";
   poStatus?: "pending" | "completed" | "cancelled";
   invoiceCategory?: "Hardware" | "Software" | "Deployment";
   invoiceTo?: string;
   sectorProjectId?: string;
   sectorProjectName?: string;
-  quotationStatus?: "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
+  invoiceWorkflowStatus?: InvoiceWorkflowStatus;
   companyProfileId?: string;
   companyProfileName?: string;
   status?: "draft" | "completed";

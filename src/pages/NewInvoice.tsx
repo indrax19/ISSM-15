@@ -8,11 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { invoiceAPI, Invoice, InvoiceEquipment } from "@/integrations/firebase/invoiceAPI";
+import { invoiceAPI, Invoice, InvoiceEquipment, InvoiceWorkflowStatus } from "@/integrations/firebase/invoiceAPI";
 import { CompanyProfile, companyProfileAPI } from "@/integrations/firebase/firestore";
 import { parentProjectsAPI, ParentProject } from "@/integrations/firebase/parentProjectsAPI";
 import { downloadInvoicePDF } from "@/utils/invoicePDF";
-import { DEFAULT_QUOTATION_NOTE, DEFAULT_QUOTATION_TERMS } from "@/lib/quotationDefaults";
 
 const today = () => new Date().toISOString().slice(0, 10);
 const defaultValidTill = () => {
@@ -29,7 +28,7 @@ const itemTotal = (item: InvoiceEquipment) => itemAmount(item) + itemTax(item);
 export default function NewInvoice() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
   const [saveAttempted, setSaveAttempted] = useState(false);
@@ -39,6 +38,8 @@ export default function NewInvoice() {
   const [invoiceNo, setInvoiceNo] = useState("");
   const [invoiceType, setInvoiceType] = useState<"sales" | "purchase">("sales");
   const [invoiceCategory, setInvoiceCategory] = useState<"Hardware" | "Software" | "Deployment">("Hardware");
+  const [legacyStatus, setLegacyStatus] = useState<Invoice["invoiceStatus"]>("draft");
+  const [workflowStatus, setWorkflowStatus] = useState<InvoiceWorkflowStatus>("Draft");
   const [sectorProjectId, setSectorProjectId] = useState("");
   const [date, setDate] = useState(today());
   const [validTill, setValidTill] = useState(defaultValidTill());
@@ -51,8 +52,8 @@ export default function NewInvoice() {
   const [poStatus, setPoStatus] = useState<"pending" | "completed" | "cancelled">("pending");
   const [balancePaid, setBalancePaid] = useState(0);
   const [items, setItems] = useState<InvoiceEquipment[]>([emptyItem()]);
-  const [note, setNote] = useState(DEFAULT_QUOTATION_NOTE);
-  const [terms, setTerms] = useState(DEFAULT_QUOTATION_TERMS);
+  const [note, setNote] = useState("");
+  const [terms, setTerms] = useState("");
 
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
   const taxTotal = useMemo(() => items.reduce((sum, item) => sum + itemTax(item), 0), [items]);
@@ -64,15 +65,17 @@ export default function NewInvoice() {
     ...items.flatMap((item, index) => [
       !item.name.trim() && `Item ${index + 1} Description`,
       !Number.isFinite(item.quantity) && `Item ${index + 1} Quantity`,
+      !Number.isFinite(item.unitPrice) && `Item ${index + 1} Unit Price`,
+      !Number.isFinite(item.taxPercent ?? 0) && `Item ${index + 1} Tax`,
     ]),
   ].filter((field): field is string => Boolean(field));
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!authLoading && !isAdmin) {
       toast.error("Only administrators can create or edit invoices");
       navigate("/invoices");
     }
-  }, [isAdmin, navigate]);
+  }, [authLoading, isAdmin, navigate]);
 
   useEffect(() => {
     parentProjectsAPI.getAllWithCounts().then(setProjects).catch(() => toast.error("Could not load project tracking projects"));
@@ -94,8 +97,10 @@ export default function NewInvoice() {
       setInvoiceNo(invoice.invoiceNo || "");
       setInvoiceType(invoice.invoiceType === "purchase" ? "purchase" : "sales");
       setInvoiceCategory(invoice.invoiceCategory || "Hardware");
+      setLegacyStatus(invoice.invoiceStatus || "draft");
+      setWorkflowStatus(invoice.invoiceWorkflowStatus || "Draft");
       setDate(invoice.date || today());
-      setValidTill(invoice.validTill || "");
+      setValidTill(invoice.validTill || defaultValidTill());
       setCustomerName(invoice.customerName || invoice.invoiceTo || invoice.millName || "");
       setCustomerAddress(invoice.customerAddress || invoice.location || "");
       setCustomerPhone(invoice.customerPhone || "");
@@ -105,8 +110,8 @@ export default function NewInvoice() {
       setPoStatus(invoice.poStatus || "pending");
       setBalancePaid(invoice.balancePaid || 0);
       setItems(invoice.equipment?.length ? invoice.equipment.map((item) => ({ ...item, taxPercent: item.taxPercent ?? 0 })) : [emptyItem()]);
-      setNote(invoice.note ?? DEFAULT_QUOTATION_NOTE);
-      setTerms(invoice.terms ?? DEFAULT_QUOTATION_TERMS);
+      setNote(invoice.note || "");
+      setTerms(invoice.terms || "");
       setCompanyProfileId(invoice.companyProfileId || "");
       setSectorProjectId(invoice.sectorProjectId || "");
     }).catch(() => toast.error("Failed to load invoice")).finally(() => setLoading(false));
@@ -147,8 +152,8 @@ export default function NewInvoice() {
         equipment: items.map((item) => ({ ...item, name: item.name.trim(), details: item.details?.trim() || undefined })),
         invoiceAmount: total,
         balancePaid,
-        invoiceStatus: "draft",
-        quotationStatus: "Draft",
+        invoiceStatus: legacyStatus,
+        invoiceWorkflowStatus: workflowStatus,
         note,
         terms,
         companyProfileId: companyProfileId || undefined,
@@ -180,7 +185,7 @@ export default function NewInvoice() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading invoice...</div>;
+  if (loading || authLoading) return <div className="p-8 text-center text-muted-foreground">Loading invoice...</div>;
 
   return (
     <div className="w-full min-w-0 space-y-4 pb-6 sm:space-y-6 sm:pb-8">
@@ -194,18 +199,15 @@ export default function NewInvoice() {
       <Card>
         <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Invoice Details</CardTitle></CardHeader>
         <CardContent className="grid min-w-0 grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0 lg:grid-cols-3 2xl:grid-cols-5">
-          <div className="min-w-0 space-y-2"><Label>Invoice Number</Label><Input className="min-w-0" value={invoiceNo} onChange={(event) => setInvoiceNo(event.target.value)} placeholder={companyProfileId ? "Auto-generated on save" : "Auto-generated on save"} /></div>
+          <div className="min-w-0 space-y-2"><Label>Invoice Number</Label><Input className="min-w-0" value={invoiceNo} onChange={(event) => setInvoiceNo(event.target.value)} placeholder="Auto-generated on save" /></div>
           <div className="min-w-0 space-y-2"><Label>Issue Date *</Label><Input className={`min-w-0 ${saveAttempted && !date ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={date} onChange={(event) => setDate(event.target.value)} required aria-invalid={saveAttempted && !date} /></div>
           <div className="min-w-0 space-y-2"><Label>Due Date *</Label><Input className={`min-w-0 ${saveAttempted && !validTill ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required aria-invalid={saveAttempted && !validTill} /></div>
           <div className="min-w-0 space-y-2"><Label>Invoice Reference</Label><Input className="min-w-0" value={quoteReference} onChange={(event) => setQuoteReference(event.target.value)} placeholder="e.g. INV-2026-001" /></div>
           <div className="min-w-0 space-y-2"><Label>Sector</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
-          <div className="min-w-0 space-y-2"><Label>Invoice Type</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={invoiceType} onChange={(event) => setInvoiceType(event.target.value as "sales" | "purchase")}><option value="sales">Sales</option><option value="purchase">Purchase</option></select></div>
-          <div className="min-w-0 space-y-2"><Label>Invoice Category</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={invoiceCategory} onChange={(event) => setInvoiceCategory(event.target.value as "Hardware" | "Software" | "Deployment")}><option value="Hardware">Hardware</option><option value="Software">Software</option><option value="Deployment">Deployment</option></select></div>
           <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
           <div className="min-w-0 space-y-2"><Label>Invoice To / Customer *</Label><Input className={`min-w-0 ${saveAttempted && !customerName.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} required aria-invalid={saveAttempted && !customerName.trim()} /></div>
           <div className="min-w-0 space-y-2"><Label>Phone</Label><Input className="min-w-0" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
           <div className="min-w-0 space-y-2"><Label>FBR Reference</Label><Input className="min-w-0" value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR reference" /></div>
-          <div className="min-w-0 space-y-2"><Label>PO Number</Label><Input className="min-w-0" value={poNumber} onChange={(event) => setPoNumber(event.target.value)} placeholder="PO reference" /></div>
           <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3 2xl:col-span-5"><Label>Address</Label><Input className="min-w-0" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
         </CardContent>
       </Card>

@@ -3,7 +3,7 @@ import { Quotation } from "@/integrations/firebase/quotationAPI";
 import { downloadHighQualityPDF } from "@/lib/pdfCompression";
 import { generateQuotationPDF } from "@/lib/quotationPdfGenerator";
 
-function toQuotation(invoice: Invoice): Quotation {
+function toQuotation(invoice: Invoice, profileId?: string): Quotation {
   return {
     quotationNo: invoice.invoiceNo,
     issueDate: invoice.date,
@@ -21,15 +21,15 @@ function toQuotation(invoice: Invoice): Quotation {
     })),
     note: invoice.note || "",
     terms: invoice.terms || "",
-    companyProfileId: invoice.companyProfileId,
+    companyProfileId: profileId || invoice.companyProfileId,
     companyProfileName: invoice.companyProfileName,
     sectorProjectId: invoice.sectorProjectId,
     sectorProjectName: invoice.sectorProjectName,
   };
 }
 
-export async function generateInvoicePDF(invoice: Invoice, _profileId?: string): Promise<Blob> {
-  return generateQuotationPDF(toQuotation(invoice), "Invoice");
+export async function generateInvoicePDF(invoice: Invoice, profileId?: string): Promise<Blob> {
+  return generateQuotationPDF(toQuotation(invoice, profileId), "Invoice");
 }
 
 export async function downloadInvoicePDF(invoice: Invoice, profileId?: string): Promise<void> {
