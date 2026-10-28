@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, Download, Eye, FileText, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Copy, Download, Eye, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { quotationAPI, QUOTATION_STATUSES, Quotation, QuotationStatus } from "@/integrations/firebase/quotationAPI";
+import { invoiceAPI, Invoice } from "@/integrations/firebase/invoiceAPI";
 import { parentProjectsAPI, ParentProject } from "@/integrations/firebase/parentProjectsAPI";
 import { downloadQuotationPDF, generateQuotationPDF } from "@/lib/quotationPdfGenerator";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,6 +43,7 @@ export default function Quotations() {
   const [currentPage, setCurrentPage] = useState(1);
   const [retry, setRetry] = useState(0);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [transferringId, setTransferringId] = useState<string | null>(null);
   const [duplicateQuotation, setDuplicateQuotation] = useState<Quotation | null>(null);
   const [duplicateSectorProjectId, setDuplicateSectorProjectId] = useState("");
   const [duplicating, setDuplicating] = useState(false);
@@ -127,6 +129,46 @@ export default function Quotations() {
       setPreviewUrl(nextUrl);
     } catch (error: any) {
       toast.error(error?.message || "Failed to preview quotation PDF");
+    }
+  };
+
+  const handleTransferToInvoice = async (quotation: Quotation) => {
+    if (!quotation.id) return;
+    setTransferringId(quotation.id);
+    try {
+      const existingInvoice = await invoiceAPI.getByQuotationId(quotation.id);
+      if (existingInvoice?.id) {
+        toast.success("This quotation has already been transferred to an invoice");
+        navigate(`/invoices/${existingInvoice.id}`);
+        return;
+      }
+      const invoice: Invoice = {
+        invoiceNo: "",
+        issueDate: quotation.issueDate,
+        validTill: quotation.validTill,
+        customerName: quotation.customerName,
+        customerAddress: quotation.customerAddress,
+        customerPhone: quotation.customerPhone,
+        invoiceReference: quotation.quoteReference || quotation.quotationNo,
+        fbrReference: quotation.fbrReference,
+        items: quotation.items.map((item) => ({ ...item })),
+        note: quotation.note,
+        terms: quotation.terms,
+        companyProfileId: quotation.companyProfileId,
+        companyProfileName: quotation.companyProfileName,
+        sectorProjectId: quotation.sectorProjectId,
+        sectorProjectName: quotation.sectorProjectName,
+        invoiceStatus: "Draft",
+        sourceQuotationId: quotation.id,
+        sourceQuotationNo: quotation.quotationNo,
+      };
+      const createdInvoice = await invoiceAPI.create(invoice);
+      toast.success("Quotation transferred to invoice");
+      navigate(`/invoices/${createdInvoice.id}`);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to transfer quotation to invoice");
+    } finally {
+      setTransferringId(null);
     }
   };
 
@@ -261,6 +303,7 @@ export default function Quotations() {
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-sm" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-cyan-100 hover:text-cyan-700 hover:shadow-sm" disabled={transferringId === quotation.id} onClick={() => handleTransferToInvoice(quotation)} title="Transfer to invoice" aria-label={`Transfer ${quotation.quotationNo} to invoice`}><ArrowRightLeft className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Clone quotation"><Copy className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-700 hover:shadow-sm" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
@@ -276,6 +319,7 @@ export default function Quotations() {
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-sm" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-cyan-100 hover:text-cyan-700 hover:shadow-sm" disabled={transferringId === quotation.id} onClick={() => handleTransferToInvoice(quotation)} title="Transfer to invoice" aria-label={`Transfer ${quotation.quotationNo} to invoice`}><ArrowRightLeft className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Clone quotation"><Copy className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-700 hover:shadow-sm" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </div></TableCell>
