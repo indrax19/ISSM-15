@@ -6,7 +6,9 @@ import { downloadHighQualityPDF } from "@/lib/pdfCompression";
 import { addLogoToPDF } from "@/lib/pdfLogoHelper";
 
 const money = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const itemTaxValue = (amount: number, taxPercent?: number) => Math.round((amount * (taxPercent || 0) / 100 + Number.EPSILON) * 100) / 100;
+const itemAmount = (item: Quotation["items"][number]) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
+const itemTaxRate = (item: Quotation["items"][number]) => Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+const itemTaxValue = (amount: number, taxPercent: number) => Math.round((amount * taxPercent / 100 + Number.EPSILON) * 100) / 100;
 
 function amountInWords(amount: number): string {
   const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
@@ -188,47 +190,64 @@ export async function generateQuotationPDF(quotation: Quotation): Promise<Blob> 
   drawRightField("FBR Ref", quotation.fbrReference || "—", pageWidth - margin, y);
   y += 6;
 
-  const hasTax = quotation.items.some((item) => (item.taxPercent || 0) > 0);
   autoTable(pdf, {
     startY: y,
     margin: { left: margin, right: margin, top: pageBodyTop },
-    head: [["#", "Description", "Qty", "Unit Price", ...(hasTax ? ["Amount", "Tax Value"] : []), "Total (PKR)"]],
+    head: [["#", "Description", "Qty", "Unit Price", "Amount", "Tax (%)", "Tax Amount", "Total (PKR)"]],
     body: quotation.items.map((item, index) => {
-      const amount = item.quantity * item.unitPrice;
-      const taxValue = itemTaxValue(amount, item.taxPercent);
+      const amount = itemAmount(item);
+      const taxPercent = itemTaxRate(item);
+      const taxValue = itemTaxValue(amount, taxPercent);
       return [
         String(index + 1),
         item.description,
         String(item.quantity),
-        money(item.unitPrice),
-        ...(hasTax ? [money(amount), money(taxValue)] : []),
+        money(Number.isFinite(item.unitPrice) ? item.unitPrice : 0),
+        money(amount),
+        `${taxPercent}%`,
+        money(taxValue),
         money(amount + taxValue),
       ];
     }),
     theme: "grid",
     styles: { font: "helvetica", fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
     headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold", halign: "center" },
-    columnStyles: hasTax
-      ? { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 12, halign: "center" }, 3: { cellWidth: 24, halign: "right" }, 4: { cellWidth: 24, halign: "right" }, 5: { cellWidth: 22, halign: "right" }, 6: { cellWidth: 28, halign: "right" } }
-      : { 0: { cellWidth: 8, halign: "center" }, 1: { cellWidth: "auto" }, 2: { cellWidth: 12, halign: "center" }, 3: { cellWidth: 30, halign: "right" }, 4: { cellWidth: 36, halign: "right" } },
+    columnStyles: {
+      0: { cellWidth: 8, halign: "center" },
+      1: { cellWidth: "auto" },
+      2: { cellWidth: 10, halign: "center" },
+      3: { cellWidth: 22, halign: "right" },
+      4: { cellWidth: 23, halign: "right" },
+      5: { cellWidth: 13, halign: "right" },
+      6: { cellWidth: 22, halign: "right" },
+      7: { cellWidth: 25, halign: "right" },
+    },
   });
   y = (pdf as any).lastAutoTable.finalY + 3;
-  const subtotal = quotation.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const fbrGst = quotation.items.reduce((sum, item) => sum + itemTaxValue(item.quantity * item.unitPrice, item.taxPercent), 0);
-  const total = subtotal + fbrGst;
+  const subtotal = quotation.items.reduce((sum, item) => sum + itemAmount(item), 0);
+  const taxByRate = new Map<number, number>();
+  quotation.items.forEach((item) => {
+    const taxPercent = itemTaxRate(item);
+    if (taxPercent <= 0) return;
+    taxByRate.set(taxPercent, (taxByRate.get(taxPercent) || 0) + itemTaxValue(itemAmount(item), taxPercent));
+  });
+  const taxBreakdown = Array.from(taxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
+    .sort((first, second) => first.taxPercent - second.taxPercent);
+  const totalTax = taxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
+  const total = subtotal + totalTax;
   autoTable(pdf, {
     startY: y,
     margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
     body: [
       ["Sub-total (PKR)", money(subtotal)],
-      ...(fbrGst > 0 ? [["FBR GST (PKR)", money(fbrGst)]] : []),
+      ...taxBreakdown.map(({ taxPercent, amount }) => [`GST ${taxPercent}% (PKR)`, money(amount)]),
       ["Grand Total (PKR)", money(total)],
     ],
     theme: "grid",
     styles: { font: "helvetica", fontSize: 8, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
     columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
     didParseCell: (data) => {
-      if (data.row.index === (fbrGst > 0 ? 2 : 1)) data.cell.styles.fontStyle = "bold";
+      if (data.row.index === taxBreakdown.length + 1) data.cell.styles.fontStyle = "bold";
     },
   });
   y = (pdf as any).lastAutoTable.finalY + 5;
