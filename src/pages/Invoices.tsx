@@ -25,6 +25,8 @@ const invoiceStatusStyles: Record<InvoiceStatus, string> = {
   Reject: "bg-red-50 hover:bg-red-100",
   Expired: "bg-orange-50 hover:bg-orange-100",
   Cancelled: "bg-gray-100 text-gray-500 hover:bg-gray-200",
+  Received: "bg-emerald-50 hover:bg-emerald-100",
+  "Partial Received": "bg-lime-50 hover:bg-lime-100",
 };
 const amount = (invoice: Invoice) => invoice.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 const dateLabel = (value: string) => value ? new Date(`${value}T00:00:00`).toLocaleDateString() : "—";
@@ -256,7 +258,7 @@ export default function Invoices() {
               <div className="flex items-start justify-between gap-2"><div><div className="font-mono font-semibold">{invoice.invoiceNo}</div><div className="text-sm text-muted-foreground">{invoice.customerName}</div></div><div className="text-right text-sm font-semibold">PKR {amount(invoice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</div></div>
               <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground"><span>Issue: {dateLabel(invoice.issueDate)}</span><span>Valid: {dateLabel(invoice.validTill)}</span><span>Sector: {invoice.sectorProjectName || "—"}</span></div>
               <div className="space-y-2 border-t pt-2">
-                <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">Status</span><select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={invoice.invoiceStatus || "Draft"} onChange={(event) => handleStatusChange(invoice, event.target.value as InvoiceStatus)} aria-label={`Status for ${invoice.invoiceNo}`}>{INVOICE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-sm font-medium">Status</span><select className="min-h-9 max-w-[60%] whitespace-normal rounded-md border border-input bg-background px-3 py-1 text-sm" value={invoice.invoiceStatus || "Draft"} onChange={(event) => handleStatusChange(invoice, event.target.value as InvoiceStatus)} aria-label={`Status for ${invoice.invoiceNo}`}>{INVOICE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
                 <div className="grid w-fit grid-cols-3 gap-1">
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(invoice)} title="View invoice PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/invoices/${invoice.id}`)} title="Edit invoice"><Pencil className="h-4 w-4" /></Button>
@@ -271,7 +273,7 @@ export default function Invoices() {
             <TableHeader><TableRow><TableHead>Invoice No</TableHead><TableHead>Issue Date</TableHead><TableHead>Valid Till</TableHead><TableHead>Customer</TableHead><TableHead className="text-right">Total (PKR)</TableHead><TableHead>Sector</TableHead><TableHead>Status</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
             <TableBody>{paginated.map((invoice) => <TableRow key={invoice.id} className={invoiceStatusStyles[invoice.invoiceStatus || "Draft"]}>
               <TableCell className="font-mono font-semibold">{invoice.invoiceNo}</TableCell><TableCell>{dateLabel(invoice.issueDate)}</TableCell><TableCell>{dateLabel(invoice.validTill)}</TableCell><TableCell>{invoice.customerName}</TableCell><TableCell className="text-right">{amount(invoice).toLocaleString("en-PK", { minimumFractionDigits: 2 })}</TableCell><TableCell>{invoice.sectorProjectName || "—"}</TableCell>
-              <TableCell><select className="h-9 min-w-28 rounded-md border border-input bg-background px-2 text-sm" value={invoice.invoiceStatus || "Draft"} onChange={(event) => handleStatusChange(invoice, event.target.value as InvoiceStatus)} aria-label={`Status for ${invoice.invoiceNo}`}>{INVOICE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></TableCell>
+              <TableCell><select className="min-h-9 min-w-28 whitespace-normal rounded-md border border-input bg-background px-2 py-1 text-sm" value={invoice.invoiceStatus || "Draft"} onChange={(event) => handleStatusChange(invoice, event.target.value as InvoiceStatus)} aria-label={`Status for ${invoice.invoiceNo}`}>{INVOICE_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></TableCell>
               <TableCell><div className="grid w-fit grid-cols-3 gap-1">
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(invoice)} title="View invoice PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/invoices/${invoice.id}`)} title="Edit invoice"><Pencil className="h-4 w-4" /></Button>

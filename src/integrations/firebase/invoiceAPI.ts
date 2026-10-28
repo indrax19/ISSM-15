@@ -36,8 +36,8 @@ export interface CompanyPaymentDetails {
   branch: string;
 }
 
-export type InvoiceStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
-export const INVOICE_STATUSES: InvoiceStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled"];
+export type InvoiceStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled" | "Received" | "Partial Received";
+export const INVOICE_STATUSES: InvoiceStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled", "Received", "Partial Received"];
 
 export interface Invoice {
   id?: string;
