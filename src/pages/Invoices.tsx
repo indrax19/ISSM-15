@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { invoiceAPI, Invoice, InvoiceWorkflowStatus } from "@/integrations/firebase/invoiceAPI";
 import { parentProjectsAPI, ParentProject } from "@/integrations/firebase/parentProjectsAPI";
+import { companyProfileAPI, CompanyProfile } from "@/integrations/firebase/firestore";
 import { downloadInvoicePDF, generateInvoicePDF } from "@/utils/invoicePDF";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,11 @@ export default function Invoices() {
   const { isAdmin } = useAuth();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [projects, setProjects] = useState<ParentProject[]>([]);
+  const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
+  const [sequenceProfileId, setSequenceProfileId] = useState("");
+  const [nextSequence, setNextSequence] = useState("");
+  const [sequenceLoading, setSequenceLoading] = useState(true);
+  const [sequenceSaving, setSequenceSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -58,7 +64,20 @@ export default function Invoices() {
 
   useEffect(() => {
     parentProjectsAPI.getAllWithCounts().then(setProjects).catch(() => toast.error("Could not load project tracking projects"));
+    companyProfileAPI.getAll().then((data) => {
+      setProfiles(data);
+      const preferred = data.find((profile) => profile.company_name === "ISSM Labelling Solutions") || data[0];
+      if (preferred?.id) setSequenceProfileId(preferred.id);
+    }).catch(() => toast.error("Could not load company profiles"));
   }, []);
+
+  useEffect(() => {
+    setSequenceLoading(true);
+    invoiceAPI.getNextSequence(sequenceProfileId || undefined)
+      .then((sequence) => setNextSequence(String(sequence)))
+      .catch((error: any) => toast.error(error?.message || "Could not load invoice sequence"))
+      .finally(() => setSequenceLoading(false));
+  }, [sequenceProfileId]);
 
   useEffect(() => {
     setFetchError(null);
@@ -87,6 +106,25 @@ export default function Invoices() {
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
   useEffect(() => setCurrentPage(1), [searchTerm, filterDate, filterSector]);
+
+  const handleSequenceUpdate = async () => {
+    const sequence = Number(nextSequence);
+    if (!Number.isSafeInteger(sequence) || sequence < 1) {
+      toast.error("Enter a positive whole number for the next invoice sequence");
+      return;
+    }
+    setSequenceSaving(true);
+    try {
+      const profile = profiles.find((item) => item.id === sequenceProfileId);
+      await invoiceAPI.setNextSequence(sequence, profile);
+      setNextSequence(String(sequence));
+      toast.success("Next invoice sequence updated");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update invoice sequence");
+    } finally {
+      setSequenceSaving(false);
+    }
+  };
 
   const handleDownload = async (invoice: Invoice) => {
     setDownloadingId(invoice.id || null);
@@ -190,7 +228,16 @@ export default function Invoices() {
       <div className="space-y-6 pb-6">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div><h1 className="text-2xl font-bold sm:text-3xl">Invoices</h1><p className="mt-1 text-sm text-muted-foreground">Create, review, and download customer invoices</p></div>
-          {isAdmin && <Button onClick={() => navigate("/invoices/new")} className="w-full gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:w-auto"><Plus className="h-4 w-4" /><span>New Invoice</span></Button>}
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+            <label htmlFor="invoice-sequence-profile" className="whitespace-nowrap text-sm font-semibold">Invoice Sequence</label>
+            <select id="invoice-sequence-profile" className="h-10 min-w-36 rounded-md border border-input bg-background px-3 text-sm" value={sequenceProfileId} onChange={(event) => setSequenceProfileId(event.target.value)} disabled={sequenceLoading || sequenceSaving || !isAdmin}>
+              <option value="">Default</option>
+              {profiles.filter((profile) => profile.id).map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}
+            </select>
+            <Input aria-label="Next invoice sequence" className="w-20" type="number" min="1" step="1" value={nextSequence} onChange={(event) => setNextSequence(event.target.value)} disabled={sequenceLoading || sequenceSaving || !isAdmin} />
+            {isAdmin && <Button type="button" onClick={handleSequenceUpdate} disabled={sequenceLoading || sequenceSaving}>{sequenceSaving ? "Saving..." : "Update sequence"}</Button>}
+            {isAdmin && <Button onClick={() => navigate("/invoices/new")} className="gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"><Plus className="h-4 w-4" /><span>New Invoice</span></Button>}
+          </div>
         </div>
 
         <Card><CardContent className="grid grid-cols-1 gap-4 pt-6 md:grid-cols-3">

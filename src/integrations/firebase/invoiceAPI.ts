@@ -110,6 +110,38 @@ function getCompanyInvoiceSequenceId(companyProfileId: string): string {
   return `companyInvoiceCounter_${companyProfileId}`;
 }
 
+async function getNextInvoiceSequence(companyProfileId?: string): Promise<number> {
+  const counterId = companyProfileId
+    ? getCompanyInvoiceSequenceId(companyProfileId)
+    : getInvoiceSequenceId(DEFAULT_INVOICE_TYPE);
+  const snapshot = await getDoc(doc(db, "sequences", counterId));
+  return (snapshot.exists() ? snapshot.data().nextNumber || 0 : 0) + 1;
+}
+
+async function setNextInvoiceSequence(nextSequence: number, companyProfile?: { id?: string; company_name: string }): Promise<void> {
+  if (!Number.isSafeInteger(nextSequence) || nextSequence < 1) {
+    throw new Error("Invoice sequence must be a positive whole number");
+  }
+
+  const companyProfileId = companyProfile?.id?.trim();
+  const counterId = companyProfileId
+    ? getCompanyInvoiceSequenceId(companyProfileId)
+    : getInvoiceSequenceId(DEFAULT_INVOICE_TYPE);
+
+  await runTransaction(db, async (transaction) => {
+    const counterRef = doc(db, "sequences", counterId);
+    await transaction.get(counterRef);
+    transaction.set(counterRef, {
+      nextNumber: nextSequence - 1,
+      updated_at: new Date().toISOString(),
+      ...(companyProfileId && {
+        companyProfileId,
+        companyName: companyProfile?.company_name,
+      }),
+    });
+  });
+}
+
 async function generateInvoiceNumber(invoiceType: InvoiceType = DEFAULT_INVOICE_TYPE): Promise<string> {
   try {
     const nextNumber = await runTransaction(db, async (transaction) => {
@@ -176,6 +208,14 @@ async function generateCompanyInvoiceNumber(companyProfile: { id?: string; compa
 }
 
 export const invoiceAPI = {
+  getNextSequence(companyProfileId?: string) {
+    return getNextInvoiceSequence(companyProfileId);
+  },
+
+  setNextSequence(nextSequence: number, companyProfile?: { id?: string; company_name: string }) {
+    return setNextInvoiceSequence(nextSequence, companyProfile);
+  },
+
   async getAll(): Promise<Invoice[]> {
     const maxRetries = 2;
     let lastError: any;
