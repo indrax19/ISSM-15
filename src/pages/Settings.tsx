@@ -480,32 +480,28 @@ const Settings = () => {
               <p className="text-xs text-muted-foreground">PNG, JPG or GIF · Max 5 MB</p>
             </div>
 
-            {/* Company Name */}
-            <div className="space-y-2">
-              <Label htmlFor="companyName">Company Name *</Label>
-              <Input
-                id="companyName"
-                placeholder="Your company name"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                disabled={isBusy}
-              />
-            </div>
-
-            {/* Address */}
-            <div className="space-y-2">
-              <Label htmlFor="address">Address (optional)</Label>
-              <Input
-                id="address"
-                placeholder="Company address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                disabled={isBusy}
-              />
-            </div>
-
-            {/* Phone & Email row */}
-            <div className="grid gap-4 sm:grid-cols-2">
+            {/* Company Name, Address, Phone */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Company Name *</Label>
+                <Input
+                  id="companyName"
+                  placeholder="Your company name"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  disabled={isBusy}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Address (optional)</Label>
+                <Input
+                  id="address"
+                  placeholder="Company address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  disabled={isBusy}
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number *</Label>
                 <Input
@@ -516,6 +512,10 @@ const Settings = () => {
                   disabled={isBusy}
                 />
               </div>
+            </div>
+
+            {/* Email & Website */}
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address *</Label>
                 <Input
@@ -527,18 +527,16 @@ const Settings = () => {
                   disabled={isBusy}
                 />
               </div>
-            </div>
-
-            {/* Website */}
-            <div className="space-y-2">
-              <Label htmlFor="website">Website (optional)</Label>
-              <Input
-                id="website"
-                placeholder="https://www.company.com"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                disabled={isBusy}
-              />
+              <div className="space-y-2">
+                <Label htmlFor="website">Website (optional)</Label>
+                <Input
+                  id="website"
+                  placeholder="https://www.company.com"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  disabled={isBusy}
+                />
+              </div>
             </div>
 
             {/* Digital Signature */}
