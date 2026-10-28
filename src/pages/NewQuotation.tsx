@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Plus, Trash2, Bold, Italic, List, ListOrdered, Heading2, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -100,11 +101,24 @@ const defaultValidTill = () => {
   date.setDate(date.getDate() + 5);
   return date.toISOString().slice(0, 10);
 };
-const emptyQuotationItem = (): QuotationItem => ({ description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
+const emptyQuotationItem = (itemType: "Hardware" | "Software" = "Hardware"): QuotationItem => ({ itemType, description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
 const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const itemAmount = (item: QuotationItem) => Number.isFinite(item.quantity) ? item.quantity * item.unitPrice : 0;
-const itemTaxAmount = (item: QuotationItem) => Math.round((itemAmount(item) * (item.taxPercent || 0) / 100 + Number.EPSILON) * 100) / 100;
+const itemAmount = (item: QuotationItem) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
+const itemTaxAmount = (item: QuotationItem) => {
+  const taxPercent = Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+  return Math.round((itemAmount(item) * taxPercent / 100 + Number.EPSILON) * 100) / 100;
+};
 const itemTotal = (item: QuotationItem) => itemAmount(item) + itemTaxAmount(item);
+const taxBreakdownForItems = (items: QuotationItem[]) => {
+  const taxByRate = new Map<number, number>();
+  items.forEach((item) => {
+    const taxPercent = Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+    if (taxPercent <= 0) return;
+    taxByRate.set(taxPercent, (taxByRate.get(taxPercent) || 0) + itemTaxAmount(item));
+  });
+  return Array.from(taxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
+    .sort((first, second) => first.taxPercent - second.taxPercent);
+};
 
 export default function NewQuotation() {
   const { id } = useParams<{ id: string }>();
@@ -127,9 +141,15 @@ export default function NewQuotation() {
   const [items, setItems] = useState<QuotationItem[]>([emptyQuotationItem()]);
   const [note, setNote] = useState(DEFAULT_QUOTATION_NOTE);
   const [terms, setTerms] = useState(DEFAULT_QUOTATION_TERMS);
+  const itemGroups = useMemo(() => (["Hardware", "Software"] as const).map((itemType) => ({
+    itemType,
+    entries: items.flatMap((item, index) => (item.itemType || "Hardware") === itemType ? [{ item, index }] : []),
+  })), [items]);
+  const displayItems = itemGroups.flatMap(({ entries }) => entries);
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
-  const fbrGst = useMemo(() => items.reduce((sum, item) => sum + itemTaxAmount(item), 0), [items]);
-  const total = subtotal + fbrGst;
+  const taxBreakdown = useMemo(() => taxBreakdownForItems(items), [items]);
+  const totalTax = taxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
+  const total = subtotal + totalTax;
   const missingFields = [
     !issueDate && "Issue Date",
     !validTill && "Valid Till",
@@ -137,6 +157,8 @@ export default function NewQuotation() {
     ...items.flatMap((item, index) => [
       !item.description.trim() && `Item ${index + 1} Description`,
       !Number.isFinite(item.quantity) && `Item ${index + 1} Quantity`,
+      !Number.isFinite(item.unitPrice) && `Item ${index + 1} Unit Price`,
+      !Number.isFinite(item.taxPercent ?? 0) && `Item ${index + 1} Tax`,
     ]),
   ].filter((field): field is string => Boolean(field));
 
@@ -168,7 +190,7 @@ export default function NewQuotation() {
       setCustomerPhone(quotation.customerPhone || "");
       setQuoteReference(quotation.quoteReference || "");
       setFbrReference(quotation.fbrReference || "FBR STGO NO. 27 OF 2026");
-      setItems(quotation.items?.length ? quotation.items.map((item) => ({ ...item, taxPercent: item.taxPercent ?? 0 })) : [emptyQuotationItem()]);
+      setItems(quotation.items?.length ? quotation.items.map((item) => ({ ...item, itemType: item.itemType || "Hardware", taxPercent: item.taxPercent ?? 0 })) : [emptyQuotationItem()]);
       setNote(quotation.note ?? DEFAULT_QUOTATION_NOTE);
       setTerms(quotation.terms ?? DEFAULT_QUOTATION_TERMS);
       setCompanyProfileId(quotation.companyProfileId || "");
@@ -180,6 +202,10 @@ export default function NewQuotation() {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index
       ? { ...item, [field]: field === "description" ? value : value === "" ? Number.NaN : Math.max(0, Number(value)) }
       : item));
+  };
+
+  const updateItemType = (index: number, itemType: "Hardware" | "Software") => {
+    setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, itemType } : item));
   };
 
   const duplicateItem = (index: number) => {
@@ -204,7 +230,7 @@ export default function NewQuotation() {
         customerPhone: customerPhone.trim(),
         quoteReference: quoteReference.trim(),
         fbrReference: fbrReference.trim(),
-        items,
+        items: displayItems.map(({ item }) => ({ ...item, itemType: item.itemType || "Hardware" })),
         note,
         terms,
         companyProfileId: companyProfileId || undefined,
@@ -250,7 +276,7 @@ export default function NewQuotation() {
       <Card>
         <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Quotation Details</CardTitle></CardHeader>
         <CardContent className="grid min-w-0 grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0 lg:grid-cols-3 2xl:grid-cols-5">
-          <div className="min-w-0 space-y-2"><Label>Quote Number</Label><Input className="min-w-0" value={quotationNo} placeholder="Auto-generated on save" readOnly /></div>
+          <div className="min-w-0 space-y-2"><Label>Quote Number</Label><Input className="min-w-0" value={quotationNo} onChange={(event) => setQuotationNo(event.target.value)} placeholder="Auto-generated on save" /></div>
           <div className="min-w-0 space-y-2"><Label>Issue Date *</Label><Input className={`min-w-0 ${saveAttempted && !issueDate ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required aria-invalid={saveAttempted && !issueDate} /></div>
           <div className="min-w-0 space-y-2"><Label>Valid Till *</Label><Input className={`min-w-0 ${saveAttempted && !validTill ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required aria-invalid={saveAttempted && !validTill} /></div>
           <div className="min-w-0 space-y-2"><Label>Quote Reference</Label><Input className="min-w-0" value={quoteReference} onChange={(event) => setQuoteReference(event.target.value)} placeholder="e.g. Q-2026-001" /></div>
@@ -269,22 +295,35 @@ export default function NewQuotation() {
             <CardTitle>Quoted Items</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">Add products or services and set quantity and unit price.</p>
           </div>
-          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => setItems((current) => [...current, emptyQuotationItem()])}>
-            <Plus className="mr-2 h-4 w-4" />Add item
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button variant="outline" size="sm" onClick={() => setItems((current) => [...current, emptyQuotationItem("Hardware")])}>
+              <Plus className="mr-2 h-4 w-4" />Add Hardware
+            </Button>
+            <Button variant="default" size="sm" onClick={() => setItems((current) => [...current, emptyQuotationItem("Software")])}>
+              <Plus className="mr-2 h-4 w-4" />Add Software
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
           <div className="space-y-3 2xl:hidden">
-            {items.map((item, index) => (
-              <div key={index} className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
+            {displayItems.map(({ item, index }, displayIndex) => (
+              <Fragment key={index}>
+              {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <h3 className="pt-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">{item.itemType || "Hardware"} Items</h3>}
+              <div className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</span>
+                    <select className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={item.itemType || "Hardware"} onChange={(event) => updateItemType(index, event.target.value as "Hardware" | "Software")} aria-label={`Item ${index + 1} type`}>
+                      <option value="Hardware">Hardware</option>
+                      <option value="Software">Software</option>
+                    </select>
+                  </div>
                   <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyQuotationItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
                 </div>
                 <div className="space-y-2"><Label htmlFor={`quotation-item-description-${index}`}>Description</Label><Textarea id={`quotation-item-description-${index}`} className={`min-h-20 resize-y ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-invalid={saveAttempted && !item.description.trim()} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label htmlFor={`quotation-item-quantity-${index}`}>Quantity</Label><Input id={`quotation-item-quantity-${index}`} className={saveAttempted && !Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} /></div>
-                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax Code (%)</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
+                  <div className="space-y-2"><Label htmlFor={`quotation-item-tax-${index}`}>Tax (%)</Label><Input id={`quotation-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
                   <div className="col-span-2 space-y-2"><Label htmlFor={`quotation-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`quotation-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
                 </div>
                 <div className="space-y-2 border-t pt-3 text-sm">
@@ -294,10 +333,11 @@ export default function NewQuotation() {
                 </div>
                 <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => duplicateItem(index)}><Copy className="mr-2 h-4 w-4" />Duplicate item</Button>
               </div>
+              </Fragment>
             ))}
             <div className="overflow-hidden rounded-xl border text-sm">
               <div className="flex justify-between border-b px-4 py-2.5"><span>Sub-total (PKR)</span><span className="font-semibold tabular-nums">{formatPKR(subtotal)}</span></div>
-              {fbrGst > 0 && <div className="flex justify-between border-b px-4 py-2.5"><span>FBR GST (PKR)</span><span className="tabular-nums">{formatPKR(fbrGst)}</span></div>}
+              {taxBreakdown.map(({ taxPercent, amount }) => <div key={taxPercent} className="flex justify-between border-b px-4 py-2.5"><span>GST {taxPercent}% (PKR)</span><span className="tabular-nums">{formatPKR(amount)}</span></div>)}
               <div className="flex justify-between px-4 py-2.5 font-bold"><span>Grand Total (PKR)</span><span className="tabular-nums">{formatPKR(total)}</span></div>
             </div>
           </div>
@@ -306,32 +346,38 @@ export default function NewQuotation() {
               <thead className="bg-muted/60">
                 <tr className="border-b text-left">
                   <th className="w-12 px-4 py-3 font-semibold text-muted-foreground">#</th>
-                  <th className="px-4 py-3 font-semibold">Description</th>
-                  <th className="w-24 px-4 py-3 font-semibold">Qty</th>
-                  <th className="w-36 px-4 py-3 font-semibold">Unit Price</th>
+                  <th className="w-[32%] px-4 py-3 font-semibold">Description</th>
+                  <th className="w-16 px-4 py-3 font-semibold">Qty</th>
+                  <th className="w-28 px-4 py-3 font-semibold">Unit Price</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Amount</th>
-                  <th className="w-28 px-4 py-3 font-semibold">Tax Code (%)</th>
+                  <th className="w-24 px-4 py-3 font-semibold">Tax (%)</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Tax Amount</th>
                   <th className="w-36 px-4 py-3 text-right font-semibold">Total (PKR)</th>
                   <th className="w-24 px-4 py-3 text-center font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, index) => (
-                  <tr key={index} className="border-b last:border-0 transition-colors hover:bg-muted/20">
+                {displayItems.map(({ item, index }, displayIndex) => (
+                  <Fragment key={index}>
+                  {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <tr className="border-b bg-muted/60"><td colSpan={9} className="px-4 py-2 font-semibold uppercase tracking-wide">{item.itemType || "Hardware"} Items</td></tr>}
+                  <tr className="border-b last:border-0 transition-colors hover:bg-muted/20">
                     <td className="px-4 py-3 align-middle text-muted-foreground">{String(index + 1).padStart(2, "0")}</td>
                     <td className="px-4 py-3">
-                      <Textarea className={`min-h-20 min-w-[240px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
+                      <select className="mb-1 h-8 rounded-md border border-input bg-background px-2 text-xs" value={item.itemType || "Hardware"} onChange={(event) => updateItemType(index, event.target.value as "Hardware" | "Software")} aria-label={`Item ${index + 1} type`}>
+                        <option value="Hardware">Hardware</option>
+                        <option value="Software">Software</option>
+                      </select>
+                      <Textarea className={`min-h-20 min-w-[320px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
                     </td>
                     <td className="px-4 py-3">
-                      <Input className={`w-24 ${!Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""}`} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} />
+                      <Input className={`w-16 ${!Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""}`} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} />
                     </td>
                     <td className="px-4 py-3">
-                      <Input className="w-32" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
+                      <Input className="w-24" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
                     </td>
                     <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(itemAmount(item))}</td>
                     <td className="px-4 py-3">
-                      <Input className="w-24" type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} aria-label={`Item ${index + 1} tax code percent`} />
+                      <Input className="w-20" type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} aria-label={`Item ${index + 1} tax code percent`} />
                     </td>
                     <td className="px-4 py-3 text-right align-middle tabular-nums">{item.taxPercent ? formatPKR(itemTaxAmount(item)) : "—"}</td>
                     <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(itemTotal(item))}</td>
@@ -342,6 +388,7 @@ export default function NewQuotation() {
                       </div>
                     </td>
                   </tr>
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot className="bg-muted/40">
@@ -350,13 +397,13 @@ export default function NewQuotation() {
                   <td className="px-4 py-2 text-right font-semibold tabular-nums">{formatPKR(subtotal)}</td>
                   <td />
                 </tr>
-                {fbrGst > 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-2 text-right">FBR GST (PKR)</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{formatPKR(fbrGst)}</td>
+                {taxBreakdown.map(({ taxPercent, amount }) => (
+                  <tr key={taxPercent}>
+                    <td colSpan={7} className="px-4 py-2 text-right">GST {taxPercent}% (PKR)</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{formatPKR(amount)}</td>
                     <td />
                   </tr>
-                )}
+                ))}
                 <tr className="border-t font-bold">
                   <td colSpan={7} className="px-4 py-3 text-right">Grand Total (PKR)</td>
                   <td className="px-4 py-3 text-right text-base tabular-nums">{formatPKR(total)}</td>

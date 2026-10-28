@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, Download, Eye, FileText, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Copy, Download, Eye, FileText, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { quotationAPI, QUOTATION_STATUSES, Quotation, QuotationStatus } from "@/integrations/firebase/quotationAPI";
+import { invoiceAPI, Invoice } from "@/integrations/firebase/invoiceAPI";
 import { parentProjectsAPI, ParentProject } from "@/integrations/firebase/parentProjectsAPI";
 import { downloadQuotationPDF, generateQuotationPDF } from "@/lib/quotationPdfGenerator";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,17 +41,26 @@ export default function Quotations() {
   const [filterSector, setFilterSector] = useState("");
   const [projects, setProjects] = useState<ParentProject[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [refreshing, setRefreshing] = useState(false);
   const [retry, setRetry] = useState(0);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [downloadChoiceQuotation, setDownloadChoiceQuotation] = useState<Quotation | null>(null);
+  const [transferringId, setTransferringId] = useState<string | null>(null);
   const [duplicateQuotation, setDuplicateQuotation] = useState<Quotation | null>(null);
   const [duplicateSectorProjectId, setDuplicateSectorProjectId] = useState("");
   const [duplicating, setDuplicating] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [nextSequence, setNextSequence] = useState("");
+  const [sequenceLoading, setSequenceLoading] = useState(true);
+  const [sequenceSaving, setSequenceSaving] = useState(false);
 
   useEffect(() => {
     parentProjectsAPI.getAllWithCounts().then(setProjects);
+  }, []);
+
+  useEffect(() => {
+    quotationAPI.getNextSequence()
+      .then((sequence) => setNextSequence(String(sequence)))
+      .catch((error: any) => toast.error(error?.message || "Could not load quotation sequence"))
+      .finally(() => setSequenceLoading(false));
   }, []);
 
   useEffect(() => {
@@ -81,31 +91,31 @@ export default function Quotations() {
 
   useEffect(() => setCurrentPage(1), [searchTerm, filterDate, filterSector]);
 
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      setQuotations(await quotationAPI.getLatest());
-      setFetchError(null);
-      toast.success("Quotations refreshed");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to refresh quotations");
-    } finally {
-      setRefreshing(false);
+  const handleSequenceUpdate = async () => {
+    const sequence = Number(nextSequence);
+    if (!Number.isSafeInteger(sequence) || sequence < 1) {
+      toast.error("Enter a positive whole number for the next quotation sequence");
+      return;
     }
-  }, []);
+    setSequenceSaving(true);
+    try {
+      await quotationAPI.setNextSequence(sequence);
+      setNextSequence(String(sequence));
+      toast.success("Next quotation sequence updated");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to update quotation sequence");
+    } finally {
+      setSequenceSaving(false);
+    }
+  };
 
-  const handleDownload = (quotation: Quotation) => setDownloadChoiceQuotation(quotation);
-
-  const downloadSelectedDocument = async (documentType: "Quote" | "Invoice") => {
-    if (!downloadChoiceQuotation) return;
-    const quotation = downloadChoiceQuotation;
-    setDownloadChoiceQuotation(null);
+  const handleDownload = async (quotation: Quotation) => {
     setDownloadingId(quotation.id || null);
     try {
-      await downloadQuotationPDF(quotation, documentType);
-      toast.success(`${documentType} PDF downloaded`);
+      await downloadQuotationPDF(quotation);
+      toast.success("Quotation PDF downloaded");
     } catch (error: any) {
-      toast.error(error?.message || `Failed to download ${documentType.toLowerCase()} PDF`);
+      toast.error(error?.message || "Failed to download quotation PDF");
     } finally {
       setDownloadingId(null);
     }
@@ -119,6 +129,46 @@ export default function Quotations() {
       setPreviewUrl(nextUrl);
     } catch (error: any) {
       toast.error(error?.message || "Failed to preview quotation PDF");
+    }
+  };
+
+  const handleTransferToInvoice = async (quotation: Quotation) => {
+    if (!quotation.id) return;
+    setTransferringId(quotation.id);
+    try {
+      const existingInvoice = await invoiceAPI.getByQuotationId(quotation.id);
+      if (existingInvoice?.id) {
+        toast.success("This quotation has already been transferred to an invoice");
+        navigate(`/invoices/${existingInvoice.id}`);
+        return;
+      }
+      const invoice: Invoice = {
+        invoiceNo: "",
+        issueDate: quotation.issueDate,
+        validTill: quotation.validTill,
+        customerName: quotation.customerName,
+        customerAddress: quotation.customerAddress,
+        customerPhone: quotation.customerPhone,
+        invoiceReference: quotation.quoteReference || quotation.quotationNo,
+        fbrReference: quotation.fbrReference,
+        items: quotation.items.map((item) => ({ ...item })),
+        note: quotation.note,
+        terms: quotation.terms,
+        companyProfileId: quotation.companyProfileId,
+        companyProfileName: quotation.companyProfileName,
+        sectorProjectId: quotation.sectorProjectId,
+        sectorProjectName: quotation.sectorProjectName,
+        invoiceStatus: "Draft",
+        sourceQuotationId: quotation.id,
+        sourceQuotationNo: quotation.quotationNo,
+      };
+      const createdInvoice = await invoiceAPI.create(invoice);
+      toast.success("Quotation transferred to invoice");
+      navigate(`/invoices/${createdInvoice.id}`);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to transfer quotation to invoice");
+    } finally {
+      setTransferringId(null);
     }
   };
 
@@ -201,16 +251,6 @@ export default function Quotations() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-    <Dialog open={Boolean(downloadChoiceQuotation)} onOpenChange={(open) => !open && setDownloadChoiceQuotation(null)}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader><DialogTitle>Download as</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">Choose the document type for this PDF.</p>
-        <DialogFooter>
-          <Button variant="outline" className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/10 hover:text-primary hover:shadow-sm" onClick={() => downloadSelectedDocument("Quote")} disabled={downloadingId !== null}>Quote</Button>
-          <Button className="transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md" onClick={() => downloadSelectedDocument("Invoice")} disabled={downloadingId !== null}>Invoice</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
     <Dialog open={Boolean(previewUrl)} onOpenChange={(open) => {
       if (!open && previewUrl) {
         URL.revokeObjectURL(previewUrl);
@@ -223,15 +263,27 @@ export default function Quotations() {
       </DialogContent>
     </Dialog>
     <div className="space-y-6 pb-6">
-      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-        <div><h1 className="text-2xl font-bold sm:text-3xl">Quotations</h1><p className="mt-1 text-sm text-muted-foreground">Create, review, and download customer quotations</p></div>
-        <div className="flex w-full gap-2 sm:w-auto">
-          <Button onClick={handleRefresh} variant="outline" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/10 hover:text-primary hover:shadow-sm" disabled={refreshing} title="Refresh quotations"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} /></Button>
-          <Button onClick={() => navigate("/quotations/new")} className="flex-1 gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:flex-none"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0"><h1 className="text-2xl font-bold sm:text-3xl">Quotations</h1><p className="mt-1 text-sm text-muted-foreground">Create, review, and download customer quotations</p></div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <label htmlFor="quotation-next-sequence" className="whitespace-nowrap text-sm font-semibold">Next Quotation Sequence</label>
+          <Input
+            id="quotation-next-sequence"
+            aria-label="Next quotation sequence"
+            className="w-20"
+            type="number"
+            min="1"
+            step="1"
+            value={nextSequence}
+            onChange={(event) => setNextSequence(event.target.value)}
+            disabled={sequenceLoading || sequenceSaving || !isAdmin}
+          />
+          {isAdmin && <Button type="button" onClick={handleSequenceUpdate} disabled={sequenceLoading || sequenceSaving}>{sequenceSaving ? "Saving..." : "Update sequence"}</Button>}
+          <Button onClick={() => navigate("/quotations/new")} className="gap-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"><Plus className="h-4 w-4" /><span>New Quotation</span></Button>
         </div>
       </div>
 
-      <Card><CardContent className="grid gap-4 pt-6 md:grid-cols-3">
+      <Card><CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-3">
         <div className="space-y-2"><label htmlFor="quotation-search" className="text-sm font-medium">Search</label><Input id="quotation-search" placeholder="Search quote number, customer, or reference..." value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-date" className="text-sm font-medium">Filter by Issue Date</label><Input id="quotation-date" type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} /></div>
         <div className="space-y-2"><label htmlFor="quotation-sector" className="text-sm font-medium">Filter by Sector</label><select id="quotation-sector" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={filterSector} onChange={(event) => setFilterSector(event.target.value)}><option value="">All sectors</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
@@ -251,6 +303,7 @@ export default function Quotations() {
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-sm" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-cyan-100 hover:text-cyan-700 hover:shadow-sm" disabled={transferringId === quotation.id} onClick={() => handleTransferToInvoice(quotation)} title="Transfer to invoice" aria-label={`Transfer ${quotation.quotationNo} to invoice`}><ArrowRightLeft className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Clone quotation"><Copy className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-700 hover:shadow-sm" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
@@ -266,6 +319,7 @@ export default function Quotations() {
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-sky-100 hover:text-sky-700 hover:shadow-sm" onClick={() => handlePreview(quotation)} title="View quotation PDF"><Eye className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 hover:text-indigo-700 hover:shadow-sm" onClick={() => navigate(`/quotations/${quotation.id}`)} title="Edit quotation"><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-sm" disabled={downloadingId === quotation.id} onClick={() => handleDownload(quotation)} title="Download PDF"><Download className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-cyan-100 hover:text-cyan-700 hover:shadow-sm" disabled={transferringId === quotation.id} onClick={() => handleTransferToInvoice(quotation)} title="Transfer to invoice" aria-label={`Transfer ${quotation.quotationNo} to invoice`}><ArrowRightLeft className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-100 hover:text-violet-700 hover:shadow-sm" onClick={() => handleDuplicate(quotation)} title="Clone quotation"><Copy className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" className="transition-all duration-200 hover:-translate-y-0.5 hover:bg-red-100 hover:text-red-700 hover:shadow-sm" onClick={() => handleDelete(quotation)} title="Delete quotation"><Trash2 className="h-4 w-4 text-destructive" /></Button>
               </div></TableCell>

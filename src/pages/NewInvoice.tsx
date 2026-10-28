@@ -1,737 +1,395 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { invoiceAPI, Invoice, InvoiceEquipment } from "@/integrations/firebase/invoiceAPI";
-import { realtimeCompanyProfileAPI } from "@/integrations/firebase/realtimeAPI";
-import { CompanyProfile } from "@/integrations/firebase/firestore";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/context/AuthContext";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Plus, Trash2, Bold, Italic, List, ListOrdered, Heading2, Copy } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { toast } from "sonner";
-import { ArrowLeft, Download, Eye, Plus, Trash2, Upload, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
+import { invoiceAPI, Invoice, InvoiceItem } from "@/integrations/firebase/invoiceAPI";
+import { CompanyProfile, companyProfileAPI } from "@/integrations/firebase/firestore";
+import { parentProjectsAPI, ParentProject } from "@/integrations/firebase/parentProjectsAPI";
+import { downloadInvoicePDF } from "@/lib/invoicePdfGenerator";
+import { DEFAULT_INVOICE_NOTE, DEFAULT_INVOICE_TERMS } from "@/lib/invoiceDefaults";
 
-// Prevent scroll wheel from changing number input values
-const handleNumberInputWheel = (e: React.WheelEvent<HTMLInputElement>) => {
-  e.currentTarget.blur();
-};
-
-export default function NewInvoice() {
-  console.log("NewInvoice component loading...");
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { appUser, isAdmin } = useAuth();
-
-  // Restrict invoice creation/editing to admins only
-  useEffect(() => {
-    if (!isAdmin) {
-      toast.error("Permission Denied: Only administrators can create or edit invoices");
-      navigate("/invoices");
+function termsTextToHtml(text: string) {
+  // Keep existing saved plain-text terms readable when opening an older invoice.
+  if (/<(h[1-6]|p|ul|ol|li|strong|em|div)\b/i.test(text)) return text;
+  return text.split(/\r?\n/).map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return "<p><br /></p>";
+    if (trimmed.endsWith(":") && !trimmed.startsWith("-")) {
+      return `<h3>${trimmed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h3>`;
     }
-  }, [isAdmin, navigate]);
+    if (trimmed.startsWith("- ")) {
+      const content = trimmed.slice(2).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return `<ul><li>${content}</li></ul>`;
+    }
+    return `<p>${trimmed.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
+  }).join("");
+}
 
-  // Form states
-  const [invoiceType, setInvoiceType] = useState<"sales" | "purchase">("sales");
-  const [invoiceNo, setInvoiceNo] = useState<string>("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
-  const [poNumber, setPoNumber] = useState("");
-  const [millName, setMillName] = useState("");
-  const [location, setLocation] = useState("");
-  const [unit, setUnit] = useState("");
-  const [poStatus, setPoStatus] = useState<"pending" | "completed" | "cancelled">("pending");
-  const [equipment, setEquipment] = useState<InvoiceEquipment[]>([
-    { id: "0", name: "", details: "", quantity: 1, unitPrice: 0, barcodes: [] },
-  ]);
-  const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
-  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [selectedInvoiceProfileId, setSelectedInvoiceProfileId] = useState<string | null>(null);
-  const [paidAmount, setPaidAmount] = useState<number | string>("");
-  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
-  const [invoiceCategory, setInvoiceCategory] = useState<"Hardware" | "Software" | "Deployment">("Hardware");
-  const [invoiceTo, setInvoiceTo] = useState("ISSM Labelling Solutions");
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [savedInvoiceId, setSavedInvoiceId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(id ? true : false);
-
-  const isMountedRef = useRef(true);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const profilesUnsubRef = useRef<(() => void) | null>(null);
-  const existingInvoiceUnsubRef = useRef<(() => void) | null>(null);
-
-  const selectedInvoiceProfile = profiles.find((profile) => profile.id === selectedInvoiceProfileId);
-  const invoiceNumberPlaceholder = selectedInvoiceProfile
-    ? `${selectedInvoiceProfile.company_name.trim().charAt(0).toUpperCase() || "I"}INV-00001`
-    : invoiceType === "purchase"
-    ? "Auto-generated as PI-00001"
-    : "Auto-generated as SI-00001";
-
-  // Subscribe to company profiles
-  useEffect(() => {
-    profilesUnsubRef.current = realtimeCompanyProfileAPI.subscribeAll((data) => {
-      if (isMountedRef.current) {
-        setProfiles(data || []);
-      }
-    });
-
-    return () => {
-      profilesUnsubRef.current?.();
-    };
-  }, []);
+function TermsRichEditor({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const editorRef = useRef<HTMLDivElement>(null);
+  const lastEmitted = useRef("");
+  const runCommand = (command: string, argument?: string) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false, argument);
+    if (editorRef.current) {
+      const html = editorRef.current.innerHTML;
+      lastEmitted.current = html;
+      onChange(html);
+    }
+  };
 
   useEffect(() => {
-    if (profiles.length === 0) {
-      if (!id) {
-        setInvoiceNo("");
-      }
-      return;
-    }
+    const editor = editorRef.current;
+    if (!editor || value === lastEmitted.current) return;
+    editor.innerHTML = termsTextToHtml(value);
+  }, [value]);
 
-    if (!selectedProfileId) {
-      // Find ISSM Labelling Solutions first, otherwise fall back to first profile
-      const issmProfile = profiles.find(p => p.company_name === "Avira Technologies");
-      setSelectedProfileId(issmProfile?.id || profiles[0]?.id || null);
-    }
-
-    if (!selectedInvoiceProfileId) {
-      // Find ISSM Labelling Solutions first, otherwise fall back to first profile
-      const issmProfile = profiles.find(p => p.company_name === "Avira Technologies");
-      setSelectedInvoiceProfileId(issmProfile?.id || profiles[0]?.id || null);
-    }
-  }, [profiles, selectedProfileId, selectedInvoiceProfileId, id]);
-
-  // Load existing invoice if editing
-  useEffect(() => {
-    if (!id) return;
-
-    existingInvoiceUnsubRef.current = invoiceAPI.subscribeById(id, (invoice) => {
-      if (invoice && isMountedRef.current) {
-        setInvoiceType(invoice.invoiceType === "purchase" ? "purchase" : "sales");
-        setInvoiceNo(invoice.invoiceNo);
-        setDate(invoice.date);
-        setPoNumber(invoice.poNumber || "");
-        setMillName(invoice.millName);
-        setLocation(invoice.location);
-        setUnit((invoice as any).unit || "");
-        setPoStatus((invoice.poStatus as any) || "pending");
-        setEquipment(invoice.equipment || []);
-        setPaidAmount(invoice.balancePaid || "");
-        setReceiptUrl((invoice as any).receiptUrl || null);
-        setInvoiceCategory(invoice.invoiceCategory || "Hardware");
-        setInvoiceTo(invoice.invoiceTo || "");
-        if (invoice.companyProfileId) {
-          setSelectedInvoiceProfileId(invoice.companyProfileId);
-        }
-        setIsLoading(false);
-      }
-    });
-
-    return () => {
-      existingInvoiceUnsubRef.current?.();
-    };
-  }, [id]);
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const validEquipment = equipment.filter((eq) => eq.name?.trim());
-
-      const invoiceData: any = {
-        invoiceType,
-        invoiceNo: invoiceNo || undefined,
-        date,
-        poNumber: poNumber || undefined,
-        millName,
-        location,
-        unit: unit || undefined,
-        poStatus,
-        equipment: validEquipment,
-        invoiceCategory,
-        invoiceTo: invoiceTo || undefined,
-        receiptUrl: receiptUrl || undefined,
-        companyProfileId: selectedInvoiceProfileId || undefined,
-        companyProfileName: selectedInvoiceProfile?.company_name,
-        invoiceAmount: validEquipment.reduce((sum, eq) => sum + (eq.quantity * eq.unitPrice), 0),
-        balancePaid: typeof paidAmount === "string" ? (paidAmount === "" ? 0 : Number(paidAmount) || 0) : paidAmount,
-        status: "draft",
-      };
-
-      const invoiceResult = id
-        ? await invoiceAPI.update(id, invoiceData).then(() => ({ id }))
-        : await invoiceAPI.create(invoiceData);
-
-      if (invoiceResult.id) {
-        setSavedInvoiceId(invoiceResult.id);
-      }
-
-      return invoiceResult;
-    },
-    onSuccess: () => {
-      if (!isMountedRef.current) return;
-
-      queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast.success(id ? "Invoice updated successfully" : "Invoice created successfully");
-      setShowSuccess(true);
-
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-      timeoutRef.current = setTimeout(() => {
-        if (isMountedRef.current) {
-          navigate("/invoices");
-        }
-      }, 1500);
-    },
-    onError: (err: any) => {
-      if (isMountedRef.current) {
-        console.error("Invoice save error:", err);
-        toast.error(err.message || "Failed to save invoice");
-      }
-    },
-  });
-
-  const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    e.target.value = "";
-
-    if (!isMountedRef.current) return;
-
-    try {
-      const fileExt = file.name.split(".").pop() || "pdf";
-      const timestamp = Date.now();
-      const filePath = `receipt_${timestamp}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("company-logos")
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from("company-logos")
-        .getPublicUrl(filePath);
-
-      if (isMountedRef.current) {
-        setReceiptUrl(urlData.publicUrl);
-        toast.success("Receipt uploaded successfully!");
-      }
-    } catch (error: any) {
-      if (!isMountedRef.current) return;
-      console.error("Receipt upload error:", error);
-      toast.error(error.message || "Failed to upload receipt");
-    }
-  };
-
-  const handleViewReceipt = () => {
-    if (!receiptUrl) return;
-    window.open(receiptUrl, "_blank", "noopener,noreferrer");
-  };
-
-  const handleDownloadReceipt = () => {
-    if (!receiptUrl) return;
-
-    const link = document.createElement("a");
-    link.href = receiptUrl;
-    link.download = "receipt";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleRemoveReceipt = () => {
-    setReceiptUrl(null);
-  };
-
-  const handleSave = async () => {
-    if (!millName.trim()) {
-      toast.error("Please enter mill name");
-      return;
-    }
-    if (!location.trim()) {
-      toast.error("Please enter location");
-      return;
-    }
-    if (equipment.filter((eq) => eq.name?.trim()).length === 0) {
-      toast.error("Please add at least one equipment");
-      return;
-    }
-
-    saveMutation.mutate();
-  };
-
-  const addEquipment = () => {
-    setEquipment((prev) => [
-      { id: Date.now().toString(), name: "", details: "", quantity: 1, unitPrice: 0, barcodes: [] },
-      ...prev,
-    ]);
-  };
-
-  const updateEquipment = (index: number, field: string, value: any) => {
-    setEquipment((prev) =>
-      prev.map((e, i) => {
-        if (i === index) {
-          return { ...e, [field]: value };
-        }
-        return e;
-      })
-    );
-  };
-
-  const removeEquipment = (index: number) => {
-    if (equipment.length > 1) {
-      setEquipment((prev) => prev.filter((_, i) => i !== index));
-    }
-  };
-
-  const totalAmount = equipment.reduce((sum, eq) => sum + (eq.quantity * eq.unitPrice), 0);
-  const totalQuantity = equipment.reduce((sum, eq) => sum + eq.quantity, 0);
-  const paidAmountNum = typeof paidAmount === "string" ? (paidAmount === "" ? 0 : Number(paidAmount) || 0) : paidAmount;
-  const balance = totalAmount - paidAmountNum;
-
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <p>Loading...</p>
-      </div>
-    );
-  }
+  const toolbarButton = (label: string, title: string, command: string, icon: React.ReactNode, argument?: string) => (
+    <Button
+      key={command}
+      type="button"
+      variant="outline"
+      size="sm"
+      title={title}
+      aria-label={title}
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={() => runCommand(command, argument)}
+    >
+      {icon}<span className="ml-1 hidden sm:inline">{label}</span>
+    </Button>
+  );
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-        <Button variant="ghost" size="icon" className="w-10 h-10" onClick={() => navigate("/invoices")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground break-words">
-              {id ? "Edit Invoice" : "New Invoice"}
-            </h1>
-          </div>
-          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
-            Create and manage invoices
-          </p>
-        </div>
+    <div className="overflow-hidden rounded-md border">
+      <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 p-2">
+        {toolbarButton("Bold", "Bold", "bold", <Bold className="h-4 w-4" />)}
+        {toolbarButton("Italic", "Italic", "italic", <Italic className="h-4 w-4" />)}
+        {toolbarButton("Heading", "Section heading", "formatBlock", <Heading2 className="h-4 w-4" />, "h3")}
+        {toolbarButton("Bullets", "Bulleted list", "insertUnorderedList", <List className="h-4 w-4" />)}
+        {toolbarButton("Numbering", "Numbered list", "insertOrderedList", <ListOrdered className="h-4 w-4" />)}
+      </div>
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        role="textbox"
+        aria-label="General Terms and Conditions editor"
+        aria-multiline="true"
+        onInput={(event) => {
+          const html = event.currentTarget.innerHTML;
+          lastEmitted.current = html;
+          onChange(html);
+        }}
+        className="min-h-[280px] space-y-2 p-3 text-sm outline-none sm:min-h-[320px] sm:p-4 [&_h3]:mb-2 [&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-bold [&_li]:ml-5 [&_li]:list-disc [&_ol_li]:list-decimal [&_p]:min-h-5 [&_ul]:my-2 [&_ol]:my-2"
+      />
+      <p className="border-t bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        Select text and use Bold, Italic, Heading, Bullets, or Numbering to format the terms.
+      </p>
+    </div>
+  );
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+const defaultValidTill = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 5);
+  return date.toISOString().slice(0, 10);
+};
+const emptyInvoiceItem = (): InvoiceItem => ({ description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
+const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const itemAmount = (item: InvoiceItem) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
+const itemTaxAmount = (item: InvoiceItem) => {
+  const taxPercent = Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+  return Math.round((itemAmount(item) * taxPercent / 100 + Number.EPSILON) * 100) / 100;
+};
+const itemTotal = (item: InvoiceItem) => itemAmount(item) + itemTaxAmount(item);
+
+export default function NewInvoice() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(Boolean(id));
+  const [saving, setSaving] = useState(false);
+  const [saveAttempted, setSaveAttempted] = useState(false);
+  const [profiles, setProfiles] = useState<CompanyProfile[]>([]);
+  const [projects, setProjects] = useState<ParentProject[]>([]);
+  const [companyProfileId, setCompanyProfileId] = useState("");
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [sectorProjectId, setSectorProjectId] = useState("");
+  const [issueDate, setIssueDate] = useState(today());
+  const [validTill, setValidTill] = useState(defaultValidTill());
+  const [customerName, setCustomerName] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [invoiceReference, setInvoiceReference] = useState("");
+  const [fbrReference, setFbrReference] = useState("FBR STGO NO. 27 OF 2026");
+  const [items, setItems] = useState<InvoiceItem[]>([emptyInvoiceItem()]);
+  const [note, setNote] = useState(DEFAULT_INVOICE_NOTE);
+  const [terms, setTerms] = useState(DEFAULT_INVOICE_TERMS);
+  const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
+  const taxBreakdown = useMemo(() => {
+    const taxByRate = new Map<number, number>();
+    items.forEach((item) => {
+      const taxPercent = Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+      if (taxPercent <= 0) return;
+      taxByRate.set(taxPercent, (taxByRate.get(taxPercent) || 0) + itemTaxAmount(item));
+    });
+    return Array.from(taxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
+      .sort((first, second) => first.taxPercent - second.taxPercent);
+  }, [items]);
+  const totalTax = taxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
+  const total = subtotal + totalTax;
+  const missingFields = [
+    !issueDate && "Issue Date",
+    !validTill && "Valid Till",
+    !customerName.trim() && "Customer",
+    ...items.flatMap((item, index) => [
+      !item.description.trim() && `Item ${index + 1} Description`,
+      !Number.isFinite(item.quantity) && `Item ${index + 1} Quantity`,
+      !Number.isFinite(item.unitPrice) && `Item ${index + 1} Unit Price`,
+      !Number.isFinite(item.taxPercent ?? 0) && `Item ${index + 1} Tax`,
+    ]),
+  ].filter((field): field is string => Boolean(field));
+
+  useEffect(() => {
+    parentProjectsAPI.getAllWithCounts().then(setProjects).catch(() => toast.error("Could not load project tracking projects"));
+  }, []);
+
+  useEffect(() => {
+    companyProfileAPI.getAll().then((data) => {
+      setProfiles(data || []);
+      const preferred = data?.find((profile) => profile.company_name === "ISSM Labelling Solutions") || data?.[0];
+      if (preferred?.id) setCompanyProfileId((current) => current || preferred.id!);
+    }).catch(() => toast.error("Could not load company profiles"));
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    invoiceAPI.getById(id).then((invoice) => {
+      if (!invoice) {
+        toast.error("Invoice not found");
+        navigate("/invoices");
+        return;
+      }
+      setInvoiceNo(invoice.invoiceNo);
+      setIssueDate(invoice.issueDate || today());
+      setValidTill(invoice.validTill || "");
+      setCustomerName(invoice.customerName || "");
+      setCustomerAddress(invoice.customerAddress || "");
+      setCustomerPhone(invoice.customerPhone || "");
+      setInvoiceReference(invoice.invoiceReference || "");
+      setFbrReference(invoice.fbrReference || "FBR STGO NO. 27 OF 2026");
+      setItems(invoice.items?.length ? invoice.items.map((item) => ({ ...item, taxPercent: item.taxPercent ?? 0 })) : [emptyInvoiceItem()]);
+      setNote(invoice.note ?? DEFAULT_INVOICE_NOTE);
+      setTerms(invoice.terms ?? DEFAULT_INVOICE_TERMS);
+      setCompanyProfileId(invoice.companyProfileId || "");
+      setSectorProjectId(invoice.sectorProjectId || "");
+    }).catch(() => toast.error("Failed to load invoice")).finally(() => setLoading(false));
+  }, [id, navigate]);
+
+  const updateItem = (index: number, field: keyof InvoiceItem, value: string) => {
+    setItems((current) => current.map((item, itemIndex) => itemIndex === index
+      ? { ...item, [field]: field === "description" ? value : value === "" ? Number.NaN : Math.max(0, Number(value)) }
+      : item));
+  };
+
+  const duplicateItem = (index: number) => {
+    setItems((current) => [...current.slice(0, index + 1), { ...current[index] }, ...current.slice(index + 1)]);
+  };
+
+  const saveInvoice = async (download = false) => {
+    setSaveAttempted(true);
+    if (missingFields.length) {
+      toast.error("Complete the customer, dates, and every line item before saving");
+      return;
+    }
+    setSaving(true);
+    try {
+      const profile = profiles.find((item) => item.id === companyProfileId);
+      const payload: Invoice = {
+        invoiceNo,
+        issueDate,
+        validTill,
+        customerName: customerName.trim(),
+        customerAddress: customerAddress.trim(),
+        customerPhone: customerPhone.trim(),
+        invoiceReference: invoiceReference.trim(),
+        fbrReference: fbrReference.trim(),
+        items,
+        note,
+        terms,
+        companyProfileId: companyProfileId || undefined,
+        companyProfileName: profile?.company_name,
+        sectorProjectId: sectorProjectId || undefined,
+        sectorProjectName: projects.find((project) => project.id === sectorProjectId)?.name,
+      };
+      let saved: Invoice;
+      if (id) {
+        await invoiceAPI.update(id, payload);
+        saved = { ...payload, id, invoiceNo };
+      } else {
+        saved = await invoiceAPI.create(payload);
+        setInvoiceNo(saved.invoiceNo);
+      }
+      toast.success(id ? "Invoice updated" : "Invoice created");
+      if (download) {
+        try {
+          await downloadInvoicePDF(saved);
+        } catch (error: any) {
+          toast.error(error?.message || "Invoice saved, but PDF download failed");
+        }
+      }
+      navigate("/invoices");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to save invoice");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="p-8 text-center text-muted-foreground">Loading invoice...</div>;
+
+  return (
+    <div className="w-full min-w-0 space-y-4 pb-6 sm:space-y-6 sm:pb-8">
+      <div className="flex min-w-0 items-center gap-3">
+        <Button variant="outline" size="icon" className="shrink-0" onClick={() => navigate("/invoices")} aria-label="Back to invoices"><ArrowLeft className="h-4 w-4" /></Button>
+        <div className="min-w-0"><h1 className="text-xl font-bold sm:text-2xl">{id ? "Edit Invoice" : "New Invoice"}</h1><p className="text-sm text-muted-foreground">Create and manage customer invoices</p></div>
       </div>
 
-      {showSuccess && savedInvoiceId && (
-        <Card className="bg-green-50 border-green-200">
-          <CardContent className="pt-6">
-            <p className="text-green-700 font-medium">
-              Invoice saved successfully!
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      {saveAttempted && missingFields.length > 0 && <div role="status" aria-live="polite" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><p className="font-medium">Missing required fields</p><ul className="mt-1 list-inside list-disc">{missingFields.map((field) => <li key={field}>{field}</li>)}</ul></div>}
 
-      {/* Invoice Information */}
       <Card>
-        <CardHeader>
-          <CardTitle>Invoice Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 sm:space-y-4">
-          {/* Company Profile Selection */}
-          <div className="space-y-3">
-            <Label className="text-sm sm:text-base">Company Profile *</Label>
-            {profiles.length > 0 ? (
-              <RadioGroup
-                value={selectedInvoiceProfileId || ""}
-                onValueChange={setSelectedInvoiceProfileId}
-                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-              >
-                {profiles.map((profile) => (
-                  <Label
-                    key={profile.id}
-                    htmlFor={`invoice-company-${profile.id}`}
-                    className={cn(
-                      "flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
-                      selectedInvoiceProfileId === profile.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                    )}
-                  >
-                    <RadioGroupItem id={`invoice-company-${profile.id}`} value={profile.id || ""} className="mt-1" />
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm">{profile.company_name}</p>
-                    </div>
-                  </Label>
-                ))}
-              </RadioGroup>
-            ) : (
-              <p className="text-sm text-muted-foreground">No company profiles. Please create one in Settings.</p>
-            )}
-          </div>
-
-          {/* Upper Fields */}
-          <div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="invoice-no">Invoice Number *</Label>
-              <Input
-                id="invoice-no"
-                value={invoiceNo}
-                onChange={(e) => setInvoiceNo(e.target.value)}
-                placeholder={invoiceNumberPlaceholder}
-                disabled
-                className="text-xs sm:text-sm"
-              />
-              <p className="text-xs text-muted-foreground">Auto-generated on save</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="invoice-to">Invoice To *</Label>
-              <Input
-                id="invoice-to"
-                value={invoiceTo}
-                onChange={(e) => setInvoiceTo(e.target.value)}
-                placeholder="Enter recipient name"
-                className="text-xs sm:text-sm"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="invoice-date">Date *</Label>
-              <Input
-                id="invoice-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="text-xs sm:text-sm"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="invoice-category">Invoice Type *</Label>
-              <Select value={invoiceCategory} onValueChange={(value: any) => setInvoiceCategory(value)}>
-                <SelectTrigger id="invoice-category" className="text-xs sm:text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Hardware">Hardware</SelectItem>
-                  <SelectItem value="Software">Software</SelectItem>
-                  <SelectItem value="Deployment">Deployment</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="po-number">PO Number</Label>
-              <Input
-                id="po-number"
-                value={poNumber}
-                onChange={(e) => setPoNumber(e.target.value)}
-                placeholder="PO-001"
-                className="text-xs sm:text-sm"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="mill-name">Mill Name *</Label>
-              <Input
-                id="mill-name"
-                value={millName}
-                onChange={(e) => setMillName(e.target.value)}
-                placeholder="Enter mill name"
-                className="text-xs sm:text-sm"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="location">Location *</Label>
-              <Input
-                id="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="Enter location"
-                className="text-xs sm:text-sm"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="unit">Unit</Label>
-              <Input
-                id="unit"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                placeholder="Enter unit"
-                className="text-xs sm:text-sm"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="po-status">PO Status</Label>
-              <Select value={poStatus} onValueChange={(value: any) => setPoStatus(value)}>
-                <SelectTrigger id="po-status" className="text-xs sm:text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="paid-amount">Paid Amount</Label>
-              <Input
-                id="paid-amount"
-                type="number"
-                value={paidAmount || ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "") {
-                    setPaidAmount("");
-                  } else {
-                    const num = Number(val);
-                    if (!isNaN(num) && num >= 0) {
-                      setPaidAmount(num);
-                    }
-                  }
-                }}
-                onBlur={(e) => {
-                  const val = e.target.value;
-                  if (val === "" || isNaN(Number(val))) {
-                    setPaidAmount(0);
-                  }
-                }}
-                onWheel={handleNumberInputWheel}
-                placeholder="0"
-                className="text-xs sm:text-sm"
-                min="0"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="receipt-upload">Upload receipt (Optional)</Label>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Button type="button" variant="outline" className="gap-2 justify-start sm:justify-center" asChild>
-                  <label htmlFor="receipt-upload" className="cursor-pointer">
-                    <Upload className="h-4 w-4" />
-                    {receiptUrl ? "Change Receipt" : "Upload Receipt"}
-                  </label>
-                </Button>
-                {receiptUrl && (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={handleViewReceipt}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={handleDownloadReceipt}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
-                      onClick={handleRemoveReceipt}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <Input id="receipt-upload" type="file" className="hidden" onChange={handleReceiptUpload} />
-              {receiptUrl && <p className="text-xs text-muted-foreground break-all">Uploaded receipt attached</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="balance">Balance</Label>
-              <Input
-                id="balance"
-                type="number"
-                value={balance}
-                disabled
-                className="text-xs sm:text-sm bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">Total - Paid Amount</p>
-            </div>
-          </div>
+        <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Invoice Details</CardTitle></CardHeader>
+        <CardContent className="grid min-w-0 grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0 lg:grid-cols-3 2xl:grid-cols-5">
+          <div className="min-w-0 space-y-2"><Label>Invoice Number</Label><Input className="min-w-0" value={invoiceNo} onChange={(event) => setInvoiceNo(event.target.value)} placeholder="Auto-generated on save" /></div>
+          <div className="min-w-0 space-y-2"><Label>Issue Date *</Label><Input className={`min-w-0 ${saveAttempted && !issueDate ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} required aria-invalid={saveAttempted && !issueDate} /></div>
+          <div className="min-w-0 space-y-2"><Label>Valid Till *</Label><Input className={`min-w-0 ${saveAttempted && !validTill ? "border-destructive focus-visible:ring-destructive" : ""}`} type="date" value={validTill} onChange={(event) => setValidTill(event.target.value)} required aria-invalid={saveAttempted && !validTill} /></div>
+          <div className="min-w-0 space-y-2"><Label>Invoice Reference</Label><Input className="min-w-0" value={invoiceReference} onChange={(event) => setInvoiceReference(event.target.value)} placeholder="e.g. IN-OI-2026-001" /></div>
+          <div className="min-w-0 space-y-2"><Label>Sector</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
+          <div className="min-w-0 space-y-2"><Label>FBR Reference</Label><Input className="min-w-0" value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR STGO NO. 27 OF 2026" /></div>
+          <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
+          <div className="min-w-0 space-y-2"><Label>Invoice To / Customer *</Label><Input className={`min-w-0 ${saveAttempted && !customerName.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} required aria-invalid={saveAttempted && !customerName.trim()} /></div>
+          <div className="min-w-0 space-y-2"><Label>Phone</Label><Input className="min-w-0" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
+          <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3 2xl:col-span-5"><Label>Address</Label><Input className="min-w-0" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
         </CardContent>
       </Card>
 
-      {/* Equipment Section */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Equipment</CardTitle>
-          <Button
-            onClick={addEquipment}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Equipment
+        <CardHeader className="flex flex-col items-start justify-between gap-3 p-4 sm:flex-row sm:items-center sm:p-6">
+          <div className="min-w-0">
+            <CardTitle>Invoice Items</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Add products or services and set quantity and unit price.</p>
+          </div>
+          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => setItems((current) => [...current, emptyInvoiceItem()])}>
+            <Plus className="mr-2 h-4 w-4" />Add item
           </Button>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {equipment.map((item, index) => (
-            <Card key={item.id} className="p-4 bg-muted/30">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-sm">Equipment {index + 1}</p>
-                  {equipment.length > 1 && (
-                    <Button
-                      onClick={() => removeEquipment(index)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+        <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
+          <div className="space-y-3 2xl:hidden">
+            {items.map((item, index) => (
+              <div key={index} className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</p>
+                  <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyInvoiceItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
                 </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor={`equipment-name-${index}`} className="text-sm">Equipment Name *</Label>
-                    <Input
-                      id={`equipment-name-${index}`}
-                      value={item.name}
-                      onChange={(e) => updateEquipment(index, "name", e.target.value)}
-                      placeholder="e.g., Motor, Pump"
-                      className="text-xs sm:text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`equipment-details-${index}`} className="text-sm">Equipment Details</Label>
-                    <Input
-                      id={`equipment-details-${index}`}
-                      value={item.details || ""}
-                      onChange={(e) => updateEquipment(index, "details", e.target.value)}
-                      placeholder="e.g., 1.5HP, 2000RPM"
-                      className="text-xs sm:text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`equipment-qty-${index}`} className="text-sm">Qty *</Label>
-                    <Input
-                      id={`equipment-qty-${index}`}
-                      type="number"
-                      min="1"
-                      value={item.quantity || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "") {
-                          updateEquipment(index, "quantity", "");
-                        } else {
-                          const num = parseInt(val);
-                          if (!isNaN(num) && num >= 1) {
-                            updateEquipment(index, "quantity", num);
-                          }
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const val = e.target.value;
-                        if (val === "" || isNaN(parseInt(val))) {
-                          updateEquipment(index, "quantity", 1);
-                        }
-                      }}
-                      onWheel={handleNumberInputWheel}
-                      className="text-xs sm:text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor={`equipment-price-${index}`} className="text-sm">Unit Price *</Label>
-                    <Input
-                      id={`equipment-price-${index}`}
-                      type="number"
-                      value={item.unitPrice || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "") {
-                          updateEquipment(index, "unitPrice", "");
-                        } else {
-                          const num = Number(val);
-                          if (!isNaN(num)) {
-                            updateEquipment(index, "unitPrice", num);
-                          }
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const val = e.target.value;
-                        if (val === "" || isNaN(Number(val))) {
-                          updateEquipment(index, "unitPrice", 0);
-                        }
-                      }}
-                      onWheel={handleNumberInputWheel}
-                      placeholder="0"
-                      className="text-xs sm:text-sm"
-                    />
-                  </div>
+                <div className="space-y-2"><Label htmlFor={`invoice-item-description-${index}`}>Description</Label><Textarea id={`invoice-item-description-${index}`} className={`min-h-20 resize-y ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-invalid={saveAttempted && !item.description.trim()} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2"><Label htmlFor={`invoice-item-quantity-${index}`}>Quantity</Label><Input id={`invoice-item-quantity-${index}`} className={saveAttempted && !Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} /></div>
+                  <div className="space-y-2"><Label htmlFor={`invoice-item-tax-${index}`}>Tax (%)</Label><Input id={`invoice-item-tax-${index}`} type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} /></div>
+                  <div className="col-span-2 space-y-2"><Label htmlFor={`invoice-item-price-${index}`}>Unit Price (PKR)</Label><Input id={`invoice-item-price-${index}`} type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" /></div>
                 </div>
-
-                {/* Total for this equipment */}
-                <div className="pt-2 border-t bg-white/50 p-2 rounded">
-                  <p className="text-sm font-medium">
-                    Total: ₨ {(item.quantity * item.unitPrice).toLocaleString()}
-                  </p>
+                <div className="space-y-2 border-t pt-3 text-sm">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span className="tabular-nums">PKR {formatPKR(itemAmount(item))}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Tax Amount</span><span className="tabular-nums">PKR {formatPKR(itemTaxAmount(item))}</span></div>
+                  <div className="flex justify-between font-semibold"><span>Total</span><span className="tabular-nums">PKR {formatPKR(itemTotal(item))}</span></div>
                 </div>
+                <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => duplicateItem(index)}><Copy className="mr-2 h-4 w-4" />Duplicate item</Button>
               </div>
-            </Card>
-          ))}
-
-          {/* Summary */}
-          <Card className="p-4 bg-blue-50 border-blue-200">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm font-medium">
-                <span>Total Quantity:</span>
-                <span>{totalQuantity}</span>
-              </div>
-              <div className="flex justify-between text-lg font-bold">
-                <span>Grand Total:</span>
-                <span className="text-blue-600">₨ {totalAmount.toLocaleString()}</span>
-              </div>
+            ))}
+            <div className="overflow-hidden rounded-xl border text-sm">
+              <div className="flex justify-between border-b px-4 py-2.5"><span>Sub-total (PKR)</span><span className="font-semibold tabular-nums">{formatPKR(subtotal)}</span></div>
+              {taxBreakdown.map(({ taxPercent, amount }) => <div key={taxPercent} className="flex justify-between border-b px-4 py-2.5"><span>GST {taxPercent}% (PKR)</span><span className="tabular-nums">{formatPKR(amount)}</span></div>)}
+              <div className="flex justify-between px-4 py-2.5 font-bold"><span>Grand Total (PKR)</span><span className="tabular-nums">{formatPKR(total)}</span></div>
             </div>
-          </Card>
+          </div>
+          <div className="hidden overflow-x-auto rounded-lg border 2xl:block">
+            <table className="w-full min-w-[1180px] border-collapse text-sm">
+              <thead className="bg-muted/60">
+                <tr className="border-b text-left">
+                  <th className="w-12 px-4 py-3 font-semibold text-muted-foreground">#</th>
+                  <th className="w-[32%] px-4 py-3 font-semibold">Description</th>
+                  <th className="w-16 px-4 py-3 font-semibold">Qty</th>
+                  <th className="w-28 px-4 py-3 font-semibold">Unit Price</th>
+                  <th className="w-36 px-4 py-3 text-right font-semibold">Amount</th>
+                  <th className="w-24 px-4 py-3 font-semibold">Tax (%)</th>
+                  <th className="w-36 px-4 py-3 text-right font-semibold">Tax Amount</th>
+                  <th className="w-36 px-4 py-3 text-right font-semibold">Total (PKR)</th>
+                  <th className="w-24 px-4 py-3 text-center font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, index) => (
+                  <tr key={index} className="border-b last:border-0 transition-colors hover:bg-muted/20">
+                    <td className="px-4 py-3 align-middle text-muted-foreground">{String(index + 1).padStart(2, "0")}</td>
+                    <td className="px-4 py-3">
+                      <Textarea className={`min-h-20 min-w-[320px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input className={`w-16 ${!Number.isFinite(item.quantity) ? "border-destructive focus-visible:ring-destructive" : ""}`} type="number" min="0" value={Number.isFinite(item.quantity) ? item.quantity : ""} onChange={(event) => updateItem(index, "quantity", event.target.value)} aria-label={`Item ${index + 1} quantity`} aria-invalid={saveAttempted && !Number.isFinite(item.quantity)} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input className="w-24" type="number" min="0" step="0.01" value={item.unitPrice || ""} onChange={(event) => updateItem(index, "unitPrice", event.target.value)} placeholder="Enter price" aria-label={`Item ${index + 1} unit price`} />
+                    </td>
+                    <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(itemAmount(item))}</td>
+                    <td className="px-4 py-3">
+                      <Input className="w-20" type="number" min="0" step="0.01" value={item.taxPercent ?? ""} onChange={(event) => updateItem(index, "taxPercent", event.target.value)} aria-label={`Item ${index + 1} tax code percent`} />
+                    </td>
+                    <td className="px-4 py-3 text-right align-middle tabular-nums">{item.taxPercent ? formatPKR(itemTaxAmount(item)) : "—"}</td>
+                    <td className="px-4 py-3 text-right align-middle font-medium tabular-nums">{formatPKR(itemTotal(item))}</td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex justify-center gap-1">
+                        <Button type="button" variant="ghost" size="icon" onClick={() => duplicateItem(index)} aria-label={`Duplicate item ${index + 1}`} title="Duplicate item"><Copy className="h-4 w-4" /></Button>
+                        <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyInvoiceItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-muted/40">
+                <tr>
+                  <td colSpan={7} className="px-4 py-2 text-right">Sub-total (PKR)</td>
+                  <td className="px-4 py-2 text-right font-semibold tabular-nums">{formatPKR(subtotal)}</td>
+                  <td />
+                </tr>
+                {taxBreakdown.map(({ taxPercent, amount }) => (
+                  <tr key={taxPercent}>
+                    <td colSpan={7} className="px-4 py-2 text-right">GST {taxPercent}% (PKR)</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{formatPKR(amount)}</td>
+                    <td />
+                  </tr>
+                ))}
+                <tr className="border-t font-bold">
+                  <td colSpan={7} className="px-4 py-3 text-right">Grand Total (PKR)</td>
+                  <td className="px-4 py-3 text-right text-base tabular-nums">{formatPKR(total)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Save Button */}
-      <div className="flex gap-3 justify-end">
-        <Button
-          variant="outline"
-          onClick={() => navigate("/invoices")}
-          disabled={saveMutation.isPending}
-        >
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSave}
-          disabled={saveMutation.isPending}
-          className="bg-blue-600 hover:bg-blue-700"
-        >
-          {saveMutation.isPending ? "Saving..." : id ? "Update Invoice" : "Create Invoice"}
-        </Button>
+      <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Note</CardTitle></CardHeader><CardContent className="p-4 pt-0 sm:p-6 sm:pt-0"><Textarea className="w-full resize-y" value={note} onChange={(event) => setNote(event.target.value)} rows={4} /></CardContent></Card>
+      <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">General Terms &amp; Conditions</CardTitle></CardHeader><CardContent className="p-4 pt-0 sm:p-6 sm:pt-0"><TermsRichEditor value={terms} onChange={setTerms} /></CardContent></Card>
+
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <Button variant="outline" onClick={() => navigate("/invoices")}>Cancel</Button>
+        <Button variant="secondary" disabled={saving} onClick={() => saveInvoice(true)}>{saving ? "Saving..." : "Save & Download PDF"}</Button>
+        <Button disabled={saving} onClick={() => saveInvoice()}>{saving ? "Saving..." : "Save Invoice"}</Button>
       </div>
     </div>
   );

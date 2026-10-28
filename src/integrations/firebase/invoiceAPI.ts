@@ -1,368 +1,170 @@
-import { db } from "./config";
 import {
-  collection,
-  query,
-  where,
-  getDocs,
   addDoc,
-  updateDoc,
+  collection,
   deleteDoc,
   doc,
   getDoc,
-  orderBy,
-  onSnapshot,
-  Unsubscribe,
-  runTransaction,
+  getDocs,
   limit,
+  onSnapshot,
+  orderBy,
+  query,
+  runTransaction,
+  Unsubscribe,
+  updateDoc,
+  where,
 } from "firebase/firestore";
-import { removeUndefined, handleFirestoreError } from "./utils";
+import { db } from "./config";
+import { removeUndefined } from "./utils";
 
-export interface InvoiceEquipment {
-  id?: string;
-  name: string;
-  details?: string;
+export interface InvoiceItem {
+  description: string;
   quantity: number;
+  taxPercent?: number;
   unitPrice: number;
-  barcodes?: string[];
-  category_id?: string;
-  subcategory_id?: string;
-  itemIds?: string[];
 }
 
-export type InvoiceType = "sales" | "purchase";
-
-const DEFAULT_INVOICE_TYPE: InvoiceType = "sales";
-
-function normalizeInvoiceType(invoiceType?: string): InvoiceType {
-  return invoiceType === "purchase" ? "purchase" : DEFAULT_INVOICE_TYPE;
-}
-
-function mapInvoice(docId: string, data: Record<string, any>): Invoice {
-  return {
-    id: docId,
-    ...data,
-    invoiceType: normalizeInvoiceType(data.invoiceType),
-  } as Invoice;
-}
+export type InvoiceStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
+export const INVOICE_STATUSES: InvoiceStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled"];
 
 export interface Invoice {
   id?: string;
-  invoiceType?: InvoiceType;
   invoiceNo: string;
-  date: string;
-  poNumber?: string;
-  millName: string;
-  location: string;
-  unit?: string;
-  equipment: InvoiceEquipment[];
-  invoiceAmount: number;
-  balancePaid: number;
-  invoiceStatus?: "draft" | "completed" | "paid";
-  poStatus?: "pending" | "completed" | "cancelled";
-  invoiceCategory?: "Hardware" | "Software" | "Deployment";
-  invoiceTo?: string;
+  issueDate: string;
+  validTill: string;
+  customerName: string;
+  customerAddress: string;
+  customerPhone: string;
+  invoiceReference: string;
+  fbrReference: string;
+  items: InvoiceItem[];
+  note: string;
+  terms: string;
   companyProfileId?: string;
   companyProfileName?: string;
+  sectorProjectId?: string;
+  sectorProjectName?: string;
   status?: "draft" | "completed";
-  pdfUrl?: string;
-  documentUrl?: string;
-  receiptUrl?: string;
+  invoiceStatus?: InvoiceStatus;
+  sourceQuotationId?: string;
+  sourceQuotationNo?: string;
   created_at?: string;
   updated_at?: string;
 }
 
-function getInvoiceSequenceId(invoiceType: InvoiceType): string {
-  return invoiceType === "purchase" ? "purchaseInvoiceCounter" : "salesInvoiceCounter";
+const INVOICES_COLLECTION = "invoices";
+
+async function getLatestInvoiceSequence(): Promise<number> {
+  const snapshot = await getDocs(collection(db, INVOICES_COLLECTION));
+  return snapshot.docs.reduce((latest, invoice) => {
+    const match = /^IN-OI-\\d{4}-(\\d+)$/.exec(invoice.data().invoiceNo || "");
+    return match ? Math.max(latest, Number(match[1])) : latest;
+  }, 0);
 }
 
-function getInvoicePrefix(invoiceType: InvoiceType): string {
-  return invoiceType === "purchase" ? "PI" : "SI";
+async function generateInvoiceNumber(issueDate?: string): Promise<string> {
+  const latestInvoiceSequence = await getLatestInvoiceSequence();
+  const nextNumber = await runTransaction(db, async (transaction) => {
+    const counterRef = doc(db, "sequences", "invoiceCounter");
+    const counter = await transaction.get(counterRef);
+    const next = (counter.exists() ? counter.data().nextNumber || 0 : latestInvoiceSequence) + 1;
+    transaction.set(counterRef, { nextNumber: next, updated_at: new Date().toISOString() });
+    return next;
+  });
+  const year = issueDate?.slice(0, 4) || String(new Date().getFullYear());
+  return `IN-OI-${year}-${String(nextNumber).padStart(3, "0")}`;
 }
 
-function getCompanyInvoicePrefix(companyName: string): string {
-  const firstLetter = companyName.trim().charAt(0).toUpperCase();
-  return `${firstLetter || "I"}INV`;
-}
-
-function getCompanyInvoiceSequenceId(companyProfileId: string): string {
-  return `companyInvoiceCounter_${companyProfileId}`;
-}
-
-async function generateInvoiceNumber(invoiceType: InvoiceType = DEFAULT_INVOICE_TYPE): Promise<string> {
-  try {
-    const nextNumber = await runTransaction(db, async (transaction) => {
-      const counterRef = doc(db, "sequences", getInvoiceSequenceId(invoiceType));
-      const counterDoc = await transaction.get(counterRef);
-
-      let currentNumber = 0;
-      if (counterDoc.exists()) {
-        currentNumber = counterDoc.data().nextNumber || 0;
-      }
-
-      const nextNumber = currentNumber + 1;
-
-      transaction.set(counterRef, { nextNumber, updated_at: new Date().toISOString() });
-
-      return nextNumber;
-    });
-
-    return `${getInvoicePrefix(invoiceType)}-${String(nextNumber).padStart(5, "0")}`;
-  } catch (error) {
-    console.error("Error generating invoice number:", error);
-    const timestamp = Date.now().toString();
-    const random = timestamp.slice(-5).padStart(5, "0");
-    return `${getInvoicePrefix(invoiceType)}-${random}`;
-  }
-}
-
-async function generateCompanyInvoiceNumber(companyProfile: { id?: string; company_name: string }): Promise<string> {
-  const companyProfileId = companyProfile.id?.trim();
-  const companyName = companyProfile.company_name.trim();
-
-  if (!companyProfileId || !companyName) {
-    return generateInvoiceNumber();
-  }
-
-  try {
-    const nextNumber = await runTransaction(db, async (transaction) => {
-      const counterRef = doc(db, "sequences", getCompanyInvoiceSequenceId(companyProfileId));
-      const counterDoc = await transaction.get(counterRef);
-
-      let currentNumber = 0;
-      if (counterDoc.exists()) {
-        currentNumber = counterDoc.data().nextNumber || 0;
-      }
-
-      const nextNumber = currentNumber + 1;
-      transaction.set(counterRef, {
-        nextNumber,
-        updated_at: new Date().toISOString(),
-        companyProfileId,
-        companyName,
-      });
-
-      return nextNumber;
-    });
-
-    return `${getCompanyInvoicePrefix(companyName)}-${String(nextNumber).padStart(5, "0")}`;
-  } catch (error) {
-    console.error("Error generating company invoice number:", error);
-    const timestamp = Date.now().toString();
-    const random = timestamp.slice(-5).padStart(5, "0");
-    return `${getCompanyInvoicePrefix(companyName)}-${random}`;
-  }
+function mapInvoice(id: string, data: Record<string, any>): Invoice {
+  const legacyItems = Array.isArray(data.equipment)
+    ? data.equipment.map((item: Record<string, any>) => ({
+        description: [item.name, item.details].filter(Boolean).join(" — "),
+        quantity: Number(item.quantity) || 0,
+        taxPercent: Number(item.taxPercent) || 0,
+        unitPrice: Number(item.unitPrice) || 0,
+      }))
+    : [];
+  const items = Array.isArray(data.items) ? data.items : legacyItems;
+  const invoiceStatus = INVOICE_STATUSES.includes(data.invoiceStatus) ? data.invoiceStatus : "Draft";
+  return {
+    id,
+    ...data,
+    invoiceNo: data.invoiceNo || "",
+    issueDate: data.issueDate || data.date || "",
+    validTill: data.validTill || "",
+    customerName: data.customerName || data.invoiceTo || data.millName || "",
+    customerAddress: data.customerAddress || data.location || "",
+    customerPhone: data.customerPhone || "",
+    invoiceReference: data.invoiceReference || data.quoteReference || data.poNumber || "",
+    fbrReference: data.fbrReference || "",
+    items,
+    note: data.note || "",
+    terms: data.terms || "",
+    invoiceStatus,
+  } as Invoice;
 }
 
 export const invoiceAPI = {
-  async getAll(): Promise<Invoice[]> {
-    const maxRetries = 2;
-    let lastError: any;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        const q = query(
-          collection(db, "invoices"),
-          orderBy("created_at", "desc")
-        );
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map((doc) => mapInvoice(doc.id, doc.data()));
-      } catch (error: any) {
-        lastError = error;
-        console.error(`Attempt ${attempt + 1} failed:`, error?.message);
-
-        if (attempt < maxRetries && error?.message?.includes("Failed to fetch")) {
-          const waitTime = Math.min(1000 * Math.pow(2, attempt), 5000);
-          console.log(`Retrying in ${waitTime}ms...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          continue;
-        }
-
-        break;
-      }
-    }
-
-    throw lastError || new Error("Failed to fetch invoices");
+  subscribeAll(callback: (invoices: Invoice[]) => void, onError?: (error: Error) => void, maxItems = 50): Unsubscribe {
+    const q = query(collection(db, INVOICES_COLLECTION), orderBy("created_at", "desc"), limit(maxItems));
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map((invoice) => mapInvoice(invoice.id, invoice.data())));
+    }, onError);
   },
 
   async getById(id: string): Promise<Invoice | null> {
-    const docRef = doc(db, "invoices", id);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return mapInvoice(docSnap.id, docSnap.data() as Record<string, any>);
+    const snapshot = await getDoc(doc(db, INVOICES_COLLECTION, id));
+    return snapshot.exists() ? mapInvoice(snapshot.id, snapshot.data()) : null;
+  },
+
+  async getByQuotationId(quotationId: string): Promise<Invoice | null> {
+    const snapshot = await getDocs(query(
+      collection(db, INVOICES_COLLECTION),
+      where("sourceQuotationId", "==", quotationId),
+      limit(1),
+    ));
+    const invoice = snapshot.docs[0];
+    return invoice ? mapInvoice(invoice.id, invoice.data()) : null;
+  },
+
+  async getNextSequence(): Promise<number> {
+    const snapshot = await getDoc(doc(db, "sequences", "invoiceCounter"));
+    return snapshot.exists()
+      ? (snapshot.data().nextNumber || 0) + 1
+      : (await getLatestInvoiceSequence()) + 1;
+  },
+
+  async setNextSequence(nextSequence: number): Promise<void> {
+    if (!Number.isSafeInteger(nextSequence) || nextSequence < 1) {
+      throw new Error("Invoice sequence must be a positive whole number");
     }
-    return null;
+    await runTransaction(db, async (transaction) => {
+      const counterRef = doc(db, "sequences", "invoiceCounter");
+      await transaction.get(counterRef);
+      transaction.set(counterRef, { nextNumber: nextSequence - 1, updated_at: new Date().toISOString() });
+    });
   },
 
-  async getByMillName(millName: string): Promise<Invoice[]> {
-    try {
-      const q = query(
-        collection(db, "invoices"),
-        where("millName", "==", millName),
-        orderBy("created_at", "desc")
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map((doc) => mapInvoice(doc.id, doc.data()));
-    } catch (error: any) {
-      handleFirestoreError(error);
-      return [];
-    }
+  async create(invoice: Invoice): Promise<Invoice> {
+    const invoiceNo = invoice.invoiceNo || await generateInvoiceNumber(invoice.issueDate);
+    const now = new Date().toISOString();
+    const data = removeUndefined({
+      ...invoice,
+      invoiceNo,
+      status: "draft",
+      invoiceStatus: invoice.invoiceStatus || "Draft",
+      created_at: now,
+      updated_at: now,
+    });
+    const ref = await addDoc(collection(db, INVOICES_COLLECTION), data);
+    return { id: ref.id, ...data } as Invoice;
   },
 
-  async create(invoice: Invoice) {
-    try {
-      const invoiceType = normalizeInvoiceType(invoice.invoiceType);
-      const invoiceNo =
-        invoice.invoiceNo ||
-        (invoice.companyProfileId && invoice.companyProfileName
-          ? await generateCompanyInvoiceNumber({
-              id: invoice.companyProfileId,
-              company_name: invoice.companyProfileName,
-            })
-          : await generateInvoiceNumber(invoiceType));
-      const data = removeUndefined({
-        ...invoice,
-        invoiceType,
-        invoiceNo,
-        status: "draft",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-      const docRef = await addDoc(collection(db, "invoices"), data);
-      return { id: docRef.id, ...data } as Invoice;
-    } catch (error: any) {
-      throw new Error(
-        error.code === "permission-denied"
-          ? "Permission denied. Check your Firestore rules."
-          : error.message || "Failed to create invoice"
-      );
-    }
+  async update(id: string, invoice: Partial<Invoice>): Promise<void> {
+    await updateDoc(doc(db, INVOICES_COLLECTION, id), removeUndefined({ ...invoice, updated_at: new Date().toISOString() }));
   },
 
-  async generateCompanyInvoiceNumber(companyProfile: { id?: string; company_name: string }) {
-    return generateCompanyInvoiceNumber(companyProfile);
-  },
-
-  async update(id: string, invoice: Partial<Invoice>) {
-    try {
-      const data = removeUndefined({
-        ...invoice,
-        updated_at: new Date().toISOString(),
-      });
-      const docRef = doc(db, "invoices", id);
-      await updateDoc(docRef, data);
-    } catch (error: any) {
-      throw new Error(
-        error.code === "permission-denied"
-          ? "Permission denied. Check your Firestore rules."
-          : error.message || "Failed to update invoice"
-      );
-    }
-  },
-
-  async delete(id: string) {
-    try {
-      await deleteDoc(doc(db, "invoices", id));
-    } catch (error: any) {
-      throw new Error(
-        error.code === "permission-denied"
-          ? "Permission denied. Check your Firestore rules."
-          : error.message || "Failed to delete invoice"
-      );
-    }
-  },
-
-  subscribeAll(
-    callback: (invoices: Invoice[]) => void,
-    onError?: (error: Error) => void,
-    pageLimit: number = 200
-  ): Unsubscribe {
-    const q = query(
-      collection(db, "invoices"),
-      orderBy("created_at", "desc"),
-      limit(pageLimit)
-    );
-
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
-    let unsubscribe: Unsubscribe | null = null;
-    let retryTimeout: NodeJS.Timeout | null = null;
-    let cachedInvoices: Invoice[] = [];
-
-    const setupSubscription = () => {
-      try {
-        unsubscribe = onSnapshot(
-          q,
-          (snapshot) => {
-            retryCount = 0;
-            const invoices = snapshot.docs.map((doc) => mapInvoice(doc.id, doc.data()));
-            cachedInvoices = invoices;
-            callback(invoices);
-          },
-          (error) => {
-            if (handleFirestoreError(error)) return;
-
-            console.error(`Error in invoices subscription (attempt ${retryCount + 1}):`, error);
-
-            if (retryCount < MAX_RETRIES && error?.message?.includes("Failed to fetch")) {
-              retryCount++;
-              const waitTime = Math.min(1000 * Math.pow(2, retryCount - 1), 5000);
-              console.log(`Retrying subscription in ${waitTime}ms...`);
-
-              unsubscribe?.();
-              retryTimeout = setTimeout(setupSubscription, waitTime);
-            } else {
-              // Fallback to one-time fetch if subscription fails
-              getDocs(q)
-                .then(snapshot => {
-                  const invoices = snapshot.docs.map((doc) => mapInvoice(doc.id, doc.data()));
-                  cachedInvoices = invoices;
-                  callback(invoices);
-                })
-                .catch(fallbackError => {
-                  console.error("Fallback fetch also failed:", fallbackError);
-                  onError?.(fallbackError instanceof Error ? fallbackError : new Error(String(fallbackError)));
-                });
-            }
-          }
-        );
-      } catch (error) {
-        console.error("Error setting up subscription:", error);
-        onError?.(error as Error);
-      }
-    };
-
-    setupSubscription();
-
-    return () => {
-      if (retryTimeout) {
-        clearTimeout(retryTimeout);
-      }
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  },
-
-  subscribeById(
-    id: string,
-    callback: (invoice: Invoice | null) => void,
-    onError?: (error: Error) => void
-  ): Unsubscribe {
-    const docRef = doc(db, "invoices", id);
-    return onSnapshot(
-      docRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          callback(mapInvoice(snapshot.id, snapshot.data() as Record<string, any>));
-        } else {
-          callback(null);
-        }
-      },
-      (error) => {
-        if (handleFirestoreError(error)) return;
-        console.error("Error in invoice subscription:", error);
-        onError?.(error as Error);
-      }
-    );
+  async delete(id: string): Promise<void> {
+    await deleteDoc(doc(db, INVOICES_COLLECTION, id));
   },
 };
