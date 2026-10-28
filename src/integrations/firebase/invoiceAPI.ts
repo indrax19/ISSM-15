@@ -97,15 +97,6 @@ function getInvoiceSequenceId(invoiceType: InvoiceType): string {
   return invoiceType === "purchase" ? "purchaseInvoiceCounter" : "salesInvoiceCounter";
 }
 
-function getInvoicePrefix(invoiceType: InvoiceType): string {
-  return invoiceType === "purchase" ? "PI" : "SI";
-}
-
-function getCompanyInvoicePrefix(companyName: string): string {
-  const firstLetter = companyName.trim().charAt(0).toUpperCase();
-  return `${firstLetter || "I"}INV`;
-}
-
 function getCompanyInvoiceSequenceId(companyProfileId: string): string {
   return `companyInvoiceCounter_${companyProfileId}`;
 }
@@ -142,69 +133,31 @@ async function setNextInvoiceSequence(nextSequence: number, companyProfile?: { i
   });
 }
 
-async function generateInvoiceNumber(invoiceType: InvoiceType = DEFAULT_INVOICE_TYPE): Promise<string> {
-  try {
-    const nextNumber = await runTransaction(db, async (transaction) => {
-      const counterRef = doc(db, "sequences", getInvoiceSequenceId(invoiceType));
-      const counterDoc = await transaction.get(counterRef);
-
-      let currentNumber = 0;
-      if (counterDoc.exists()) {
-        currentNumber = counterDoc.data().nextNumber || 0;
-      }
-
-      const nextNumber = currentNumber + 1;
-
-      transaction.set(counterRef, { nextNumber, updated_at: new Date().toISOString() });
-
-      return nextNumber;
-    });
-
-    return `${getInvoicePrefix(invoiceType)}-${String(nextNumber).padStart(5, "0")}`;
-  } catch (error) {
-    console.error("Error generating invoice number:", error);
-    const timestamp = Date.now().toString();
-    const random = timestamp.slice(-5).padStart(5, "0");
-    return `${getInvoicePrefix(invoiceType)}-${random}`;
-  }
-}
-
-async function generateCompanyInvoiceNumber(companyProfile: { id?: string; company_name: string }): Promise<string> {
-  const companyProfileId = companyProfile.id?.trim();
-  const companyName = companyProfile.company_name.trim();
-
-  if (!companyProfileId || !companyName) {
-    return generateInvoiceNumber();
-  }
-
-  try {
-    const nextNumber = await runTransaction(db, async (transaction) => {
-      const counterRef = doc(db, "sequences", getCompanyInvoiceSequenceId(companyProfileId));
-      const counterDoc = await transaction.get(counterRef);
-
-      let currentNumber = 0;
-      if (counterDoc.exists()) {
-        currentNumber = counterDoc.data().nextNumber || 0;
-      }
-
-      const nextNumber = currentNumber + 1;
-      transaction.set(counterRef, {
-        nextNumber,
-        updated_at: new Date().toISOString(),
+async function generateInvoiceNumber(
+  invoiceType: InvoiceType = DEFAULT_INVOICE_TYPE,
+  issueDate?: string,
+  companyProfile?: { id?: string; company_name: string },
+): Promise<string> {
+  const companyProfileId = companyProfile?.id?.trim();
+  const counterId = companyProfileId
+    ? getCompanyInvoiceSequenceId(companyProfileId)
+    : getInvoiceSequenceId(invoiceType);
+  const nextNumber = await runTransaction(db, async (transaction) => {
+    const counterRef = doc(db, "sequences", counterId);
+    const counterDoc = await transaction.get(counterRef);
+    const next = (counterDoc.exists() ? counterDoc.data().nextNumber || 0 : 0) + 1;
+    transaction.set(counterRef, {
+      nextNumber: next,
+      updated_at: new Date().toISOString(),
+      ...(companyProfileId && {
         companyProfileId,
-        companyName,
-      });
-
-      return nextNumber;
+        companyName: companyProfile?.company_name,
+      }),
     });
-
-    return `${getCompanyInvoicePrefix(companyName)}-${String(nextNumber).padStart(5, "0")}`;
-  } catch (error) {
-    console.error("Error generating company invoice number:", error);
-    const timestamp = Date.now().toString();
-    const random = timestamp.slice(-5).padStart(5, "0");
-    return `${getCompanyInvoicePrefix(companyName)}-${random}`;
-  }
+    return next;
+  });
+  const year = issueDate?.slice(0, 4) || String(new Date().getFullYear());
+  return `IN-OI-${year}-${String(nextNumber).padStart(3, "0")}`;
 }
 
 export const invoiceAPI = {
@@ -273,14 +226,13 @@ export const invoiceAPI = {
   async create(invoice: Invoice) {
     try {
       const invoiceType = normalizeInvoiceType(invoice.invoiceType);
-      const invoiceNo =
-        invoice.invoiceNo ||
-        (invoice.companyProfileId && invoice.companyProfileName
-          ? await generateCompanyInvoiceNumber({
-              id: invoice.companyProfileId,
-              company_name: invoice.companyProfileName,
-            })
-          : await generateInvoiceNumber(invoiceType));
+      const invoiceNo = invoice.invoiceNo || await generateInvoiceNumber(
+        invoiceType,
+        invoice.date,
+        invoice.companyProfileId && invoice.companyProfileName
+          ? { id: invoice.companyProfileId, company_name: invoice.companyProfileName }
+          : undefined,
+      );
       const data = removeUndefined({
         ...invoice,
         invoiceType,
@@ -300,8 +252,8 @@ export const invoiceAPI = {
     }
   },
 
-  async generateCompanyInvoiceNumber(companyProfile: { id?: string; company_name: string }) {
-    return generateCompanyInvoiceNumber(companyProfile);
+  async generateCompanyInvoiceNumber(companyProfile: { id?: string; company_name: string }, issueDate?: string) {
+    return generateInvoiceNumber(DEFAULT_INVOICE_TYPE, issueDate, companyProfile);
   },
 
   async update(id: string, invoice: Partial<Invoice>) {
