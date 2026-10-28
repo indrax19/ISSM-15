@@ -52,6 +52,7 @@ export interface Invoice {
   fbrReference: string;
   items: InvoiceItem[];
   note: string;
+  showNoteInPdf?: boolean;
   terms: string;
   companyPaymentDetails?: CompanyPaymentDetails;
   companyProfileId?: string;

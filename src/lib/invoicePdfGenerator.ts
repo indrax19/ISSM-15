@@ -14,7 +14,7 @@ function toQuotation(invoice: Invoice): Quotation {
     quoteReference: invoice.invoiceReference,
     fbrReference: invoice.fbrReference,
     items: invoice.items,
-    note: invoice.note,
+    note: (invoice.showNoteInPdf ?? Boolean(invoice.note?.trim())) ? invoice.note : "",
     terms: invoice.terms,
     companyProfileId: invoice.companyProfileId,
     companyProfileName: invoice.companyProfileName,

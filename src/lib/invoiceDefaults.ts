@@ -12,8 +12,6 @@ export const DEFAULT_COMPANY_PAYMENT_DETAILS: CompanyPaymentDetails = {
   branch: "I-10 Markaz Branch, Plot #9, I-10 Markaz, Islamabad (Branch Code 0086-000)",
 };
 
-export const DEFAULT_INVOICE_NOTE = "All other material that is not included in the above invoice will be provided by the client i.e., conduit, duct, piping, splicing, etc. Fiber, industrial grade, etc., and other additional and required equipment will be charged separately.";
-
 export const DEFAULT_INVOICE_TERMS = `Taxes & Duties:
 - All prices are exclusive of applicable taxes, duties and levies. Any such charges are additional and shall be borne by the client as per prevailing government regulations.
 - Sales tax on services will be applied per the client's jurisdiction and preference — 5% under the Punjab Revenue Authority (PRA), 3% under the Sindh Revenue Board (SRB), or a general 15% where applicable.
