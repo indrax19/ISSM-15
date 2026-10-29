@@ -445,7 +445,7 @@ export default function SubCategoryDetail() {
     const rows = filtered.map((i: any) => [
       i.serial_number || "",
       i.status === "in" ? "In Stock" : "Issued",
-      i.id && recipientMap[i.id] ? recipientMap[i.id].name : "—",
+      i.status === "out" ? i.recipient_name || "—" : "—",
       i.supplier_name || "—",
       i.purchase_date ? format(new Date(i.purchase_date), "MMM d, yyyy") : "—",
       i.store_name || "—",
