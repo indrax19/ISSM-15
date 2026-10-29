@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { ArrowLeft, Plus, ArrowUpFromLine, Package, Pencil, Trash2, X, Layers, TrendingUp, TrendingDown, Download, FileText } from "lucide-react";
 import { format } from "date-fns";
+import * as XLSX from "xlsx";
 import { z } from "zod";
 import { FastBarcodeScanner, type ScannedItem } from "@/components/FastBarcodeScanner";
 
@@ -435,7 +436,7 @@ export default function SubCategoryDetail() {
     deleteMutation.mutate(itemId);
   };
 
-  const exportCSV = () => {
+  const exportExcel = () => {
     if (!filtered?.length) {
       toast.error("No items to export");
       return;
@@ -450,17 +451,12 @@ export default function SubCategoryDetail() {
       i.store_name || "—",
       i.created_at ? format(new Date(i.created_at), "MMM d, yyyy") : "—",
     ]);
-    const csv = [headers, ...rows].map((r) => r.map((c: string) => `"${c}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${subCategory?.name || "items"}-${format(new Date(), "yyyy-MM-dd")}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    toast.success("CSV exported successfully");
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    worksheet["!cols"] = [18, 12, 22, 22, 16, 18, 16].map((wch) => ({ wch }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Items");
+    XLSX.writeFile(workbook, `${subCategory?.name || "items"}-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast.success("Excel file exported successfully");
   };
 
   return (
@@ -484,8 +480,8 @@ export default function SubCategoryDetail() {
           )}
         </div>
         <div className="flex gap-2 flex-shrink-0">
-          <Button variant="outline" onClick={exportCSV} className="gap-2" title="Export as CSV">
-            <Download className="h-4 w-4" /> CSV
+          <Button variant="outline" onClick={exportExcel} className="gap-2" title="Export as Excel">
+            <Download className="h-4 w-4" /> Excel
           </Button>
           <Button onClick={() => setAddOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" /> Add Items
