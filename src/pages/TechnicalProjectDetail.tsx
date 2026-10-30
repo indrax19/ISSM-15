@@ -668,23 +668,6 @@ export default function TechnicalProjectDetail() {
                             >
                               <BadgeCheck className="h-4 w-4" />
                             </Button>
-                            <div className="relative">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full h-9 rounded-lg border border-amber-100 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-                                onClick={() => setIssuesSiteId(site.id!)}
-                                title={getIssuesButtonTitle(site)}
-                                aria-label={getIssuesButtonTitle(site)}
-                              >
-                                <AlertCircle className="h-4 w-4" />
-                              </Button>
-                              {(site.id ? openIssueCountsBySite[site.id] || 0 : 0) > 0 && (
-                                <Badge className="absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-bold p-0 hover:bg-red-600">
-                                  {site.id ? openIssueCountsBySite[site.id] || 0 : 0}
-                                </Badge>
-                              )}
-                            </div>
                             <Button
                               variant="ghost"
                               size="sm"
