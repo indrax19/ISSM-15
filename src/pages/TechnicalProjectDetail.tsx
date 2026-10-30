@@ -390,12 +390,12 @@ export default function TechnicalProjectDetail() {
               </div>
             </div>
 
-            <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:min-w-[280px]">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
               {sites.length > 0 && (
                 <Button
                   onClick={() => exportSiteDataToExcel(sites)}
                   variant="outline"
-                  className="w-full gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
+                  className="w-full gap-2 whitespace-nowrap border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
                 >
                   <Download className="h-4 w-4" /> Download Sites
                 </Button>
@@ -403,13 +403,13 @@ export default function TechnicalProjectDetail() {
               <Button
                 onClick={() => setShowBulkImportDialog(true)}
                 variant="outline"
-                className="w-full gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
+                className="w-full gap-2 whitespace-nowrap border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
               >
                 <Upload className="h-4 w-4" /> Import Sites
               </Button>
               <Button
                 onClick={() => navigate(`/technical-projects/${id}/sites/new`)}
-                className="w-full gap-2 bg-white text-blue-700 shadow-md hover:bg-blue-50 sm:w-auto"
+                className="w-full gap-2 whitespace-nowrap bg-white text-blue-700 shadow-md hover:bg-blue-50 sm:w-auto"
               >
                 <Plus className="h-4 w-4" /> New Site
               </Button>
