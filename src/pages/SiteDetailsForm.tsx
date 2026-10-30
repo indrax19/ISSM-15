@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2, Download, Upload, Camera, Loader2, X, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Upload, Camera, Loader2, X, Eye, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { exportSiteToExcel } from "@/lib/excelExport";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -59,6 +59,10 @@ export default function SiteDetailsForm() {
   const [pocContact, setPocContact] = useState("");
   const [gpuUserName, setGpuUserName] = useState("");
   const [gpuPassword, setGpuPassword] = useState("Sonicgpu786");
+  const [digitalEyeMachineEmail, setDigitalEyeMachineEmail] = useState("");
+  const [digitalEyeMachinePassword, setDigitalEyeMachinePassword] = useState("");
+  const [digitalEyeLineEmail, setDigitalEyeLineEmail] = useState("");
+  const [digitalEyeLinePassword, setDigitalEyeLinePassword] = useState("");
   const [anydeskId, setAnydeskId] = useState("");
   const [anydeskPassword, setAnydeskPassword] = useState("Sonicgpu786");
   const [anydeskId2, setAnydeskId2] = useState("");
@@ -85,6 +89,16 @@ export default function SiteDetailsForm() {
   ]);
   const [additionalDetails, setAdditionalDetails] = useState("");
   const [hardwareCompleted, setHardwareCompleted] = useState(false);
+  const copyCredential = (value: string, label: string) => {
+    if (!value) {
+      toast.error(`No ${label} to copy`);
+      return;
+    }
+    navigator.clipboard.writeText(value).then(
+      () => toast.success(`${label} copied`),
+      () => toast.error("Unable to copy"),
+    );
+  };
   const [dataCopy, setDataCopy] = useState(false);
   const [patch1Date, setPatch1Date] = useState("");
   const [patch2Date, setPatch2Date] = useState("");
@@ -145,6 +159,10 @@ export default function SiteDetailsForm() {
       setPocContact(existingSite.pocContact || "");
       setGpuUserName(existingSite.gpuUserName || "");
       setGpuPassword(existingSite.gpuPassword || "sonicgpu786");
+      setDigitalEyeMachineEmail(existingSite.digitalEyeMachineEmail || "");
+      setDigitalEyeMachinePassword(existingSite.digitalEyeMachinePassword || "");
+      setDigitalEyeLineEmail(existingSite.digitalEyeLineEmail || "");
+      setDigitalEyeLinePassword(existingSite.digitalEyeLinePassword || "");
       setAnydeskId(existingSite.anydeskId || "");
       setAnydeskPassword(existingSite.anydeskPassword || "sonicgpu786");
       setAnydeskId2(existingSite.anydeskId2 || "");
@@ -197,6 +215,10 @@ export default function SiteDetailsForm() {
         pocContact: pocContact || undefined,
         gpuUserName: gpuUserName || undefined,
         gpuPassword: gpuPassword || undefined,
+        digitalEyeMachineEmail: digitalEyeMachineEmail || undefined,
+        digitalEyeMachinePassword: digitalEyeMachinePassword || undefined,
+        digitalEyeLineEmail: digitalEyeLineEmail || undefined,
+        digitalEyeLinePassword: digitalEyeLinePassword || undefined,
         anydeskId: anydeskId || undefined,
         anydeskPassword: anydeskPassword || undefined,
         anydeskId2: anydeskId2 || undefined,
@@ -506,6 +528,51 @@ export default function SiteDetailsForm() {
                 placeholder="sonicgpu786"
               />
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Digital Eye Credential</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="py-2 pr-4 font-semibold">Account</th>
+                  <th className="py-2 pr-4 font-semibold">Email</th>
+                  <th className="py-2 font-semibold">Password</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { label: "Machine User", email: digitalEyeMachineEmail, setEmail: setDigitalEyeMachineEmail, password: digitalEyeMachinePassword, setPassword: setDigitalEyeMachinePassword },
+                  { label: "Line User", email: digitalEyeLineEmail, setEmail: setDigitalEyeLineEmail, password: digitalEyeLinePassword, setPassword: setDigitalEyeLinePassword },
+                ].map((row) => (
+                  <tr key={row.label} className="border-b align-top">
+                    <td className="py-3 pr-4 font-medium whitespace-nowrap">{row.label}</td>
+                    <td className="py-3 pr-4">
+                      <div className="flex items-center gap-2">
+                        <Input value={row.email} onChange={(e) => row.setEmail(e.target.value)} placeholder="Enter email" />
+                        <Button type="button" variant="outline" size="icon" title="Copy email" onClick={() => copyCredential(row.email, `${row.label} email`)}>
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <Input value={row.password} onChange={(e) => row.setPassword(e.target.value)} placeholder="Enter password" />
+                        <Button type="button" variant="outline" size="icon" title="Copy password" onClick={() => copyCredential(row.password, `${row.label} password`)}>
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>
