@@ -206,7 +206,7 @@ export default function NewInvoice() {
       setNote(invoice.note ?? "");
       setShowNoteInPdf(invoice.showNoteInPdf ?? Boolean(invoice.note?.trim()));
       setTerms(invoice.terms ?? DEFAULT_INVOICE_TERMS);
-      setCompanyPaymentDetails(invoice.companyPaymentDetails ?? DEFAULT_COMPANY_PAYMENT_DETAILS);
+      setCompanyPaymentDetails({ ...DEFAULT_COMPANY_PAYMENT_DETAILS, ...invoice.companyPaymentDetails });
       setCompanyProfileId(invoice.companyProfileId || "");
       setSectorProjectId(invoice.sectorProjectId || "");
     }).catch(() => toast.error("Failed to load invoice")).finally(() => setLoading(false));
