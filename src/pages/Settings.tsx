@@ -382,54 +382,89 @@ const Settings = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {profiles.map((profile) => (
+                {profiles.map((profile) => {
+                  const accounts: (BankAccount | undefined)[] = profile.bankAccounts?.length ? profile.bankAccounts : [undefined];
+                  const details = [
+                    { label: "Company Name", value: profile.company_name },
+                    { label: "Address", value: profile.address },
+                    { label: "NTN #", value: profile.ntn },
+                    { label: "Website", value: profile.website },
+                  ];
+                  return (
                   <div
                     key={profile.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    className="space-y-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      {profile.logo_url && (
-                        <img
-                          src={profile.logo_url}
-                          alt={profile.company_name}
-                          className="h-12 w-12 rounded border object-contain bg-muted p-1 flex-shrink-0"
-                        />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-sm truncate">
-                          {profile.company_name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {profile.email}
-                        </p>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        {profile.logo_url && (
+                          <img
+                            src={profile.logo_url}
+                            alt={profile.company_name}
+                            className="h-12 w-12 rounded border object-contain bg-muted p-1 flex-shrink-0"
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-sm truncate">
+                            {profile.company_name}
+                          </h3>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {profile.email}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(profile)}
+                          disabled={isBusy}
+                          className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(profile.id!)}
+                          disabled={isBusy || deleting === profile.id}
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          {deleting === profile.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEdit(profile)}
-                        disabled={isBusy}
-                        className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(profile.id!)}
-                        disabled={isBusy || deleting === profile.id}
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                      >
-                        {deleting === profile.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
+                    <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                      {details.map(({ label, value }) => (
+                        <div key={label} className={label === "Address" ? "sm:col-span-2" : undefined}>
+                          <dt className="text-xs text-muted-foreground">{label}</dt>
+                          <dd className="break-words font-medium">{value || "—"}</dd>
+                        </div>
+                      ))}
+                      {accounts.map((account, index) => (
+                        <div key={account?.id ?? index} className="grid gap-x-6 gap-y-3 border-t pt-3 sm:col-span-2 sm:grid-cols-2">
+                          {[
+                            { label: "Bank", value: account?.bankName },
+                            { label: "Account Title", value: account?.accountTitle },
+                            { label: "Account No.", value: account?.accountNo },
+                            { label: "IBAN", value: account?.iban },
+                            { label: "Branch", value: account?.branch },
+                          ].map(({ label, value }) => (
+                            <div key={label}>
+                              <dt className="text-xs text-muted-foreground">{label}</dt>
+                              <dd className="break-words font-medium">{value || "—"}</dd>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </dl>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
