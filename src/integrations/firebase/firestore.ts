@@ -145,6 +145,7 @@ export interface CompanyProfile {
   phone: string;
   email: string;
   website?: string;
+  ntn?: string;
   logo_url?: string;
   signature_url?: string;
   bankAccounts?: BankAccount[];

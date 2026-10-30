@@ -46,6 +46,7 @@ const Settings = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
+  const [ntn, setNtn] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -88,6 +89,7 @@ const Settings = () => {
     setPhone("");
     setEmail("");
     setWebsite("");
+    setNtn("");
     setLogoUrl(null);
     setSignatureUrl(null);
     setBankAccounts([]);
@@ -106,6 +108,7 @@ const Settings = () => {
     setPhone(profile.phone || "");
     setEmail(profile.email || "");
     setWebsite(profile.website || "");
+    setNtn(profile.ntn || "");
     setLogoUrl(profile.logo_url || null);
     setSignatureUrl(profile.signature_url || null);
     setBankAccounts(profile.bankAccounts || []);
@@ -271,6 +274,7 @@ const Settings = () => {
         phone: phone.trim(),
         email: email.trim(),
         website: website.trim() || undefined,
+        ntn: ntn.trim() || undefined,
         bankAccounts: bankAccounts
           .filter((account) => account.bankName.trim() || account.accountNo.trim())
           .map((account) => ({ ...account, bankName: account.bankName.trim(), accountTitle: account.accountTitle.trim(), accountNo: account.accountNo.trim(), iban: account.iban.trim(), branch: account.branch.trim() })),
@@ -553,6 +557,17 @@ const Settings = () => {
                   disabled={isBusy}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ntn">NTN # (optional)</Label>
+              <Input
+                id="ntn"
+                placeholder="A033994"
+                value={ntn}
+                onChange={(e) => setNtn(e.target.value)}
+                disabled={isBusy}
+              />
             </div>
 
             {/* Bank Accounts */}

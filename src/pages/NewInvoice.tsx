@@ -26,6 +26,21 @@ const COMPANY_PAYMENT_FIELDS: { key: keyof CompanyPaymentDetails; label: string 
   { key: "branch", label: "Branch" },
 ];
 
+const paymentDetailsFromProfile = (profile: CompanyProfile): CompanyPaymentDetails => {
+  const account = profile.bankAccounts?.[0];
+  return {
+    companyName: profile.company_name,
+    address: profile.address ?? "",
+    ntn: profile.ntn ?? "",
+    website: profile.website ?? "",
+    bankName: account?.bankName ?? "",
+    accountTitle: account?.accountTitle ?? "",
+    accountNo: account?.accountNo ?? "",
+    iban: account?.iban ?? "",
+    branch: account?.branch ?? "",
+  };
+};
+
 function termsTextToHtml(text: string) {
   // Keep existing saved plain-text terms readable when opening an older invoice.
   if (/<(h[1-6]|p|ul|ol|li|strong|em|div)\b/i.test(text)) return text;
@@ -183,8 +198,9 @@ export default function NewInvoice() {
       setProfiles(data || []);
       const preferred = data?.find((profile) => profile.company_name === "ISSM Labelling Solutions") || data?.[0];
       if (preferred?.id) setCompanyProfileId((current) => current || preferred.id!);
+      if (!id && preferred) setCompanyPaymentDetails(paymentDetailsFromProfile(preferred));
     }).catch(() => toast.error("Could not load company profiles"));
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -298,7 +314,11 @@ export default function NewInvoice() {
           <div className="min-w-0 space-y-2"><Label>Invoice Reference</Label><Input className="min-w-0" value={invoiceReference} onChange={(event) => setInvoiceReference(event.target.value)} placeholder="e.g. IN-OI-2026-001" /></div>
           <div className="min-w-0 space-y-2"><Label>Sector</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
           <div className="min-w-0 space-y-2"><Label>FBR Reference</Label><Input className="min-w-0" value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR STGO NO. 27 OF 2026" /></div>
-          <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
+          <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => {
+ const profile = profiles.find((item) => item.id === event.target.value);
+ setCompanyProfileId(event.target.value);
+ setCompanyPaymentDetails(profile ? paymentDetailsFromProfile(profile) : DEFAULT_COMPANY_PAYMENT_DETAILS);
+ }}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
           <div className="min-w-0 space-y-2"><Label>Invoice To / Customer *</Label><Input className={`min-w-0 ${saveAttempted && !customerName.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} required aria-invalid={saveAttempted && !customerName.trim()} /></div>
           <div className="min-w-0 space-y-2"><Label>Phone</Label><Input className="min-w-0" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
           <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3 2xl:col-span-5"><Label>Address</Label><Input className="min-w-0" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
