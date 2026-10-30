@@ -46,6 +46,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Copy,
 } from "lucide-react";
 import { format } from "date-fns";
 import { exportSiteDataToExcel } from "@/lib/excelExport";
@@ -147,6 +148,7 @@ export default function TechnicalProjectDetail() {
   const [showStatusUpdateDialog, setShowStatusUpdateDialog] = useState(false);
   const [showStatusHistory, setShowStatusHistory] = useState(false);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
+  const [digitalEyeSite, setDigitalEyeSite] = useState<SiteDetails | null>(null);
   const [selectedSiteForCert, setSelectedSiteForCert] = useState<SiteDetails | null>(null);
   const [companyProfiles, setCompanyProfiles] = useState<any[]>([]);
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
@@ -571,6 +573,7 @@ export default function TechnicalProjectDetail() {
                       <TableHead className="font-semibold text-slate-600">Supervisor</TableHead>
                       <TableHead className="font-semibold text-slate-600">Anydesk ID</TableHead>
                       <TableHead className="font-semibold text-slate-600">Rustdesk ID</TableHead>
+                      <TableHead className="font-semibold text-slate-600">Digital Eye Actions</TableHead>
                       <TableHead className="font-semibold text-slate-600">Updated</TableHead>
                       <TableHead className="text-right font-semibold text-slate-600">Actions</TableHead>
                     </TableRow>
@@ -636,6 +639,11 @@ export default function TechnicalProjectDetail() {
                               )}
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm" className="gap-2" onClick={() => setDigitalEyeSite(site)}>
+                            <Monitor className="h-4 w-4" /> Digital Eye
+                          </Button>
                         </TableCell>
                         <TableCell className="text-sm text-slate-500">
                           {site.updated_at ? format(new Date(site.updated_at), "MMM d, yyyy 'at' h:mm a") : "—"}
@@ -1280,6 +1288,43 @@ export default function TechnicalProjectDetail() {
           setSelectedIssueForStatus(null);
         }}
       />
+
+      <Dialog open={!!digitalEyeSite} onOpenChange={(open) => !open && setDigitalEyeSite(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Digital Eye - Machine User</DialogTitle>
+            <DialogDescription>{digitalEyeSite?.millName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {[
+              { label: "Email", value: digitalEyeSite?.digitalEyeMachineEmail },
+              { label: "Password", value: digitalEyeSite?.digitalEyeMachinePassword },
+            ].map((field) => (
+              <div key={field.label} className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{field.label}</p>
+                <div className="flex items-center justify-between gap-2 rounded-lg border bg-slate-50 px-3 py-2">
+                  <span className="break-all font-mono text-sm">{field.value || "—"}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title={`Copy ${field.label.toLowerCase()}`}
+                    onClick={() => {
+                      if (!field.value) return;
+                      navigator.clipboard.writeText(field.value).then(
+                        () => toast.success(`${field.label} copied`),
+                        () => toast.error("Unable to copy"),
+                      );
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Certificate Dialog */}
       <Dialog open={showCertificateDialog} onOpenChange={setShowCertificateDialog}>
