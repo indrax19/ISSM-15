@@ -961,7 +961,6 @@ yPosition += detailLineHeight;
   yPosition += detailLineHeight;
 
   doc.text("Signature:", margin, yPosition);
-  doc.line(margin + 25, yPosition + 1, margin + 100, yPosition + 1);
   if (issuerSignatureUrl) {
     await addLogoToPDF(doc, issuerSignatureUrl, margin + 25, yPosition - 4, {
       maxWidth: 75,
@@ -976,8 +975,6 @@ yPosition += detailLineHeight;
     });
   } else if (issuerSignature) {
     doc.addImage(issuerSignature.dataUrl, "PNG", margin + 25, yPosition - issuerSignature.height - 1, issuerSignature.width, issuerSignature.height);
-  } else {
-    doc.text("_________________", margin + 25, yPosition);
   }
   yPosition += Math.max(detailLineHeight, issuerSignature?.height || 0);
 
