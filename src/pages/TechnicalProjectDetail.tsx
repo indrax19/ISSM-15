@@ -573,8 +573,7 @@ export default function TechnicalProjectDetail() {
                       <TableHead className="font-semibold text-slate-600">Supervisor</TableHead>
                       <TableHead className="font-semibold text-slate-600">Anydesk ID</TableHead>
                       <TableHead className="font-semibold text-slate-600">Rustdesk ID</TableHead>
-                      <TableHead className="font-semibold text-slate-600">Digital Eye Actions</TableHead>
-                      <TableHead className="font-semibold text-slate-600">Updated</TableHead>
+                      <TableHead className="font-semibold text-slate-600">Digital Eye</TableHead>
                       <TableHead className="text-right font-semibold text-slate-600">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -644,9 +643,6 @@ export default function TechnicalProjectDetail() {
                           <Button variant="outline" size="sm" className="gap-2" onClick={() => setDigitalEyeSite(site)}>
                             <Monitor className="h-4 w-4" /> Digital Eye
                           </Button>
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-500">
-                          {site.updated_at ? format(new Date(site.updated_at), "MMM d, yyyy 'at' h:mm a") : "—"}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="grid grid-cols-2 gap-2 w-fit justify-end">
