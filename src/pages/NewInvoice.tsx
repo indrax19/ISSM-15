@@ -146,6 +146,8 @@ export default function NewInvoice() {
   const [showNoteInPdf, setShowNoteInPdf] = useState(false);
   const [terms, setTerms] = useState(DEFAULT_INVOICE_TERMS);
   const [companyPaymentDetails, setCompanyPaymentDetails] = useState<CompanyPaymentDetails>(DEFAULT_COMPANY_PAYMENT_DETAILS);
+  const bankAccounts = profiles.find((profile) => profile.id === companyProfileId)?.bankAccounts ?? [];
+  const selectedBankAccountId = bankAccounts.find((account) => account.bankName === companyPaymentDetails.bankName && account.accountNo === companyPaymentDetails.accountNo)?.id ?? "";
   const displayItems = useMemo(() => ((["Hardware", "Software"] as const).flatMap((itemType) => items.flatMap((item, index) => (item.itemType || "Hardware") === itemType ? [{ item, index }] : []))), [items]);
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
   const taxBreakdown = useMemo(() => {
@@ -433,6 +435,26 @@ export default function NewInvoice() {
       <Card>
         <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Company and Payment Details</CardTitle></CardHeader>
         <CardContent className="grid gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0">
+          {bankAccounts.length > 0 && (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="bank-account-select">Bank Account</Label>
+              <select
+                id="bank-account-select"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={selectedBankAccountId}
+                onChange={(event) => {
+                  const account = bankAccounts.find((item) => item.id === event.target.value);
+                  if (!account) return;
+                  setCompanyPaymentDetails((current) => ({ ...current, bankName: account.bankName, accountTitle: account.accountTitle, accountNo: account.accountNo, iban: account.iban, branch: account.branch }));
+                }}
+              >
+                <option value="">Select bank account</option>
+                {bankAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.bankName} - {account.accountNo}</option>
+                ))}
+              </select>
+            </div>
+          )}
           {COMPANY_PAYMENT_FIELDS.map(({ key, label }) => (
             <div key={key} className={key === "address" || key === "branch" ? "space-y-2 sm:col-span-2" : "space-y-2"}>
               <Label htmlFor={`company-${key}`}>{label}</Label>

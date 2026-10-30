@@ -16,7 +16,17 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { companyProfileAPI, CompanyProfile } from "@/integrations/firebase/firestore";
+import { companyProfileAPI, CompanyProfile, BankAccount } from "@/integrations/firebase/firestore";
+
+const emptyBankAccount = (): BankAccount => ({ id: crypto.randomUUID(), bankName: "", accountTitle: "", accountNo: "", iban: "", branch: "" });
+
+const BANK_ACCOUNT_FIELDS: { key: Exclude<keyof BankAccount, "id">; label: string }[] = [
+  { key: "bankName", label: "Bank" },
+  { key: "accountTitle", label: "Account Title" },
+  { key: "accountNo", label: "Account No." },
+  { key: "iban", label: "IBAN" },
+  { key: "branch", label: "Branch" },
+];
 import { supabase } from "@/integrations/supabase/client";
 
 const Settings = () => {
@@ -38,6 +48,7 @@ const Settings = () => {
   const [website, setWebsite] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
@@ -79,6 +90,7 @@ const Settings = () => {
     setWebsite("");
     setLogoUrl(null);
     setSignatureUrl(null);
+    setBankAccounts([]);
     setEditingId(null);
   };
 
@@ -96,6 +108,7 @@ const Settings = () => {
     setWebsite(profile.website || "");
     setLogoUrl(profile.logo_url || null);
     setSignatureUrl(profile.signature_url || null);
+    setBankAccounts(profile.bankAccounts || []);
     setShowForm(true);
   };
 
@@ -258,6 +271,9 @@ const Settings = () => {
         phone: phone.trim(),
         email: email.trim(),
         website: website.trim() || undefined,
+        bankAccounts: bankAccounts
+          .filter((account) => account.bankName.trim() || account.accountNo.trim())
+          .map((account) => ({ ...account, bankName: account.bankName.trim(), accountTitle: account.accountTitle.trim(), accountNo: account.accountNo.trim(), iban: account.iban.trim(), branch: account.branch.trim() })),
       };
 
       if (editingId) {
@@ -537,6 +553,40 @@ const Settings = () => {
                   disabled={isBusy}
                 />
               </div>
+            </div>
+
+            {/* Bank Accounts */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Bank Accounts (optional)</Label>
+                <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={() => setBankAccounts([...bankAccounts, emptyBankAccount()])}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Bank Account
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Choose one account per invoice. Only the selected account appears on that invoice and its PDF.</p>
+              {bankAccounts.map((account, index) => (
+                <div key={account.id} className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Bank Account {index + 1}</p>
+                    <Button type="button" variant="ghost" size="sm" disabled={isBusy} onClick={() => setBankAccounts(bankAccounts.filter((item) => item.id !== account.id))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {BANK_ACCOUNT_FIELDS.map(({ key, label }) => (
+                      <div key={key} className="space-y-2">
+                        <Label htmlFor={`bank-${account.id}-${key}`}>{label}</Label>
+                        <Input
+                          id={`bank-${account.id}-${key}`}
+                          value={account[key]}
+                          disabled={isBusy}
+                          onChange={(e) => setBankAccounts(bankAccounts.map((item) => item.id === account.id ? { ...item, [key]: e.target.value } : item))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Digital Signature */}
