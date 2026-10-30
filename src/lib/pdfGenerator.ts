@@ -710,6 +710,10 @@ export async function generateDeploymentCertificatePDF(
     doc.setFontSize(8);
     doc.setFont(undefined, "normal");
 
+    if (companyProfile.address) {
+      doc.text(`Address: ${companyProfile.address}`, rightX, rightY, { align: "right" });
+      rightY += 4;
+    }
     if (companyProfile.phone) {
       doc.text(`Phone: ${companyProfile.phone}`, rightX, rightY, { align: "right" });
       rightY += 4;
@@ -957,7 +961,6 @@ yPosition += detailLineHeight;
   yPosition += detailLineHeight;
 
   doc.text("Signature:", margin, yPosition);
-  doc.line(margin + 25, yPosition + 1, margin + 100, yPosition + 1);
   if (issuerSignatureUrl) {
     await addLogoToPDF(doc, issuerSignatureUrl, margin + 25, yPosition - 4, {
       maxWidth: 75,
@@ -972,8 +975,6 @@ yPosition += detailLineHeight;
     });
   } else if (issuerSignature) {
     doc.addImage(issuerSignature.dataUrl, "PNG", margin + 25, yPosition - issuerSignature.height - 1, issuerSignature.width, issuerSignature.height);
-  } else {
-    doc.text("_________________", margin + 25, yPosition);
   }
   yPosition += Math.max(detailLineHeight, issuerSignature?.height || 0);
 
@@ -1053,8 +1054,9 @@ export async function generateSlaVisitCertificatePDF(
     doc.text(companyProfile.company_name || "Company", pageWidth - margin, margin + 3, { align: "right" });
     doc.setFont(undefined, "normal");
     doc.setFontSize(8);
-    if (companyProfile.phone) doc.text(`Phone: ${companyProfile.phone}`, pageWidth - margin, margin + 8, { align: "right" });
-    if (companyProfile.email) doc.text(`Email: ${companyProfile.email}`, pageWidth - margin, margin + 12, { align: "right" });
+    if (companyProfile.address) doc.text(`Address: ${companyProfile.address}`, pageWidth - margin, margin + 8, { align: "right" });
+    if (companyProfile.phone) doc.text(`Phone: ${companyProfile.phone}`, pageWidth - margin, margin + 12, { align: "right" });
+    if (companyProfile.email) doc.text(`Email: ${companyProfile.email}`, pageWidth - margin, margin + 16, { align: "right" });
   }
 
   yPosition = Math.max(yPosition, margin + 18) + 4;

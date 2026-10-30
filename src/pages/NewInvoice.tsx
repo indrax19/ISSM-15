@@ -1,17 +1,45 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Plus, Trash2, Bold, Italic, List, ListOrdered, Heading2, Copy } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { invoiceAPI, Invoice, InvoiceItem } from "@/integrations/firebase/invoiceAPI";
+import { CompanyPaymentDetails, invoiceAPI, Invoice, InvoiceItem } from "@/integrations/firebase/invoiceAPI";
 import { CompanyProfile, companyProfileAPI } from "@/integrations/firebase/firestore";
 import { parentProjectsAPI, ParentProject } from "@/integrations/firebase/parentProjectsAPI";
 import { downloadInvoicePDF } from "@/lib/invoicePdfGenerator";
-import { DEFAULT_INVOICE_NOTE, DEFAULT_INVOICE_TERMS } from "@/lib/invoiceDefaults";
+import { DEFAULT_COMPANY_PAYMENT_DETAILS, DEFAULT_INVOICE_TERMS } from "@/lib/invoiceDefaults";
+
+const COMPANY_PAYMENT_FIELDS: { key: keyof CompanyPaymentDetails; label: string }[] = [
+  { key: "companyName", label: "Company Name" },
+  { key: "address", label: "Address" },
+  { key: "ntn", label: "NTN #" },
+  { key: "website", label: "Website" },
+  { key: "bankName", label: "Bank" },
+  { key: "accountTitle", label: "Account Title" },
+  { key: "accountNo", label: "Account No." },
+  { key: "iban", label: "IBAN" },
+  { key: "branch", label: "Branch" },
+];
+
+const paymentDetailsFromProfile = (profile: CompanyProfile): CompanyPaymentDetails => {
+  const account = profile.bankAccounts?.[0];
+  return {
+    companyName: profile.company_name,
+    address: profile.address ?? "",
+    ntn: profile.ntn ?? "",
+    website: profile.website ?? "",
+    bankName: account?.bankName ?? "",
+    accountTitle: account?.accountTitle ?? "",
+    accountNo: account?.accountNo ?? "",
+    iban: account?.iban ?? "",
+    branch: account?.branch ?? "",
+  };
+};
 
 function termsTextToHtml(text: string) {
   // Keep existing saved plain-text terms readable when opening an older invoice.
@@ -100,7 +128,8 @@ const defaultValidTill = () => {
   date.setDate(date.getDate() + 5);
   return date.toISOString().slice(0, 10);
 };
-const emptyInvoiceItem = (): InvoiceItem => ({ description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
+const emptyInvoiceItem = (itemType: "Hardware" | "Software" = "Hardware"): InvoiceItem => ({ itemType, description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
+const itemTypeLabel = (itemType: "Hardware" | "Software") => itemType === "Software" ? "Services" : itemType;
 const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const itemAmount = (item: InvoiceItem) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
 const itemTaxAmount = (item: InvoiceItem) => {
@@ -128,8 +157,13 @@ export default function NewInvoice() {
   const [invoiceReference, setInvoiceReference] = useState("");
   const [fbrReference, setFbrReference] = useState("FBR STGO NO. 27 OF 2026");
   const [items, setItems] = useState<InvoiceItem[]>([emptyInvoiceItem()]);
-  const [note, setNote] = useState(DEFAULT_INVOICE_NOTE);
+  const [note, setNote] = useState("");
+  const [showNoteInPdf, setShowNoteInPdf] = useState(false);
   const [terms, setTerms] = useState(DEFAULT_INVOICE_TERMS);
+  const [companyPaymentDetails, setCompanyPaymentDetails] = useState<CompanyPaymentDetails>(DEFAULT_COMPANY_PAYMENT_DETAILS);
+  const bankAccounts = profiles.find((profile) => profile.id === companyProfileId)?.bankAccounts ?? [];
+  const selectedBankAccountId = bankAccounts.find((account) => account.bankName === companyPaymentDetails.bankName && account.accountNo === companyPaymentDetails.accountNo)?.id ?? "";
+  const displayItems = useMemo(() => ((["Hardware", "Software"] as const).flatMap((itemType) => items.flatMap((item, index) => (item.itemType || "Hardware") === itemType ? [{ item, index }] : []))), [items]);
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + itemAmount(item), 0), [items]);
   const taxBreakdown = useMemo(() => {
     const taxByRate = new Map<number, number>();
@@ -164,8 +198,9 @@ export default function NewInvoice() {
       setProfiles(data || []);
       const preferred = data?.find((profile) => profile.company_name === "ISSM Labelling Solutions") || data?.[0];
       if (preferred?.id) setCompanyProfileId((current) => current || preferred.id!);
+      if (!id && preferred) setCompanyPaymentDetails(paymentDetailsFromProfile(preferred));
     }).catch(() => toast.error("Could not load company profiles"));
-  }, []);
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -183,9 +218,11 @@ export default function NewInvoice() {
       setCustomerPhone(invoice.customerPhone || "");
       setInvoiceReference(invoice.invoiceReference || "");
       setFbrReference(invoice.fbrReference || "FBR STGO NO. 27 OF 2026");
-      setItems(invoice.items?.length ? invoice.items.map((item) => ({ ...item, taxPercent: item.taxPercent ?? 0 })) : [emptyInvoiceItem()]);
-      setNote(invoice.note ?? DEFAULT_INVOICE_NOTE);
+      setItems(invoice.items?.length ? invoice.items.map((item) => ({ ...item, itemType: item.itemType || "Hardware", taxPercent: item.taxPercent ?? 0 })) : [emptyInvoiceItem()]);
+      setNote(invoice.note ?? "");
+      setShowNoteInPdf(invoice.showNoteInPdf ?? Boolean(invoice.note?.trim()));
       setTerms(invoice.terms ?? DEFAULT_INVOICE_TERMS);
+      setCompanyPaymentDetails({ ...DEFAULT_COMPANY_PAYMENT_DETAILS, ...invoice.companyPaymentDetails });
       setCompanyProfileId(invoice.companyProfileId || "");
       setSectorProjectId(invoice.sectorProjectId || "");
     }).catch(() => toast.error("Failed to load invoice")).finally(() => setLoading(false));
@@ -195,6 +232,10 @@ export default function NewInvoice() {
     setItems((current) => current.map((item, itemIndex) => itemIndex === index
       ? { ...item, [field]: field === "description" ? value : value === "" ? Number.NaN : Math.max(0, Number(value)) }
       : item));
+  };
+
+  const updateItemType = (index: number, itemType: "Hardware" | "Software") => {
+    setItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, itemType } : item));
   };
 
   const duplicateItem = (index: number) => {
@@ -219,9 +260,11 @@ export default function NewInvoice() {
         customerPhone: customerPhone.trim(),
         invoiceReference: invoiceReference.trim(),
         fbrReference: fbrReference.trim(),
-        items,
+        items: displayItems.map(({ item }) => ({ ...item, itemType: item.itemType || "Hardware" })),
         note,
+        showNoteInPdf,
         terms,
+        companyPaymentDetails,
         companyProfileId: companyProfileId || undefined,
         companyProfileName: profile?.company_name,
         sectorProjectId: sectorProjectId || undefined,
@@ -271,7 +314,11 @@ export default function NewInvoice() {
           <div className="min-w-0 space-y-2"><Label>Invoice Reference</Label><Input className="min-w-0" value={invoiceReference} onChange={(event) => setInvoiceReference(event.target.value)} placeholder="e.g. IN-OI-2026-001" /></div>
           <div className="min-w-0 space-y-2"><Label>Sector</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={sectorProjectId} onChange={(event) => setSectorProjectId(event.target.value)}><option value="">Select project</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></div>
           <div className="min-w-0 space-y-2"><Label>FBR Reference</Label><Input className="min-w-0" value={fbrReference} onChange={(event) => setFbrReference(event.target.value)} placeholder="FBR STGO NO. 27 OF 2026" /></div>
-          <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => setCompanyProfileId(event.target.value)}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
+          <div className="min-w-0 space-y-2"><Label>Company Profile</Label><select className="h-10 w-full min-w-0 rounded-md border border-input bg-background px-3 text-sm" value={companyProfileId} onChange={(event) => {
+ const profile = profiles.find((item) => item.id === event.target.value);
+ setCompanyProfileId(event.target.value);
+ setCompanyPaymentDetails(profile ? paymentDetailsFromProfile(profile) : DEFAULT_COMPANY_PAYMENT_DETAILS);
+ }}><option value="">Default profile</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.company_name}</option>)}</select></div>
           <div className="min-w-0 space-y-2"><Label>Invoice To / Customer *</Label><Input className={`min-w-0 ${saveAttempted && !customerName.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} value={customerName} onChange={(event) => setCustomerName(event.target.value)} required aria-invalid={saveAttempted && !customerName.trim()} /></div>
           <div className="min-w-0 space-y-2"><Label>Phone</Label><Input className="min-w-0" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></div>
           <div className="min-w-0 space-y-2 sm:col-span-2 lg:col-span-3 2xl:col-span-5"><Label>Address</Label><Input className="min-w-0" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} /></div>
@@ -284,16 +331,29 @@ export default function NewInvoice() {
             <CardTitle>Invoice Items</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">Add products or services and set quantity and unit price.</p>
           </div>
-          <Button variant="default" size="sm" className="w-full sm:w-auto" onClick={() => setItems((current) => [...current, emptyInvoiceItem()])}>
-            <Plus className="mr-2 h-4 w-4" />Add item
-          </Button>
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => setItems((current) => [...current, emptyInvoiceItem("Hardware")])}>
+              <Plus className="mr-2 h-4 w-4" />Add Hardware
+            </Button>
+            <Button variant="default" size="sm" className="flex-1 sm:flex-none" onClick={() => setItems((current) => [...current, emptyInvoiceItem("Software")])}>
+              <Plus className="mr-2 h-4 w-4" />Add Services
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4 p-4 pt-0 sm:p-6 sm:pt-0">
           <div className="space-y-3 2xl:hidden">
-            {items.map((item, index) => (
-              <div key={index} className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
+            {displayItems.map(({ item, index }, displayIndex) => (
+              <Fragment key={index}>
+              {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <h3 className="pt-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">{itemTypeLabel(item.itemType || "Hardware")} Items</h3>}
+              <div className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</p>
+                    <select className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={item.itemType || "Hardware"} onChange={(event) => updateItemType(index, event.target.value as "Hardware" | "Software")} aria-label={`Item ${index + 1} type`}>
+                      <option value="Hardware">Hardware</option>
+                      <option value="Software">Services</option>
+                    </select>
+                  </div>
                   <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyInvoiceItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
                 </div>
                 <div className="space-y-2"><Label htmlFor={`invoice-item-description-${index}`}>Description</Label><Textarea id={`invoice-item-description-${index}`} className={`min-h-20 resize-y ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-invalid={saveAttempted && !item.description.trim()} /></div>
@@ -309,6 +369,7 @@ export default function NewInvoice() {
                 </div>
                 <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => duplicateItem(index)}><Copy className="mr-2 h-4 w-4" />Duplicate item</Button>
               </div>
+              </Fragment>
             ))}
             <div className="overflow-hidden rounded-xl border text-sm">
               <div className="flex justify-between border-b px-4 py-2.5"><span>Sub-total (PKR)</span><span className="font-semibold tabular-nums">{formatPKR(subtotal)}</span></div>
@@ -332,10 +393,16 @@ export default function NewInvoice() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((item, index) => (
-                  <tr key={index} className="border-b last:border-0 transition-colors hover:bg-muted/20">
+                {displayItems.map(({ item, index }, displayIndex) => (
+                  <Fragment key={index}>
+                  {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <tr className="border-b bg-muted/60"><td colSpan={9} className="px-4 py-2 font-semibold uppercase tracking-wide">{itemTypeLabel(item.itemType || "Hardware")} Items</td></tr>}
+                  <tr className="border-b last:border-0 transition-colors hover:bg-muted/20">
                     <td className="px-4 py-3 align-middle text-muted-foreground">{String(index + 1).padStart(2, "0")}</td>
                     <td className="px-4 py-3">
+                      <select className="mb-1 h-8 rounded-md border border-input bg-background px-2 text-xs" value={item.itemType || "Hardware"} onChange={(event) => updateItemType(index, event.target.value as "Hardware" | "Software")} aria-label={`Item ${index + 1} type`}>
+                        <option value="Hardware">Hardware</option>
+                        <option value="Software">Services</option>
+                      </select>
                       <Textarea className={`min-h-20 min-w-[320px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
                     </td>
                     <td className="px-4 py-3">
@@ -357,6 +424,7 @@ export default function NewInvoice() {
                       </div>
                     </td>
                   </tr>
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot className="bg-muted/40">
@@ -383,8 +451,42 @@ export default function NewInvoice() {
         </CardContent>
       </Card>
 
-      <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Note</CardTitle></CardHeader><CardContent className="p-4 pt-0 sm:p-6 sm:pt-0"><Textarea className="w-full resize-y" value={note} onChange={(event) => setNote(event.target.value)} rows={4} /></CardContent></Card>
-      <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">General Terms &amp; Conditions</CardTitle></CardHeader><CardContent className="p-4 pt-0 sm:p-6 sm:pt-0"><TermsRichEditor value={terms} onChange={setTerms} /></CardContent></Card>
+      <Card><CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Note</CardTitle></CardHeader><CardContent className="space-y-3 p-4 pt-0 sm:p-6 sm:pt-0"><div className="flex items-center gap-2"><Checkbox id="show-note-in-pdf" checked={showNoteInPdf} onCheckedChange={(checked) => setShowNoteInPdf(checked === true)} /><Label htmlFor="show-note-in-pdf" className="cursor-pointer font-normal">Show note in PDF</Label></div><Textarea className="w-full resize-y" value={note} onChange={(event) => setNote(event.target.value)} rows={4} /></CardContent></Card>
+      <Card>
+        <CardHeader className="p-4 sm:p-6"><CardTitle className="text-xl">Company and Payment Details</CardTitle></CardHeader>
+        <CardContent className="grid gap-4 p-4 pt-0 sm:grid-cols-2 sm:p-6 sm:pt-0">
+          {bankAccounts.length > 0 && (
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="bank-account-select">Bank Account</Label>
+              <select
+                id="bank-account-select"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={selectedBankAccountId}
+                onChange={(event) => {
+                  const account = bankAccounts.find((item) => item.id === event.target.value);
+                  if (!account) return;
+                  setCompanyPaymentDetails((current) => ({ ...current, bankName: account.bankName, accountTitle: account.accountTitle, accountNo: account.accountNo, iban: account.iban, branch: account.branch }));
+                }}
+              >
+                <option value="">Select bank account</option>
+                {bankAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>{account.bankName} - {account.accountNo}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {COMPANY_PAYMENT_FIELDS.map(({ key, label }) => (
+            <div key={key} className={key === "address" || key === "branch" ? "space-y-2 sm:col-span-2" : "space-y-2"}>
+              <Label htmlFor={`company-${key}`}>{label}</Label>
+              <Input
+                id={`company-${key}`}
+                value={companyPaymentDetails[key]}
+                onChange={(event) => setCompanyPaymentDetails((current) => ({ ...current, [key]: event.target.value }))}
+              />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="outline" onClick={() => navigate("/invoices")}>Cancel</Button>

@@ -102,6 +102,7 @@ const defaultValidTill = () => {
   return date.toISOString().slice(0, 10);
 };
 const emptyQuotationItem = (itemType: "Hardware" | "Software" = "Hardware"): QuotationItem => ({ itemType, description: "", quantity: 1, taxPercent: 0, unitPrice: 0 });
+const itemTypeLabel = (itemType: "Hardware" | "Software") => itemType === "Software" ? "Services" : itemType;
 const formatPKR = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const itemAmount = (item: QuotationItem) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
 const itemTaxAmount = (item: QuotationItem) => {
@@ -300,7 +301,7 @@ export default function NewQuotation() {
               <Plus className="mr-2 h-4 w-4" />Add Hardware
             </Button>
             <Button variant="default" size="sm" onClick={() => setItems((current) => [...current, emptyQuotationItem("Software")])}>
-              <Plus className="mr-2 h-4 w-4" />Add Software
+              <Plus className="mr-2 h-4 w-4" />Add Services
             </Button>
           </div>
         </CardHeader>
@@ -308,14 +309,14 @@ export default function NewQuotation() {
           <div className="space-y-3 2xl:hidden">
             {displayItems.map(({ item, index }, displayIndex) => (
               <Fragment key={index}>
-              {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <h3 className="pt-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">{item.itemType || "Hardware"} Items</h3>}
+              {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <h3 className="pt-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">{itemTypeLabel(item.itemType || "Hardware")} Items</h3>}
               <div className="space-y-3 rounded-xl border bg-muted/20 p-3 sm:p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold">Item {String(index + 1).padStart(2, "0")}</span>
                     <select className="h-8 rounded-md border border-input bg-background px-2 text-xs" value={item.itemType || "Hardware"} onChange={(event) => updateItemType(index, event.target.value as "Hardware" | "Software")} aria-label={`Item ${index + 1} type`}>
                       <option value="Hardware">Hardware</option>
-                      <option value="Software">Software</option>
+                      <option value="Software">Services</option>
                     </select>
                   </div>
                   <Button type="button" variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setItems((current) => current.length > 1 ? current.filter((_, itemIndex) => itemIndex !== index) : [emptyQuotationItem()])} aria-label={`Remove item ${index + 1}`} title="Remove item"><Trash2 className="h-4 w-4" /></Button>
@@ -359,13 +360,13 @@ export default function NewQuotation() {
               <tbody>
                 {displayItems.map(({ item, index }, displayIndex) => (
                   <Fragment key={index}>
-                  {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <tr className="border-b bg-muted/60"><td colSpan={9} className="px-4 py-2 font-semibold uppercase tracking-wide">{item.itemType || "Hardware"} Items</td></tr>}
+                  {(displayIndex === 0 || (displayItems[displayIndex - 1].item.itemType || "Hardware") !== (item.itemType || "Hardware")) && <tr className="border-b bg-muted/60"><td colSpan={9} className="px-4 py-2 font-semibold uppercase tracking-wide">{itemTypeLabel(item.itemType || "Hardware")} Items</td></tr>}
                   <tr className="border-b last:border-0 transition-colors hover:bg-muted/20">
                     <td className="px-4 py-3 align-middle text-muted-foreground">{String(index + 1).padStart(2, "0")}</td>
                     <td className="px-4 py-3">
                       <select className="mb-1 h-8 rounded-md border border-input bg-background px-2 text-xs" value={item.itemType || "Hardware"} onChange={(event) => updateItemType(index, event.target.value as "Hardware" | "Software")} aria-label={`Item ${index + 1} type`}>
                         <option value="Hardware">Hardware</option>
-                        <option value="Software">Software</option>
+                        <option value="Software">Services</option>
                       </select>
                       <Textarea className={`min-h-20 min-w-[320px] resize-y border-transparent bg-transparent shadow-none focus-visible:border-input focus-visible:bg-background ${saveAttempted && !item.description.trim() ? "border-destructive focus-visible:ring-destructive" : ""}`} rows={2} value={item.description} onChange={(event) => updateItem(index, "description", event.target.value)} placeholder="Enter item or service description" aria-label={`Item ${index + 1} description`} aria-invalid={saveAttempted && !item.description.trim()} />
                     </td>

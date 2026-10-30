@@ -16,7 +16,17 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { companyProfileAPI, CompanyProfile } from "@/integrations/firebase/firestore";
+import { companyProfileAPI, CompanyProfile, BankAccount } from "@/integrations/firebase/firestore";
+
+const emptyBankAccount = (): BankAccount => ({ id: crypto.randomUUID(), bankName: "", accountTitle: "", accountNo: "", iban: "", branch: "" });
+
+const BANK_ACCOUNT_FIELDS: { key: Exclude<keyof BankAccount, "id">; label: string }[] = [
+  { key: "bankName", label: "Bank" },
+  { key: "accountTitle", label: "Account Title" },
+  { key: "accountNo", label: "Account No." },
+  { key: "iban", label: "IBAN" },
+  { key: "branch", label: "Branch" },
+];
 import { supabase } from "@/integrations/supabase/client";
 
 const Settings = () => {
@@ -32,11 +42,14 @@ const Settings = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [companyName, setCompanyName] = useState("");
+  const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
+  const [ntn, setNtn] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
@@ -72,11 +85,14 @@ const Settings = () => {
 
   const resetForm = () => {
     setCompanyName("");
+    setAddress("");
     setPhone("");
     setEmail("");
     setWebsite("");
+    setNtn("");
     setLogoUrl(null);
     setSignatureUrl(null);
+    setBankAccounts([]);
     setEditingId(null);
   };
 
@@ -88,11 +104,14 @@ const Settings = () => {
   const handleEdit = (profile: CompanyProfile) => {
     setEditingId(profile.id || null);
     setCompanyName(profile.company_name || "");
+    setAddress(profile.address || "");
     setPhone(profile.phone || "");
     setEmail(profile.email || "");
     setWebsite(profile.website || "");
+    setNtn(profile.ntn || "");
     setLogoUrl(profile.logo_url || null);
     setSignatureUrl(profile.signature_url || null);
+    setBankAccounts(profile.bankAccounts || []);
     setShowForm(true);
   };
 
@@ -249,11 +268,16 @@ const Settings = () => {
     try {
       const profileData: Partial<CompanyProfile> = {
         company_name: companyName.trim(),
+        address: address.trim() || undefined,
         logo_url: logoUrl || undefined,
         signature_url: signatureUrl || undefined,
         phone: phone.trim(),
         email: email.trim(),
         website: website.trim() || undefined,
+        ntn: ntn.trim() || undefined,
+        bankAccounts: bankAccounts
+          .filter((account) => account.bankName.trim() || account.accountNo.trim())
+          .map((account) => ({ ...account, bankName: account.bankName.trim(), accountTitle: account.accountTitle.trim(), accountNo: account.accountNo.trim(), iban: account.iban.trim(), branch: account.branch.trim() })),
       };
 
       if (editingId) {
@@ -358,54 +382,89 @@ const Settings = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {profiles.map((profile) => (
+                {profiles.map((profile) => {
+                  const accounts: (BankAccount | undefined)[] = profile.bankAccounts?.length ? profile.bankAccounts : [undefined];
+                  const details = [
+                    { label: "Company Name", value: profile.company_name },
+                    { label: "Address", value: profile.address },
+                    { label: "NTN #", value: profile.ntn },
+                    { label: "Website", value: profile.website },
+                  ];
+                  return (
                   <div
                     key={profile.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    className="space-y-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      {profile.logo_url && (
-                        <img
-                          src={profile.logo_url}
-                          alt={profile.company_name}
-                          className="h-12 w-12 rounded border object-contain bg-muted p-1 flex-shrink-0"
-                        />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold text-sm truncate">
-                          {profile.company_name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {profile.email}
-                        </p>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        {profile.logo_url && (
+                          <img
+                            src={profile.logo_url}
+                            alt={profile.company_name}
+                            className="h-12 w-12 rounded border object-contain bg-muted p-1 flex-shrink-0"
+                          />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-sm truncate">
+                            {profile.company_name}
+                          </h3>
+                          <p className="text-xs text-muted-foreground truncate">
+                            {profile.email}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(profile)}
+                          disabled={isBusy}
+                          className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(profile.id!)}
+                          disabled={isBusy || deleting === profile.id}
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                        >
+                          {deleting === profile.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEdit(profile)}
-                        disabled={isBusy}
-                        className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(profile.id!)}
-                        disabled={isBusy || deleting === profile.id}
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                      >
-                        {deleting === profile.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
+                    <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                      {details.map(({ label, value }) => (
+                        <div key={label} className={label === "Address" ? "sm:col-span-2" : undefined}>
+                          <dt className="text-xs text-muted-foreground">{label}</dt>
+                          <dd className="break-words font-medium">{value || "—"}</dd>
+                        </div>
+                      ))}
+                      {accounts.map((account, index) => (
+                        <div key={account?.id ?? index} className="grid gap-x-6 gap-y-3 border-t pt-3 sm:col-span-2 sm:grid-cols-2">
+                          {[
+                            { label: "Bank", value: account?.bankName },
+                            { label: "Account Title", value: account?.accountTitle },
+                            { label: "Account No.", value: account?.accountNo },
+                            { label: "IBAN", value: account?.iban },
+                            { label: "Branch", value: account?.branch },
+                          ].map(({ label, value }) => (
+                            <div key={label}>
+                              <dt className="text-xs text-muted-foreground">{label}</dt>
+                              <dd className="break-words font-medium">{value || "—"}</dd>
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </dl>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -476,20 +535,28 @@ const Settings = () => {
               <p className="text-xs text-muted-foreground">PNG, JPG or GIF · Max 5 MB</p>
             </div>
 
-            {/* Company Name */}
-            <div className="space-y-2">
-              <Label htmlFor="companyName">Company Name *</Label>
-              <Input
-                id="companyName"
-                placeholder="Your company name"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                disabled={isBusy}
-              />
-            </div>
-
-            {/* Phone & Email row */}
-            <div className="grid gap-4 sm:grid-cols-2">
+            {/* Company Name, Address, Phone */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Company Name *</Label>
+                <Input
+                  id="companyName"
+                  placeholder="Your company name"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  disabled={isBusy}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Address (optional)</Label>
+                <Input
+                  id="address"
+                  placeholder="Company address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  disabled={isBusy}
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number *</Label>
                 <Input
@@ -500,6 +567,10 @@ const Settings = () => {
                   disabled={isBusy}
                 />
               </div>
+            </div>
+
+            {/* Email & Website */}
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address *</Label>
                 <Input
@@ -511,18 +582,61 @@ const Settings = () => {
                   disabled={isBusy}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="website">Website (optional)</Label>
+                <Input
+                  id="website"
+                  placeholder="https://www.company.com"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  disabled={isBusy}
+                />
+              </div>
             </div>
 
-            {/* Website */}
             <div className="space-y-2">
-              <Label htmlFor="website">Website (optional)</Label>
+              <Label htmlFor="ntn">NTN # (optional)</Label>
               <Input
-                id="website"
-                placeholder="https://www.company.com"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
+                id="ntn"
+                placeholder="A033994"
+                value={ntn}
+                onChange={(e) => setNtn(e.target.value)}
                 disabled={isBusy}
               />
+            </div>
+
+            {/* Bank Accounts */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Bank Accounts (optional)</Label>
+                <Button type="button" variant="outline" size="sm" disabled={isBusy} onClick={() => setBankAccounts([...bankAccounts, emptyBankAccount()])}>
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Bank Account
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Choose one account per invoice. Only the selected account appears on that invoice and its PDF.</p>
+              {bankAccounts.map((account, index) => (
+                <div key={account.id} className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Bank Account {index + 1}</p>
+                    <Button type="button" variant="ghost" size="sm" disabled={isBusy} onClick={() => setBankAccounts(bankAccounts.filter((item) => item.id !== account.id))}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {BANK_ACCOUNT_FIELDS.map(({ key, label }) => (
+                      <div key={key} className="space-y-2">
+                        <Label htmlFor={`bank-${account.id}-${key}`}>{label}</Label>
+                        <Input
+                          id={`bank-${account.id}-${key}`}
+                          value={account[key]}
+                          disabled={isBusy}
+                          onChange={(e) => setBankAccounts(bankAccounts.map((item) => item.id === account.id ? { ...item, [key]: e.target.value } : item))}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Digital Signature */}

@@ -46,6 +46,8 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Check,
+  Copy,
 } from "lucide-react";
 import { format } from "date-fns";
 import { exportSiteDataToExcel } from "@/lib/excelExport";
@@ -147,6 +149,14 @@ export default function TechnicalProjectDetail() {
   const [showStatusUpdateDialog, setShowStatusUpdateDialog] = useState(false);
   const [showStatusHistory, setShowStatusHistory] = useState(false);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
+  const [digitalEyeSite, setDigitalEyeSite] = useState<SiteDetails | null>(null);
+  const [copiedDigitalEyeField, setCopiedDigitalEyeField] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!copiedDigitalEyeField) return;
+    const timer = setTimeout(() => setCopiedDigitalEyeField(null), 2000);
+    return () => clearTimeout(timer);
+  }, [copiedDigitalEyeField]);
   const [selectedSiteForCert, setSelectedSiteForCert] = useState<SiteDetails | null>(null);
   const [companyProfiles, setCompanyProfiles] = useState<any[]>([]);
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
@@ -388,12 +398,12 @@ export default function TechnicalProjectDetail() {
               </div>
             </div>
 
-            <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto lg:min-w-[280px]">
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap lg:w-auto lg:justify-end">
               {sites.length > 0 && (
                 <Button
                   onClick={() => exportSiteDataToExcel(sites)}
                   variant="outline"
-                  className="w-full gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
+                  className="w-full gap-2 whitespace-nowrap border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
                 >
                   <Download className="h-4 w-4" /> Download Sites
                 </Button>
@@ -401,13 +411,13 @@ export default function TechnicalProjectDetail() {
               <Button
                 onClick={() => setShowBulkImportDialog(true)}
                 variant="outline"
-                className="w-full gap-2 border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
+                className="w-full gap-2 whitespace-nowrap border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white sm:w-auto"
               >
                 <Upload className="h-4 w-4" /> Import Sites
               </Button>
               <Button
                 onClick={() => navigate(`/technical-projects/${id}/sites/new`)}
-                className="w-full gap-2 bg-white text-blue-700 shadow-md hover:bg-blue-50 sm:w-auto"
+                className="w-full gap-2 whitespace-nowrap bg-white text-blue-700 shadow-md hover:bg-blue-50 sm:w-auto"
               >
                 <Plus className="h-4 w-4" /> New Site
               </Button>
@@ -571,7 +581,7 @@ export default function TechnicalProjectDetail() {
                       <TableHead className="font-semibold text-slate-600">Supervisor</TableHead>
                       <TableHead className="font-semibold text-slate-600">Anydesk ID</TableHead>
                       <TableHead className="font-semibold text-slate-600">Rustdesk ID</TableHead>
-                      <TableHead className="font-semibold text-slate-600">Updated</TableHead>
+                      <TableHead className="font-semibold text-slate-600">Digital Eye</TableHead>
                       <TableHead className="text-right font-semibold text-slate-600">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -637,15 +647,17 @@ export default function TechnicalProjectDetail() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-sm text-slate-500">
-                          {site.updated_at ? format(new Date(site.updated_at), "MMM d, yyyy 'at' h:mm a") : "—"}
+                        <TableCell>
+                          <Button variant="outline" size="sm" className="gap-2" onClick={() => setDigitalEyeSite(site)}>
+                            <Monitor className="h-4 w-4" /> Digital Eye
+                          </Button>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="grid grid-cols-2 gap-2 w-fit justify-end">
+                          <div className="grid w-fit ml-auto grid-cols-2 gap-2">
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-9 rounded-lg border border-blue-100 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                              size="icon"
+                              className="h-9 w-9 rounded-lg border border-blue-100 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
                               onClick={() => setSelectedSite(site)}
                               title="View Details"
                             >
@@ -653,8 +665,8 @@ export default function TechnicalProjectDetail() {
                             </Button>
                             <Button
                               variant="outline"
-                              size="sm"
-                              className="h-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
+                              size="icon"
+                              className="h-9 w-9 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50"
                               onClick={() => {
                                 setSelectedSiteForCert(site);
                                 setCertificateFormData(getCertFormDataForSite(site));
@@ -664,27 +676,10 @@ export default function TechnicalProjectDetail() {
                             >
                               <BadgeCheck className="h-4 w-4" />
                             </Button>
-                            <div className="relative">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full h-9 rounded-lg border border-amber-100 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-                                onClick={() => setIssuesSiteId(site.id!)}
-                                title={getIssuesButtonTitle(site)}
-                                aria-label={getIssuesButtonTitle(site)}
-                              >
-                                <AlertCircle className="h-4 w-4" />
-                              </Button>
-                              {(site.id ? openIssueCountsBySite[site.id] || 0 : 0) > 0 && (
-                                <Badge className="absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center rounded-full bg-red-600 text-white text-xs font-bold p-0 hover:bg-red-600">
-                                  {site.id ? openIssueCountsBySite[site.id] || 0 : 0}
-                                </Badge>
-                              )}
-                            </div>
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="h-9 rounded-lg border border-emerald-100 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                              size="icon"
+                              className="h-9 w-9 rounded-lg border border-emerald-100 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                               onClick={() => navigate(`/technical-projects/${id}/sites/${site.id}`)}
                               title="Edit"
                             >
@@ -692,8 +687,8 @@ export default function TechnicalProjectDetail() {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="col-span-2 h-9 rounded-lg border border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700"
+                              size="icon"
+                              className="h-9 w-9 rounded-lg border border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700"
                               onClick={() => handleDeleteSite(site.id!)}
                               title="Delete"
                             >
@@ -1280,6 +1275,50 @@ export default function TechnicalProjectDetail() {
           setSelectedIssueForStatus(null);
         }}
       />
+
+      <Dialog open={!!digitalEyeSite} onOpenChange={(open) => !open && setDigitalEyeSite(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Digital Eye - Machine User</DialogTitle>
+            <DialogDescription>{digitalEyeSite?.millName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {[
+              { label: "Email", value: digitalEyeSite?.digitalEyeMachineEmail },
+              { label: "Password", value: digitalEyeSite?.digitalEyeMachinePassword },
+            ].map((field) => (
+              <div key={field.label} className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{field.label}</p>
+                <div className="flex items-center justify-between gap-2 rounded-lg border bg-slate-50 px-3 py-2">
+                  <span className="break-all font-mono text-sm">{field.value || "—"}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    title={`Copy ${field.label.toLowerCase()}`}
+                    onClick={() => {
+                      if (!field.value) return;
+                      navigator.clipboard.writeText(field.value).then(
+                        () => {
+                          setCopiedDigitalEyeField(field.label);
+                          toast.success(`${field.label} copied`);
+                        },
+                        () => toast.error("Unable to copy"),
+                      );
+                    }}
+                  >
+                    {copiedDigitalEyeField === field.label ? (
+                      <Check className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Certificate Dialog */}
       <Dialog open={showCertificateDialog} onOpenChange={setShowCertificateDialog}>

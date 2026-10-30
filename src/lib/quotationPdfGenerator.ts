@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import type { CompanyPaymentDetails } from "@/integrations/firebase/invoiceAPI";
 import type { Quotation } from "@/integrations/firebase/quotationAPI";
 import { companyProfileAPI } from "@/integrations/firebase/firestore";
 import { downloadHighQualityPDF } from "@/lib/pdfCompression";
@@ -9,6 +10,7 @@ import { DEFAULT_QUOTATION_NOTE } from "@/lib/quotationDefaults";
 const money = (amount: number) => amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const itemAmount = (item: Quotation["items"][number]) => Number.isFinite(item.quantity) && Number.isFinite(item.unitPrice) ? item.quantity * item.unitPrice : 0;
 const itemTaxRate = (item: Quotation["items"][number]) => Number.isFinite(item.taxPercent) ? item.taxPercent || 0 : 0;
+const sectionLabel = (itemType: "Hardware" | "Software") => itemType === "Software" ? "Services" : itemType;
 const itemTaxValue = (amount: number, taxPercent: number) => Math.round((amount * taxPercent / 100 + Number.EPSILON) * 100) / 100;
 
 function amountInWords(amount: number): string {
@@ -104,7 +106,7 @@ function quotationTermsToBlocks(value: string): QuotationTermBlock[] {
   return blocks;
 }
 
-export async function generateQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote"): Promise<Blob> {
+export async function generateQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote", paymentDetails?: CompanyPaymentDetails): Promise<Blob> {
   const pdf = new jsPDF({ format: "a4", unit: "mm", compress: true });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -129,12 +131,15 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
     pdf.setFontSize(8);
     const companyDetail = (label: string, value?: string) => {
       if (!value) return;
-      pdf.setFont("helvetica", "bold");
-      pdf.text(`${label}:`, pageWidth - margin - pdf.getTextWidth(`${label}: ${value}`), companyInfoY);
       pdf.setFont("helvetica", "normal");
-      pdf.text(value, pageWidth - margin - pdf.getTextWidth(value), companyInfoY);
+      const valueWidth = pdf.getTextWidth(value);
+      const gapWidth = pdf.getTextWidth(" ");
+      pdf.text(value, pageWidth - margin, companyInfoY, { align: "right" });
+      pdf.setFont("helvetica", "bold");
+      pdf.text(`${label}:`, pageWidth - margin - valueWidth - gapWidth, companyInfoY, { align: "right" });
       companyInfoY += 4;
     };
+    companyDetail("Address", company?.address);
     companyDetail("Phone", company?.phone);
     companyDetail("Email", company?.email);
     companyDetail("Website", company?.website);
@@ -191,28 +196,30 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
   drawRightField("FBR Ref", quotation.fbrReference || "—", pageWidth - margin, y);
   y += 6;
 
-  const drawItemsTable = (items: Quotation["items"], startIndex = 0) => {
+  const drawItemsTable = (items: Quotation["items"], startIndex = 0, showTax = true) => {
+    const rows = items.map((item, index) => {
+      const amount = itemAmount(item);
+      const taxValue = itemTaxValue(amount, itemTaxRate(item));
+      const cells = [
+        String(startIndex + index + 1),
+        item.description,
+        String(item.quantity),
+        money(Number.isFinite(item.unitPrice) ? item.unitPrice : 0),
+        money(amount),
+        money(taxValue),
+        money(amount + taxValue),
+      ];
+      return showTax ? cells : [cells[0], cells[1], cells[2], cells[3], cells[6]];
+    });
     autoTable(pdf, {
       startY: y,
       margin: { left: margin, right: margin, top: pageBodyTop },
-      head: [["#", "Description", "Qty", "Unit Price", "Amount", "Tax Amount", "Total (PKR)"]],
-      body: items.map((item, index) => {
-        const amount = itemAmount(item);
-        const taxValue = itemTaxValue(amount, itemTaxRate(item));
-        return [
-          String(startIndex + index + 1),
-          item.description,
-          String(item.quantity),
-          money(Number.isFinite(item.unitPrice) ? item.unitPrice : 0),
-          money(amount),
-          money(taxValue),
-          money(amount + taxValue),
-        ];
-      }),
+      head: [showTax ? ["#", "Description", "Qty", "Unit Price", "Amount", "Tax Amount", "Total (PKR)"] : ["#", "Description", "Qty", "Unit Price", "Total (PKR)"]],
+      body: rows,
       theme: "grid",
       styles: { font: "helvetica", fontSize: 7, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
       headStyles: { fillColor: [245, 245, 245], textColor: [25, 25, 25], fontStyle: "bold", halign: "center" },
-      columnStyles: {
+      columnStyles: showTax ? {
         0: { cellWidth: 8, halign: "center" },
         1: { cellWidth: "auto" },
         2: { cellWidth: 10, halign: "center" },
@@ -220,93 +227,75 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
         4: { cellWidth: 23, halign: "right" },
         5: { cellWidth: 22, halign: "right" },
         6: { cellWidth: 25, halign: "right" },
+      } : {
+        0: { cellWidth: 8, halign: "center" },
+        1: { cellWidth: "auto" },
+        2: { cellWidth: 10, halign: "center" },
+        3: { cellWidth: 22, halign: "right" },
+        4: { cellWidth: 25, halign: "right" },
       },
     });
     y = (pdf as any).lastAutoTable.finalY + 3;
   };
 
-  if (documentType === "Invoice") {
-    drawItemsTable(quotation.items);
-  } else {
-    let rowOffset = 0;
-    for (const itemType of ["Hardware", "Software"] as const) {
-      const sectionItems = quotation.items.filter((item) => (item.itemType || "Hardware") === itemType);
-      if (!sectionItems.length) continue;
-      if (y + 12 > pageHeight - 14) {
-        pdf.addPage();
-        y = pageBodyTop;
-      }
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(9);
-      pdf.text(itemType, margin, y + 2);
-      y += 4;
-      drawItemsTable(sectionItems, rowOffset);
-      rowOffset += sectionItems.length;
+  const drawAmountInWords = (amount: number) => {
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
+    const amountLabel = "Amount in Words:";
+    pdf.text(amountLabel, margin, y);
+    const amountLabelWidth = pdf.getTextWidth(`${amountLabel} `);
+    pdf.setFont("helvetica", "normal");
+    const amountWords = pdf.splitTextToSize(amountInWords(amount), pageWidth - margin * 2 - amountLabelWidth);
+    pdf.text(amountWords, margin + amountLabelWidth, y);
+    y += Math.max(7, amountWords.length * 4);
+  };
 
-      const sectionSubtotal = sectionItems.reduce((sum, item) => sum + itemAmount(item), 0);
-      const sectionTaxByRate = new Map<number, number>();
-      sectionItems.forEach((item) => {
-        const taxPercent = itemTaxRate(item);
-        if (taxPercent <= 0) return;
-        sectionTaxByRate.set(taxPercent, (sectionTaxByRate.get(taxPercent) || 0) + itemTaxValue(itemAmount(item), taxPercent));
-      });
-      const sectionTaxes = Array.from(sectionTaxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
-        .sort((first, second) => first.taxPercent - second.taxPercent);
-      const sectionTotal = sectionSubtotal + sectionTaxes.reduce((sum, tax) => sum + tax.amount, 0);
-      autoTable(pdf, {
-        startY: y,
-        margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
-        body: [
-          [`${itemType} Sub-total (PKR)`, money(sectionSubtotal)],
-          ...sectionTaxes.map(({ taxPercent, amount }) => [`GST ${taxPercent}% (PKR)`, money(amount)]),
-          [`${itemType} Total (PKR)`, money(sectionTotal)],
-        ],
-        theme: "grid",
-        styles: { font: "helvetica", fontSize: 7, cellPadding: 1.5, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
-        columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
-        didParseCell: (data) => {
-          if (data.row.index === sectionTaxes.length + 1) data.cell.styles.fontStyle = "bold";
-        },
-      });
-      y = (pdf as any).lastAutoTable.finalY + 4;
+  let rowOffset = 0;
+  for (const itemType of ["Hardware", "Software"] as const) {
+    const sectionItems = quotation.items.filter((item) => (item.itemType || "Hardware") === itemType);
+    if (!sectionItems.length) continue;
+    if (y + 12 > pageHeight - 14) {
+      pdf.addPage();
+      y = pageBodyTop;
     }
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.text(sectionLabel(itemType), pageWidth / 2, y + 2, { align: "center" });
+    y += 4;
+    drawItemsTable(sectionItems, rowOffset, sectionItems.some((item) => itemTaxRate(item) > 0));
+    rowOffset += sectionItems.length;
+
+    const sectionSubtotal = sectionItems.reduce((sum, item) => sum + itemAmount(item), 0);
+    const sectionTaxByRate = new Map<number, number>();
+    sectionItems.forEach((item) => {
+      const taxPercent = itemTaxRate(item);
+      if (taxPercent <= 0) return;
+      sectionTaxByRate.set(taxPercent, (sectionTaxByRate.get(taxPercent) || 0) + itemTaxValue(itemAmount(item), taxPercent));
+    });
+    const sectionTaxes = Array.from(sectionTaxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
+      .sort((first, second) => first.taxPercent - second.taxPercent);
+    const sectionTotal = sectionSubtotal + sectionTaxes.reduce((sum, tax) => sum + tax.amount, 0);
+    const label = sectionLabel(itemType);
+    const sectionRows = [
+      ["Sub-Total (PKR)", money(sectionSubtotal)],
+      ...sectionTaxes.map(({ taxPercent, amount }) => [`${label} GST ${taxPercent}% (PKR)`, money(amount)]),
+      ["Total (PKR)", money(sectionTotal)],
+    ];
+    autoTable(pdf, {
+      startY: y,
+      margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
+      body: sectionRows,
+      theme: "grid",
+      styles: { font: "helvetica", fontSize: 7, cellPadding: 1.5, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
+      columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
+      didParseCell: (data) => {
+        if (data.row.index === sectionRows.length - 1) data.cell.styles.fontStyle = "bold";
+      },
+    });
+    y = (pdf as any).lastAutoTable.finalY + 6;
+    drawAmountInWords(sectionTotal);
+    y += 2;
   }
-  const subtotal = quotation.items.reduce((sum, item) => sum + itemAmount(item), 0);
-  const taxByRate = new Map<number, number>();
-  quotation.items.forEach((item) => {
-    const taxPercent = itemTaxRate(item);
-    if (taxPercent <= 0) return;
-    taxByRate.set(taxPercent, (taxByRate.get(taxPercent) || 0) + itemTaxValue(itemAmount(item), taxPercent));
-  });
-  const taxBreakdown = Array.from(taxByRate, ([taxPercent, amount]) => ({ taxPercent, amount }))
-    .sort((first, second) => first.taxPercent - second.taxPercent);
-  const totalTax = taxBreakdown.reduce((sum, tax) => sum + tax.amount, 0);
-  const total = subtotal + totalTax;
-  autoTable(pdf, {
-    startY: y,
-    margin: { left: pageWidth - margin - 80, right: margin, top: pageBodyTop },
-    body: [
-      ["Sub-total (PKR)", money(subtotal)],
-      ...taxBreakdown.map(({ taxPercent, amount }) => [`GST ${taxPercent}% (PKR)`, money(amount)]),
-      ["Grand Total (PKR)", money(total)],
-    ],
-    theme: "grid",
-    styles: { font: "helvetica", fontSize: 8, cellPadding: 2, textColor: [30, 30, 30], lineColor: [185, 185, 185], lineWidth: 0.15 },
-    columnStyles: { 0: { cellWidth: 46, halign: "right" }, 1: { cellWidth: 34, halign: "right", fontStyle: "bold" } },
-    didParseCell: (data) => {
-      if (data.row.index === taxBreakdown.length + 1) data.cell.styles.fontStyle = "bold";
-    },
-  });
-  y = (pdf as any).lastAutoTable.finalY + 5;
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(8);
-  const amountLabel = "Amount in Words:";
-  pdf.text(amountLabel, margin, y);
-  const amountLabelWidth = pdf.getTextWidth(`${amountLabel} `);
-  pdf.setFont("helvetica", "normal");
-  const amountWords = pdf.splitTextToSize(amountInWords(total), pageWidth - margin * 2 - amountLabelWidth);
-  pdf.text(amountWords, margin + amountLabelWidth, y);
-  y += Math.max(7, amountWords.length * 4);
 
   const ensureSpace = (needed: number) => {
     if (y + needed > pageHeight - 14) {
@@ -328,7 +317,56 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
     y += 12 + noteLines.length * 4;
   }
 
-  if (quotation.terms.trim() || documentType === "Quote") {
+  if (documentType === "Invoice" && paymentDetails) {
+    const columnWidth = (pageWidth - margin * 2) / 2;
+    const lineHeight = 3.8;
+    const headerHeight = 6;
+    const companyRows: [string, string][] = [["Company Name", paymentDetails.companyName], ["Address", paymentDetails.address], ["NTN #", paymentDetails.ntn], ["Website", paymentDetails.website]];
+    const bankRows: [string, string][] = [["Bank", paymentDetails.bankName], ["Account Title", paymentDetails.accountTitle], ["Account No.", paymentDetails.accountNo], ["IBAN", paymentDetails.iban], ["Branch", paymentDetails.branch]];
+    const drawDetailColumn = (rows: [string, string][], x: number, top: number, draw: boolean) => {
+      let cursor = top;
+      pdf.setFontSize(7);
+      for (const [label, value] of rows) {
+        if (!value.trim()) continue;
+        const labelText = `${label}: `;
+        pdf.setFont("helvetica", "bold");
+        const labelWidth = pdf.getTextWidth(labelText);
+        pdf.setFont("helvetica", "normal");
+        const valueLines = pdf.splitTextToSize(value.trim(), columnWidth - 4 - labelWidth);
+        if (draw) {
+          pdf.setFont("helvetica", "bold");
+          pdf.text(labelText, x, cursor);
+          pdf.setFont("helvetica", "normal");
+          valueLines.forEach((line, index) => pdf.text(line, x + labelWidth, cursor + index * lineHeight));
+        }
+        cursor += valueLines.length * lineHeight + 1;
+      }
+      return cursor;
+    };
+    const bodyHeight = Math.max(
+      drawDetailColumn(companyRows, margin + 2, 0, false),
+      drawDetailColumn(bankRows, margin + columnWidth + 2, 0, false),
+    ) + 5;
+    ensureSpace(headerHeight + bodyHeight + 6);
+    pdf.setFillColor(245, 245, 245);
+    pdf.setDrawColor(185, 185, 185);
+    pdf.setLineWidth(0.15);
+    pdf.rect(margin, y, pageWidth - margin * 2, headerHeight, "FD");
+    pdf.rect(margin, y, pageWidth - margin * 2, headerHeight + bodyHeight, "S");
+    pdf.line(margin + columnWidth, y, margin + columnWidth, y + headerHeight + bodyHeight);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(7);
+    pdf.setTextColor(25);
+    pdf.text("COMPANY DETAILS", margin + columnWidth / 2, y + 4, { align: "center" });
+    pdf.text("BANK / PAYMENT DETAILS", margin + columnWidth * 1.5, y + 4, { align: "center" });
+    pdf.setTextColor(30);
+    const bodyTop = y + headerHeight + 3.5;
+    drawDetailColumn(companyRows, margin + 2, bodyTop, true);
+    drawDetailColumn(bankRows, margin + columnWidth + 2, bodyTop, true);
+    y += headerHeight + bodyHeight + 6;
+  }
+
+  if (documentType === "Quote") {
     ensureSpace(12);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(8);
@@ -377,8 +415,8 @@ export async function generateQuotationPDF(quotation: Quotation, documentType: "
   return pdf.output("blob");
 }
 
-export async function downloadQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote"): Promise<void> {
-  const blob = await generateQuotationPDF(quotation, documentType);
+export async function downloadQuotationPDF(quotation: Quotation, documentType: "Quote" | "Invoice" = "Quote", paymentDetails?: CompanyPaymentDetails): Promise<void> {
+  const blob = await generateQuotationPDF(quotation, documentType, paymentDetails);
   const prefix = documentType === "Invoice" ? "Invoice-" : "";
   await downloadHighQualityPDF(blob, `${prefix}${quotation.quotationNo || documentType}.pdf`);
 }

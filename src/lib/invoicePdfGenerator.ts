@@ -1,5 +1,6 @@
 import type { Invoice } from "@/integrations/firebase/invoiceAPI";
 import type { Quotation } from "@/integrations/firebase/quotationAPI";
+import { DEFAULT_COMPANY_PAYMENT_DETAILS } from "@/lib/invoiceDefaults";
 import { downloadQuotationPDF, generateQuotationPDF } from "@/lib/quotationPdfGenerator";
 
 function toQuotation(invoice: Invoice): Quotation {
@@ -13,7 +14,7 @@ function toQuotation(invoice: Invoice): Quotation {
     quoteReference: invoice.invoiceReference,
     fbrReference: invoice.fbrReference,
     items: invoice.items,
-    note: invoice.note,
+    note: (invoice.showNoteInPdf ?? Boolean(invoice.note?.trim())) ? invoice.note : "",
     terms: invoice.terms,
     companyProfileId: invoice.companyProfileId,
     companyProfileName: invoice.companyProfileName,
@@ -23,9 +24,9 @@ function toQuotation(invoice: Invoice): Quotation {
 }
 
 export async function generateInvoicePDF(invoice: Invoice): Promise<Blob> {
-  return generateQuotationPDF(toQuotation(invoice), "Invoice");
+  return generateQuotationPDF(toQuotation(invoice), "Invoice", invoice.companyPaymentDetails ?? DEFAULT_COMPANY_PAYMENT_DETAILS);
 }
 
 export async function downloadInvoicePDF(invoice: Invoice): Promise<void> {
-  await downloadQuotationPDF(toQuotation(invoice), "Invoice");
+  await downloadQuotationPDF(toQuotation(invoice), "Invoice", invoice.companyPaymentDetails ?? DEFAULT_COMPANY_PAYMENT_DETAILS);
 }

@@ -24,9 +24,9 @@ export interface QuotationItem {
   unitPrice: number;
 }
 
-export type QuotationStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
+export type QuotationStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled" | "Process" | "Revised" | "PO";
 
-export const QUOTATION_STATUSES: QuotationStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled"];
+export const QUOTATION_STATUSES: QuotationStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled", "Process", "Revised", "PO"];
 
 export interface Quotation {
   id?: string;

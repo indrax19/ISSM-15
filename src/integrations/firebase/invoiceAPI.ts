@@ -12,20 +12,32 @@ import {
   runTransaction,
   Unsubscribe,
   updateDoc,
-  where,
 } from "firebase/firestore";
 import { db } from "./config";
 import { removeUndefined } from "./utils";
 
 export interface InvoiceItem {
+  itemType?: "Hardware" | "Software";
   description: string;
   quantity: number;
   taxPercent?: number;
   unitPrice: number;
 }
 
-export type InvoiceStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled";
-export const INVOICE_STATUSES: InvoiceStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled"];
+export interface CompanyPaymentDetails {
+  companyName: string;
+  address: string;
+  ntn: string;
+  website: string;
+  bankName: string;
+  accountTitle: string;
+  accountNo: string;
+  iban: string;
+  branch: string;
+}
+
+export type InvoiceStatus = "Draft" | "Send" | "Pending" | "Approved" | "Reject" | "Expired" | "Cancelled" | "Received" | "Partial Received";
+export const INVOICE_STATUSES: InvoiceStatus[] = ["Draft", "Send", "Pending", "Approved", "Reject", "Expired", "Cancelled", "Received", "Partial Received"];
 
 export interface Invoice {
   id?: string;
@@ -39,7 +51,9 @@ export interface Invoice {
   fbrReference: string;
   items: InvoiceItem[];
   note: string;
+  showNoteInPdf?: boolean;
   terms: string;
+  companyPaymentDetails?: CompanyPaymentDetails;
   companyProfileId?: string;
   companyProfileName?: string;
   sectorProjectId?: string;
@@ -115,16 +129,6 @@ export const invoiceAPI = {
   async getById(id: string): Promise<Invoice | null> {
     const snapshot = await getDoc(doc(db, INVOICES_COLLECTION, id));
     return snapshot.exists() ? mapInvoice(snapshot.id, snapshot.data()) : null;
-  },
-
-  async getByQuotationId(quotationId: string): Promise<Invoice | null> {
-    const snapshot = await getDocs(query(
-      collection(db, INVOICES_COLLECTION),
-      where("sourceQuotationId", "==", quotationId),
-      limit(1),
-    ));
-    const invoice = snapshot.docs[0];
-    return invoice ? mapInvoice(invoice.id, invoice.data()) : null;
   },
 
   async getNextSequence(): Promise<number> {

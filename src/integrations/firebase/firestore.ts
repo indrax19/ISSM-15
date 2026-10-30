@@ -129,14 +129,26 @@ export interface PersonSite {
   created_at?: string;
 }
 
+export interface BankAccount {
+  id: string;
+  bankName: string;
+  accountTitle: string;
+  accountNo: string;
+  iban: string;
+  branch: string;
+}
+
 export interface CompanyProfile {
   id?: string;
   company_name: string;
+  address?: string;
   phone: string;
   email: string;
   website?: string;
+  ntn?: string;
   logo_url?: string;
   signature_url?: string;
+  bankAccounts?: BankAccount[];
   show_in_reports?: boolean;
   created_at?: string;
   updated_at?: string;

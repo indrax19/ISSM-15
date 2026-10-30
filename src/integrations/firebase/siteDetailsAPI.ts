@@ -34,6 +34,10 @@ export interface SiteDetails {
   pocContact?: string;
   gpuUserName?: string;
   gpuPassword?: string;
+  digitalEyeMachineEmail?: string;
+  digitalEyeMachinePassword?: string;
+  digitalEyeLineEmail?: string;
+  digitalEyeLinePassword?: string;
   anydeskId?: string;
   anydeskPassword?: string;
   anydeskId2?: string;
