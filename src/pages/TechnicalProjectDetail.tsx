@@ -46,6 +46,7 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  Check,
   Copy,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -149,6 +150,13 @@ export default function TechnicalProjectDetail() {
   const [showStatusHistory, setShowStatusHistory] = useState(false);
   const [showCertificateDialog, setShowCertificateDialog] = useState(false);
   const [digitalEyeSite, setDigitalEyeSite] = useState<SiteDetails | null>(null);
+  const [copiedDigitalEyeField, setCopiedDigitalEyeField] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!copiedDigitalEyeField) return;
+    const timer = setTimeout(() => setCopiedDigitalEyeField(null), 2000);
+    return () => clearTimeout(timer);
+  }, [copiedDigitalEyeField]);
   const [selectedSiteForCert, setSelectedSiteForCert] = useState<SiteDetails | null>(null);
   const [companyProfiles, setCompanyProfiles] = useState<any[]>([]);
   const [selectedCompanyProfile, setSelectedCompanyProfile] = useState<string>("");
@@ -1291,12 +1299,19 @@ export default function TechnicalProjectDetail() {
                     onClick={() => {
                       if (!field.value) return;
                       navigator.clipboard.writeText(field.value).then(
-                        () => toast.success(`${field.label} copied`),
+                        () => {
+                          setCopiedDigitalEyeField(field.label);
+                          toast.success(`${field.label} copied`);
+                        },
                         () => toast.error("Unable to copy"),
                       );
                     }}
                   >
-                    <Copy className="h-4 w-4" />
+                    {copiedDigitalEyeField === field.label ? (
+                      <Check className="h-4 w-4 text-emerald-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </div>
