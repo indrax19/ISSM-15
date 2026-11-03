@@ -477,9 +477,6 @@ export default function PersonDetail() {
           <h1 className="text-2xl font-bold text-foreground">{person?.name ?? "Person"}</h1>
           <p className="text-muted-foreground text-sm">Manage inventory items</p>
         </div>
-        <Button onClick={() => setAddOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Item
-        </Button>
       </div>
 
       <Tabs defaultValue="inventory" className="space-y-4">
@@ -490,13 +487,16 @@ export default function PersonDetail() {
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4">
-          <div className="flex gap-2">
+          <div className="flex items-center justify-between gap-2">
             <Input
               placeholder="Filter by name or notes..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="max-w-sm"
             />
+            <Button onClick={() => setAddOpen(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> Add Item
+            </Button>
           </div>
 
           <Card>
