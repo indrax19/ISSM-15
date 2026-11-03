@@ -119,8 +119,9 @@ export interface PersonSite {
   id?: string;
   person_id: string;
   site_name: string;
-  status: "Scheduled" | "Completed" | "Travelling" | "Onsite – Work In Progress" | "Onsite – Completed" | "Returned to Base" | "Standby / Idle";
+  status: "Scheduled" | "Completed" | "Travelling" | "Onsite – Work In Progress" | "On Hold / Access Issue" | "Issue / Escalated" | "Onsite – Completed" | "Returned to Base" | "Cancelled / Aborted" | "Standby / Idle";
   scheduled_date?: string;
+  completed_date?: string;
   poc_name?: string;
   poc_contact?: string;
   location?: string;
