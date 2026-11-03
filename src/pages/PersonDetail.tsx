@@ -673,7 +673,7 @@ export default function PersonDetail() {
                   <TableBody>
                     {sites.map((site, index) => (
                       <TableRow key={site.id} className={`${PERSON_SITE_STATUS_ROW_CLASSES[site.status as (typeof PERSON_SITE_STATUSES)[number]] || "bg-background hover:bg-muted/50"} transition-colors`}>
-                        <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                        <TableCell className="text-muted-foreground">{sites.length - index}</TableCell>
                         <TableCell className="font-medium">{site.site_name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{site.location || "—"}</TableCell>
                         <TableCell>
