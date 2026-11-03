@@ -75,7 +75,7 @@ export default function PersonalInventory() {
   });
 
   const getPersonItemCount = (personId: string) => {
-    return allPersonItems?.filter((item: any) => item.person_id === personId).length || 0;
+    return allPersonItems?.filter((item: any) => item.person_id === personId && item.quantity > 0).length || 0;
   };
 
   const getPersonTotalQuantity = (personId: string) => {
@@ -161,7 +161,7 @@ export default function PersonalInventory() {
 
   // Calculate statistics for dashboard
   const totalPersons = persons?.length ?? 0;
-  const totalItems = allPersonItems?.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0) ?? 0;
+  const totalItems = allPersonItems?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) ?? 0;
 
   const statsCards = [
     { label: "Total Persons", value: totalPersons, icon: Users, color: "text-primary" },
