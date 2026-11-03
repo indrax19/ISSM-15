@@ -29,7 +29,7 @@ const issueItemSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 });
 
-const PERSON_SITE_STATUSES = ["Scheduled", "Completed", "Travelling", "Onsite – Work In Progress", "Onsite – Completed", "Returned to Base", "Standby / Idle"] as const;
+const PERSON_SITE_STATUSES = ["Scheduled", "Travelling", "Onsite – Work In Progress", "On Hold / Access Issue", "Issue / Escalated", "Onsite – Completed", "Returned to Base", "Completed", "Cancelled / Aborted", "Standby / Idle"] as const;
 const PERSON_SITE_STATUS_ROW_CLASSES: Record<(typeof PERSON_SITE_STATUSES)[number], string> = {
   Scheduled: "bg-blue-50 hover:bg-blue-100",
   Completed: "bg-green-50 hover:bg-green-100",
@@ -38,6 +38,9 @@ const PERSON_SITE_STATUS_ROW_CLASSES: Record<(typeof PERSON_SITE_STATUSES)[numbe
   "Onsite – Completed": "bg-emerald-50 hover:bg-emerald-100",
   "Returned to Base": "bg-slate-100 hover:bg-slate-200",
   "Standby / Idle": "bg-gray-100 hover:bg-gray-200",
+  "On Hold / Access Issue": "bg-orange-50 hover:bg-orange-100",
+  "Issue / Escalated": "bg-red-50 hover:bg-red-100",
+  "Cancelled / Aborted": "bg-stone-200 hover:bg-stone-300",
 };
 
 const addSiteSchema = z.object({
@@ -272,6 +275,7 @@ export default function PersonDetail() {
         ...(parsed.poc_contact ? { poc_contact: parsed.poc_contact } : {}),
         ...(parsed.location ? { location: parsed.location } : {}),
         scheduled_date: siteStatus === "Scheduled" ? parsed.scheduled_date || "" : "",
+        completed_date: siteStatus === "Completed" ? currentSite?.completed_date || "" : "",
         ...(currentSite && currentSite.status !== parsed.status ? {
           status_history: [
             ...(currentSite?.status_history || []),
@@ -329,6 +333,7 @@ export default function PersonDetail() {
         status,
         status_history: [...(currentSite?.status_history || []), historyEntry],
         ...(status === "Scheduled" ? {} : { scheduled_date: "" }),
+        ...(status === "Completed" ? {} : { completed_date: "" }),
       });
     },
     onSuccess: () => toast.success("Site status updated"),
@@ -339,6 +344,12 @@ export default function PersonDetail() {
     mutationFn: ({ siteId, scheduled_date }: { siteId: string; scheduled_date: string }) =>
       personSitesAPI.update(siteId, { scheduled_date }),
     onError: () => toast.error("Failed to update schedule date"),
+  });
+
+  const updateSiteCompletedDateMutation = useMutation({
+    mutationFn: ({ siteId, completed_date }: { siteId: string; completed_date: string }) =>
+      personSitesAPI.update(siteId, { completed_date }),
+    onError: () => toast.error("Failed to update completed date"),
   });
 
   const addSiteRemarkMutation = useMutation({
@@ -473,30 +484,30 @@ export default function PersonDetail() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/personal-inventory")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">{person?.name ?? "Person"}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl font-bold text-foreground">{person?.name ?? "Person"}</h1>
           <p className="text-muted-foreground text-sm">Manage inventory items</p>
         </div>
-        <Button onClick={() => setAddOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Add Item
-        </Button>
       </div>
 
       <Tabs defaultValue="inventory" className="space-y-4">
-        <TabsList>
+        <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="inventory">Inventory Items</TabsTrigger>
           <TabsTrigger value="issued">Issued Items</TabsTrigger>
           <TabsTrigger value="sites">Assign Sites</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4">
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Input
               placeholder="Filter by name or notes..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="max-w-sm"
+              className="w-full sm:max-w-sm"
             />
+            <Button onClick={() => setAddOpen(true)} className="w-full gap-2 sm:w-auto">
+              <Plus className="h-4 w-4" /> Add Item
+            </Button>
           </div>
 
           <Card>
@@ -648,19 +659,21 @@ export default function PersonDetail() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">Sr.</TableHead>
                       <TableHead>Site Name</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>POC Name / Contact</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Scheduled Date</TableHead>
+                      <TableHead>Completed Date</TableHead>
                       <TableHead>Remarks</TableHead>
-                      <TableHead>Added</TableHead>
                       <TableHead className="w-20 text-right"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sites.map((site) => (
+                    {sites.map((site, index) => (
                       <TableRow key={site.id} className={`${PERSON_SITE_STATUS_ROW_CLASSES[site.status as (typeof PERSON_SITE_STATUSES)[number]] || "bg-background hover:bg-muted/50"} transition-colors`}>
+                        <TableCell className="text-muted-foreground">{sites.length - index}</TableCell>
                         <TableCell className="font-medium">{site.site_name}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{site.location || "—"}</TableCell>
                         <TableCell>
@@ -691,13 +704,21 @@ export default function PersonDetail() {
                           ) : "—"}
                         </TableCell>
                         <TableCell>
+                          {site.status === "Completed" ? (
+                            <Input
+                              type="date"
+                              aria-label={`Completed date for ${site.site_name}`}
+                              value={site.completed_date || ""}
+                              onChange={(event) => updateSiteCompletedDateMutation.mutate({ siteId: site.id, completed_date: event.target.value })}
+                              className="min-w-36"
+                            />
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell>
                           <Button variant="outline" size="sm" className="gap-1" onClick={() => { setRemarksSite(site); setSiteRemarkText(""); }}>
                             <MessageSquarePlus className="h-3.5 w-3.5" />
                             {site.remarks?.length || 0}
                           </Button>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {format(new Date(site.created_at || ""), "MMM d, yyyy")}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-right">
                           <div className="ml-auto flex w-max items-center justify-end gap-1 whitespace-nowrap">
