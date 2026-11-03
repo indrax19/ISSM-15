@@ -484,28 +484,28 @@ export default function PersonDetail() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/personal-inventory")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">{person?.name ?? "Person"}</h1>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl font-bold text-foreground">{person?.name ?? "Person"}</h1>
           <p className="text-muted-foreground text-sm">Manage inventory items</p>
         </div>
       </div>
 
       <Tabs defaultValue="inventory" className="space-y-4">
-        <TabsList>
+        <TabsList className="max-w-full justify-start overflow-x-auto">
           <TabsTrigger value="inventory">Inventory Items</TabsTrigger>
           <TabsTrigger value="issued">Issued Items</TabsTrigger>
           <TabsTrigger value="sites">Assign Sites</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Input
               placeholder="Filter by name or notes..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="max-w-sm"
+              className="w-full sm:max-w-sm"
             />
-            <Button onClick={() => setAddOpen(true)} className="gap-2">
+            <Button onClick={() => setAddOpen(true)} className="w-full gap-2 sm:w-auto">
               <Plus className="h-4 w-4" /> Add Item
             </Button>
           </div>
